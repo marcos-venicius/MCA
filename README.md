@@ -10,6 +10,8 @@ The name:
 - **C** compiler
 - **A** asm
 
+![error handling](https://github.com/user-attachments/assets/5d7906aa-09e9-4c29-a8b4-b8422a441b7c "error handling")
+
 ## Examples
 
 ```
