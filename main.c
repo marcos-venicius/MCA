@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include "./lexer.h"
 
 static bool logging_is_enabled = false;
 
@@ -94,7 +95,7 @@ int read_file_content(const char *filename, char **output) {
 
     (*output)[file_size] = '\0';
 
-    return 0;
+    return file_size;
 }
 
 void init_logging() {
@@ -105,9 +106,12 @@ void init_logging() {
     }
 }
 
-void compile_math(const char *string) {
-    (void)string;
+void compile_math(const char *string, const size_t string_size) {
     LOG("[*] compiling math\n");
+
+    M_Lexer lexer = m_lexer_create(string, string_size);
+
+    (void)lexer;
 }
 
 int main(int argc, char **argv) {
@@ -157,13 +161,14 @@ int main(int argc, char **argv) {
 
     if (p_arguments.input_file_name != NULL) {
         char *input;
+        int size;
 
-        if (read_file_content(p_arguments.input_file_name, &input) < 0) return 1;
+        if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        compile_math(input);
+        compile_math(input, size);
         free(input);
     } else {
-        compile_math(p_arguments.input_as_string);
+        compile_math(p_arguments.input_as_string, strlen(p_arguments.input_as_string));
     }
 
     return 0;
