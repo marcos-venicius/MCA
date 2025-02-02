@@ -111,7 +111,12 @@ void compile_math(const char *string, const size_t string_size) {
 
     M_Lexer lexer = m_lexer_create(string, string_size);
 
-    (void)lexer;
+    M_Token *tokens = m_lexer_tokenize(&lexer);
+
+    if (tokens == NULL) {
+        LOG("[*] There is no tokens\n");
+        return;
+    }
 }
 
 int main(int argc, char **argv) {

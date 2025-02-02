@@ -39,5 +39,6 @@ typedef struct {
 } M_Lexer;
 
 M_Lexer m_lexer_create(const char *content, const size_t content_size);
+M_Token *m_lexer_tokenize(M_Lexer *lexer);
 
 #endif // LEXER_H_
