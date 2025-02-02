@@ -3,7 +3,6 @@
 
 #include <stddef.h>
 
-
 typedef struct M_Token M_Token;
 
 typedef enum {
@@ -23,13 +22,14 @@ typedef enum {
 
 struct M_Token {
     M_Token_Kind kind;
-    char *value;
+    const char *value;
     size_t size;
 
     M_Token *next;
 };
 
 typedef struct {
+    const char *filename;
     const char *content;
     const size_t content_size;
     size_t cursor, bot, line, col;
@@ -38,7 +38,8 @@ typedef struct {
     M_Token *tail;
 } M_Lexer;
 
-M_Lexer m_lexer_create(const char *content, const size_t content_size);
+const char *m_lexer_token_kind_display_name(M_Token_Kind kind);
+M_Lexer m_lexer_create(const char *filename, const char *content, const size_t content_size);
 M_Token *m_lexer_tokenize(M_Lexer *lexer);
 
 #endif // LEXER_H_

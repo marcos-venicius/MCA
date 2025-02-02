@@ -4,12 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "./lexer.h"
-
-static bool logging_is_enabled = false;
-
-#define LOG(x, ...) do {\
-    if (logging_is_enabled) fprintf(stderr, x, ##__VA_ARGS__); \
-} while (0)
+#include "./log.h"
 
 typedef struct {
     char *input_file_name;
@@ -98,24 +93,23 @@ int read_file_content(const char *filename, char **output) {
     return file_size;
 }
 
-void init_logging() {
-    const char *env = getenv("MCA_LOG_ENABLED");
-
-    if (env != NULL && *env == '1') {
-        logging_is_enabled = true;
-    }
-}
-
-void compile_math(const char *string, const size_t string_size) {
+void compile_math(const char *filename, const char *string, const size_t string_size) {
     LOG("[*] compiling math\n");
 
-    M_Lexer lexer = m_lexer_create(string, string_size);
+    M_Lexer lexer = m_lexer_create(filename, string, string_size);
 
     M_Token *tokens = m_lexer_tokenize(&lexer);
 
     if (tokens == NULL) {
         LOG("[*] There is no tokens\n");
         return;
+    }
+
+    if (is_log_enabled()) {
+        printf("TOKENS: \n");
+        for (M_Token *token = tokens; token != NULL; token = token->next) {
+            printf("    <Token value=[%.*s] kind=[%s] />\n", (int)token->size, token->value, m_lexer_token_kind_display_name(token->kind));
+        }
     }
 }
 
@@ -170,10 +164,10 @@ int main(int argc, char **argv) {
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        compile_math(input, size);
+        compile_math(p_arguments.input_file_name, input, size);
         free(input);
     } else {
-        compile_math(p_arguments.input_as_string, strlen(p_arguments.input_as_string));
+        compile_math(NULL, p_arguments.input_as_string, strlen(p_arguments.input_as_string));
     }
 
     return 0;
