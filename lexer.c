@@ -4,6 +4,43 @@
 #include "./lexer.h"
 #include "./log.h"
 
+static inline char chr(M_Lexer *lexer);
+static inline void advance_cursor(M_Lexer *lexer);
+
+static size_t errors = 0;
+
+static void unrecognized_symbol_error(M_Lexer *lexer) {
+    errors++;
+
+    if (lexer->filename) {
+        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
+                lexer->filename, lexer->line, lexer->col, chr(lexer));
+    } else {
+        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
+                lexer->line, lexer->col, chr(lexer));
+    }
+
+    advance_cursor(lexer);
+}
+
+static void invalid_floating_number_error(M_Lexer *lexer) {
+    errors++;
+
+    if (lexer->filename) {
+        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m invalid floating number \033[1;35m%.*s\033[0m\n",
+                lexer->filename, lexer->line, lexer->col, (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
+    } else {
+        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m invalid floating number \033[1;35m%.*s\033[0m\n",
+                lexer->line, lexer->col, (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
+    }
+
+    advance_cursor(lexer);
+}
+
+bool m_lexer_finished_with_errors() {
+    return errors > 0;
+}
+
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
         case M_NUMBER: return "NUMBER";
@@ -89,7 +126,28 @@ static void save_token(M_Lexer *lexer, M_Token_Kind kind) {
 }
 
 static void tokenize_number(M_Lexer *lexer) {
-    while (is_digit(chr(lexer))) advance_cursor(lexer);
+    size_t digits = 0;
+
+    while (is_digit(chr(lexer))) {
+        advance_cursor(lexer);
+        digits++;
+    }
+
+    if (chr(lexer) == '.') {
+        if (digits == 0) {
+            invalid_floating_number_error(lexer);
+            return;
+        }
+
+        if (!is_digit(nchr(lexer))) {
+            invalid_floating_number_error(lexer);
+            return;
+        }
+
+        advance_cursor(lexer);
+
+        while (is_digit(chr(lexer))) advance_cursor(lexer);
+    }
 
     save_token(lexer, M_NUMBER);
 }
@@ -104,18 +162,6 @@ static void tokenize_single(M_Lexer *lexer) {
         case '-': { advance_cursor(lexer); save_token(lexer, M_MINUS); } break;
         default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
     }
-}
-
-static void unrecognized_symbol_error(M_Lexer *lexer) {
-    if (lexer->filename) {
-        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
-                lexer->filename, lexer->line, lexer->col, chr(lexer));
-    } else {
-        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
-                lexer->line, lexer->col, chr(lexer));
-    }
-
-    advance_cursor(lexer);
 }
 
 M_Token *m_lexer_tokenize(M_Lexer *lexer) {
@@ -152,5 +198,26 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
         }
     }
 
+    if (errors > 0) {
+        m_lexer_free(lexer);
+
+        return NULL;
+    }
+
     return lexer->head;
+}
+
+void m_lexer_free(M_Lexer *lexer) {
+    M_Token *current = lexer->head;
+
+    while (current != NULL) {
+        M_Token *next = current->next;
+
+        free(current);
+
+        current = next;
+    }
+
+    lexer->head = NULL;
+    lexer->tail = NULL;
 }

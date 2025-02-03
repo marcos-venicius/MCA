@@ -113,16 +113,20 @@ void print_expr(M_Expression *expr) {
     }
 }
 
-void compile_math(const char *filename, const char *string, const size_t string_size) {
+int compile_math(const char *filename, const char *string, const size_t string_size) {
     LOG("[*] compiling math\n");
 
     M_Lexer lexer = m_lexer_create(filename, string, string_size);
 
     M_Token *tokens = m_lexer_tokenize(&lexer);
 
+    if (m_lexer_finished_with_errors()) {
+        return -1;
+    }
+
     if (tokens == NULL) {
         LOG("[*] There is no tokens\n");
-        return;
+        return 0;
     }
 
     if (is_log_enabled()) {
@@ -135,14 +139,19 @@ void compile_math(const char *filename, const char *string, const size_t string_
     M_Expression *expression = parse_expression(&tokens);
 
     if (expression == NULL) {
+        m_lexer_free(&lexer);
         LOG("[*] There is no expression\n");
-        return;
+        return -1;
     }
 
     if (is_log_enabled()) {
         print_expr(expression);
         printf("\n");
     }
+
+    m_lexer_free(&lexer);
+
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -190,17 +199,20 @@ int main(int argc, char **argv) {
     }
 
 
+    int result;
+
     if (p_arguments.input_file_name != NULL) {
         char *input;
         int size;
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        compile_math(p_arguments.input_file_name, input, size);
+        result = compile_math(p_arguments.input_file_name, input, size);
         free(input);
+
     } else {
-        compile_math(NULL, p_arguments.input_as_string, strlen(p_arguments.input_as_string));
+        result = compile_math(NULL, p_arguments.input_as_string, strlen(p_arguments.input_as_string));
     }
 
-    return 0;
+    return result;
 }
