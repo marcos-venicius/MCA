@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include "./lexer.h"
+#include "./ast.h"
 #include "./log.h"
 
 typedef struct {
@@ -93,6 +94,25 @@ int read_file_content(const char *filename, char **output) {
     return file_size;
 }
 
+void print_expr(M_Expression *expr) {
+    if (expr == NULL) return;
+
+    if (expr->kind == M_EK_NUMBER) {
+        printf("%f", expr->number);
+    } else {
+        printf("(");
+        print_expr(expr->binary.left);
+        switch (expr->binary.operator) {
+            case M_OP_PLUS: printf(" + "); break;
+            case M_OP_TIMES: printf(" * "); break;
+            case M_OP_DIVIDE: printf(" / "); break;
+            case M_OP_SUBTRACT: printf(" - "); break;
+        }
+        print_expr(expr->binary.right);
+        printf(")");
+    }
+}
+
 void compile_math(const char *filename, const char *string, const size_t string_size) {
     LOG("[*] compiling math\n");
 
@@ -110,6 +130,18 @@ void compile_math(const char *filename, const char *string, const size_t string_
         for (M_Token *token = tokens; token != NULL; token = token->next) {
             printf("    <Token value=[%.*s] kind=[%s] />\n", (int)token->size, token->value, m_lexer_token_kind_display_name(token->kind));
         }
+    }
+
+    M_Expression *expression = parse_expression(&tokens);
+
+    if (expression == NULL) {
+        LOG("[*] There is no expression\n");
+        return;
+    }
+
+    if (is_log_enabled()) {
+        print_expr(expression);
+        printf("\n");
     }
 }
 
