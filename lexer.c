@@ -34,6 +34,12 @@ static inline char chr(M_Lexer *lexer) {
     return lexer->cursor < lexer->content_size ? lexer->content[lexer->cursor] : '\0';
 }
 
+static inline char nchr(M_Lexer *lexer) {
+    size_t offset = 1;
+
+    return lexer->cursor < lexer->content_size + offset ? lexer->content[lexer->cursor + offset] : '\0';
+}
+
 static inline void update_bot(M_Lexer *lexer) {
     lexer->bot = lexer->cursor;
 }
@@ -133,7 +139,14 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '(': tokenize_single(lexer); break;
             case ')': tokenize_single(lexer); break;
             case '+': tokenize_single(lexer); break;
-            case '-': tokenize_single(lexer); break;
+            case '-': {
+                if (is_digit(nchr(lexer))) {
+                    advance_cursor(lexer);
+                    tokenize_number(lexer);
+                } else {
+                    tokenize_single(lexer);
+                }
+            } break;
             case '\0': break;
             default: unrecognized_symbol_error(lexer); break;
         }
