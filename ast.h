@@ -15,6 +15,8 @@ typedef enum {
     M_OP_TIMES,
     M_OP_DIVIDE,
     M_OP_SUBTRACT,
+    M_OP_MOD,
+    M_OP_POW,
 } M_Expression_Operator;
 
 struct M_Expression {

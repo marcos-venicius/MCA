@@ -24,6 +24,10 @@ static M_Expression_Operator from_token_kind_to_expression_operator(M_Token_Kind
             return M_OP_SUBTRACT;
         case M_DIVIDE:
             return M_OP_DIVIDE;
+        case M_MOD:
+            return M_OP_MOD;
+        case M_POW:
+            return M_OP_POW;
         default:
             assert(0 && "from_token_kind_to_expression_operator: unreacheable");
     }
@@ -68,7 +72,7 @@ static M_Expression *parse_term(M_Token **tokens) {
 
     M_Expression *left = parse_primary_expression(tokens);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_TIMES || (*tokens)->kind == M_DIVIDE)) {
+    while (*tokens != NULL && ((*tokens)->kind == M_TIMES || (*tokens)->kind == M_DIVIDE || (*tokens)->kind == M_MOD || (*tokens)->kind == M_POW)) {
         M_Token *op_token = *tokens;
 
         *tokens = (*tokens)->next;

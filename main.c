@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <math.h>
+#include <assert.h>
 #include "./lexer.h"
 #include "./ast.h"
 #include "./log.h"
@@ -109,6 +111,8 @@ void print_expr(M_Expression *expr) {
             case M_OP_TIMES: printf(" * "); break;
             case M_OP_DIVIDE: printf(" / "); break;
             case M_OP_SUBTRACT: printf(" - "); break;
+            case M_OP_MOD: printf(" %% "); break;
+            case M_OP_POW: printf(" ^ "); break;
         }
         print_expr(expr->binary.right);
         printf(")");
@@ -123,7 +127,10 @@ double evaluate_expression(M_Expression *expression) {
         case M_OP_TIMES: return evaluate_expression(expression->binary.left) * evaluate_expression(expression->binary.right);
         case M_OP_DIVIDE: return evaluate_expression(expression->binary.left) / evaluate_expression(expression->binary.right);
         case M_OP_SUBTRACT: return evaluate_expression(expression->binary.left) - evaluate_expression(expression->binary.right);
-        default: return 0;
+        case M_OP_MOD: return fmod(evaluate_expression(expression->binary.left), evaluate_expression(expression->binary.right));
+        case M_OP_POW: return pow(evaluate_expression(expression->binary.left), evaluate_expression(expression->binary.right));
+        default:
+            assert(0 && "invalid expression operator");
     }
 }
 

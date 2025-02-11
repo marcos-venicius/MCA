@@ -15,6 +15,8 @@ typedef enum {
     M_DIVIDE,
     M_TIMES,
     M_MINUS,
+    M_MOD,
+    M_POW,
 
     // symbols
     M_LPAREN,
