@@ -1,5 +1,7 @@
 # MCA
 
+![image](https://github.com/user-attachments/assets/50a4b7c1-8b11-4aa6-acfd-3a368a365f54)
+
 It's a math expression evaluator/compiler to asm.
 
 Basically, you can pass programming language math as a string, and get back a file in asm that do this math or just evaluate (which is very useful).
