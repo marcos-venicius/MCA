@@ -11,14 +11,16 @@ typedef struct {
     char *input_file_name;
     char *output_file_name;
     char *input_as_string;
+    bool evaluate;
 } ProgramArguments;
 
 void usage(FILE *stream, const char *program_name) {
     fprintf(stream, "USAGE: %s -i <file> -o output.asm \n\n", program_name);
-    fprintf(stream, "-i                  (required or -s) input file name\n");
-    fprintf(stream, "-o                  (optional, by default is a.asm) output file name\n");
-    fprintf(stream, "-s                  (required or -i) input as string\n");
-    fprintf(stream, "-h                  show this help\n");
+    fprintf(stream, "    -i                  (required or -s) input file name\n");
+    fprintf(stream, "    -o                  (optional, by default is a.asm) output file name\n");
+    fprintf(stream, "    -s                  (required or -i) input as string\n");
+    fprintf(stream, "    -e                  evaluate the math expression. If provided -o will be ignored\n");
+    fprintf(stream, "    -h                  show this help\n");
     fprintf(stream, "\n");
 }
 
@@ -113,7 +115,19 @@ void print_expr(M_Expression *expr) {
     }
 }
 
-int compile_math(const char *filename, const char *string, const size_t string_size) {
+double evaluate_expression(M_Expression *expression) {
+    if (expression->kind == M_EK_NUMBER) return expression->number;
+
+    switch (expression->binary.operator) {
+        case M_OP_PLUS: return evaluate_expression(expression->binary.left) + evaluate_expression(expression->binary.right);
+        case M_OP_TIMES: return evaluate_expression(expression->binary.left) * evaluate_expression(expression->binary.right);
+        case M_OP_DIVIDE: return evaluate_expression(expression->binary.left) / evaluate_expression(expression->binary.right);
+        case M_OP_SUBTRACT: return evaluate_expression(expression->binary.left) - evaluate_expression(expression->binary.right);
+        default: return 0;
+    }
+}
+
+int compile_math(const char *filename, const char *string, const size_t string_size, M_Expression **expression_output) {
     LOG("[*] compiling math\n");
 
     M_Lexer lexer = m_lexer_create(filename, string, string_size);
@@ -136,16 +150,21 @@ int compile_math(const char *filename, const char *string, const size_t string_s
         }
     }
 
-    M_Expression *expression = parse_expression(&tokens);
+    if (expression_output == NULL) {
+        m_lexer_free(&lexer);
+        return 0;
+    }
 
-    if (expression == NULL) {
+    *expression_output = parse_expression(&tokens);
+
+    if (*expression_output == NULL) {
         m_lexer_free(&lexer);
         LOG("[*] There is no expression\n");
-        return -1;
+        return 0;
     }
 
     if (is_log_enabled()) {
-        print_expr(expression);
+        print_expr(*expression_output);
         printf("\n");
     }
 
@@ -182,6 +201,8 @@ int main(int argc, char **argv) {
             p_arguments.output_file_name = get_argument_value(program_name, arg, &argc, &argv);
         } else if (cmp_arg(arg, "-s")) {
             p_arguments.input_as_string = get_argument_value(program_name, arg, &argc, &argv);
+        } else if (cmp_arg(arg, "-e")) {
+            p_arguments.evaluate = true;
         } else {
             usage(stderr, program_name);
             fprintf(stderr, "ERROR: unrecognized argument: %s\n", arg);
@@ -200,6 +221,7 @@ int main(int argc, char **argv) {
 
 
     int result;
+    M_Expression *expression;
 
     if (p_arguments.input_file_name != NULL) {
         char *input;
@@ -207,11 +229,17 @@ int main(int argc, char **argv) {
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        result = compile_math(p_arguments.input_file_name, input, size);
+        result = compile_math(p_arguments.input_file_name, input, size, &expression);
         free(input);
 
     } else {
-        result = compile_math(NULL, p_arguments.input_as_string, strlen(p_arguments.input_as_string));
+        result = compile_math(NULL, p_arguments.input_as_string, strlen(p_arguments.input_as_string), &expression);
+    }
+
+    if (result == 0 && p_arguments.evaluate) {
+        double result = evaluate_expression(expression);
+
+        printf("%f\n", result);
     }
 
     return result;
