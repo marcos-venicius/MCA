@@ -173,21 +173,53 @@ M_Expression *parse_expression(M_Token **tokens) {
 
     M_Expression *left = parse_term_expression(tokens);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_PLUS || (*tokens)->kind == M_MINUS)) {
+    while (*tokens != NULL && ((*tokens)->kind == M_PLUS || (*tokens)->kind == M_MINUS || (*tokens)->kind == M_SEMI)) {
         M_Token *op_token = *tokens;
 
         *tokens = (*tokens)->next;
 
-        M_Expression *right = parse_term_expression(tokens);
+        if (op_token->kind == M_SEMI) {
+            if (left->kind == M_EK_EXPRESSION_LIST) {
+                left->expressions_list.expressions = realloc(
+                    left->expressions_list.expressions,
+                    sizeof(M_Expression*) * (left->expressions_list.expressions_length + 1)
+                );
 
-        M_Expression *expr = malloc(sizeof(M_Expression));
+                M_Expression *expr = parse_term_expression(tokens);
 
-        expr->kind = M_EK_BINARY;
-        expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
-        expr->binary.left = left;
-        expr->binary.right = right;
+                left->expressions_list.expressions[left->expressions_list.expressions_length++] = expr;
+            } else {
+                M_Expression *expr = malloc(sizeof(M_Expression));
 
-        left = expr;
+                expr->kind = M_EK_EXPRESSION_LIST;
+                expr->expressions_list.expressions = malloc(sizeof(M_Expression*) * 2);
+                expr->expressions_list.expressions_length = 2;
+                expr->expressions_list.expressions[0] = left;
+                expr->expressions_list.expressions[1] = parse_term_expression(tokens);
+
+                left = expr;
+            }
+        } else {
+            M_Expression *right = parse_term_expression(tokens);
+
+            M_Expression *expr = malloc(sizeof(M_Expression));
+
+            if (left->kind == M_EK_EXPRESSION_LIST) {
+                expr->kind = M_EK_BINARY;
+                expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
+                expr->binary.left = left->expressions_list.expressions[left->expressions_list.expressions_length - 1];
+                expr->binary.right = right;
+
+                left->expressions_list.expressions[left->expressions_list.expressions_length - 1] = expr;
+            } else {
+                expr->kind = M_EK_BINARY;
+                expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
+                expr->binary.left = left;
+                expr->binary.right = right;
+
+                left = expr;
+            }
+        }
     }
 
     return left;

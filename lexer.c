@@ -166,6 +166,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case '%': { advance_cursor(lexer); save_token(lexer, M_MOD); } break;
         case '^': { advance_cursor(lexer); save_token(lexer, M_POW); } break;
         case '!': { advance_cursor(lexer); save_token(lexer, M_FACTORIAL); } break;
+        case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
         default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
     }
 }
@@ -195,6 +196,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '^': tokenize_single(lexer); break;
             case '-': tokenize_single(lexer); break;
             case '!': tokenize_single(lexer); break;
+            case ';': tokenize_single(lexer); break;
             case '\0': break;
             default: unrecognized_symbol_error(lexer); break;
         }

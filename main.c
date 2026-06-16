@@ -203,9 +203,23 @@ int main(int argc, char **argv) {
     }
 
     if (result == 0) {
-        double evaluated_expression = evaluate_expression(expression);
+        if (expression->kind == M_EK_EXPRESSION_LIST) {
+            for (int i = 0; i < expression->expressions_list.expressions_length; i++) {
+                M_Expression *expr = expression->expressions_list.expressions[i];
 
-        printf("%f\n", evaluated_expression);
+                if (expr == NULL) {
+                    printf("EXP %d: <empty>\n", i + 1);
+                } else {
+                    double evaluated_expression = evaluate_expression(expr);
+
+                    printf("EXP %d: %f\n", i + 1, evaluated_expression);
+                }
+            }
+        } else {
+            double evaluated_expression = evaluate_expression(expression);
+
+            printf("%f\n", evaluated_expression);
+        }
     }
 
     return result;

@@ -9,6 +9,7 @@ typedef enum {
     M_EK_NUMBER = 0,
     M_EK_BINARY,
     M_EK_UNARY,
+    M_EK_EXPRESSION_LIST,
 } M_Expression_Kind;
 
 typedef enum {
@@ -45,31 +46,14 @@ struct M_Expression {
 
             M_Expression *operand;
         } unary;
+
+        struct {
+            M_Expression **expressions;
+            int            expressions_length;
+        } expressions_list;
     };
 };
 
 M_Expression *parse_expression(M_Token **tokens);
 
 #endif // AST_H_
-    
-
-
-/*
- 
-3 + 4 * 2 = 11
-
-  +
- / \
-3   *
-   / \
-  4   2
-
-(3 + 4) * 2 = 14
-
-    *
-   / \
-  +   2
- / \
-3   4
-
-*/

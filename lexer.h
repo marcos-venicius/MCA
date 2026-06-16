@@ -22,6 +22,7 @@ typedef enum {
     // symbols
     M_LPAREN,
     M_RPAREN,
+    M_SEMI,
 } M_Token_Kind;
 
 struct M_Token {

@@ -22,6 +22,7 @@ The name:
 - `%` modules
 - `^` power
 - `!` factorial
+- `;` expressions separator
 
 all the numbers will be handled as C Doubles.
 
@@ -53,6 +54,37 @@ all the numbers will be handled as C Doubles.
 
 ```
 -100 * -1
+```
+
+separating expressions:
+
+```python
+10 * 10;
+
+5! - 20
+```
+
+the output is going to be:
+
+```
+EXP 1: 20.000000
+EXP 2: 100.000000
+```
+
+you can have leading empty expressions:
+
+```python
+10 * 10;
+
+5! - 20; # <-- not the ';'
+```
+
+this will result in:
+
+```
+EXP 1: 20.000000
+EXP 2: 100.000000
+EXP 3: <empty>
 ```
 
 ## We have some bugs yet
