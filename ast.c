@@ -5,6 +5,8 @@
 #include <string.h>
 #include "./ast.h"
 
+// TODO: use arena to the expressions
+
 static M_Expression *parse_expression_impl(M_Token **tokens, bool is_main);
 
 static double convert_to_double(M_Token *token) {

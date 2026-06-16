@@ -2,12 +2,12 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdlib.h>
-#include <math.h>
 #include <assert.h>
 #include "./lexer.h"
 #include "./ast.h"
 #include "./log.h"
 #include "./io.h"
+#include "./evaluator.h"
 
 typedef struct {
     const char *input_file_name;
@@ -64,37 +64,7 @@ void print_expr(M_Expression *expr) {
     }
 }
 
-double calculate_factorial(double number) {
-    if (number < 0 && number == (int)number) return NAN;
-    
-    return tgamma(number + 1.0);
-}
-
-double evaluate_expression(M_Expression *expression) {
-    if (expression->kind == M_EK_NUMBER) return expression->number;
-
-    if (expression->kind == M_EK_UNARY) {
-        switch (expression->unary.op) {
-            case M_UNARY_MINUS_OP: return -evaluate_expression(expression->unary.operand);
-            case M_UNARY_FACTORIAL_OP: return calculate_factorial(evaluate_expression(expression->unary.operand));
-            default:
-                assert(0 && "evaluate_expression: invalid unary expression operator");
-        }
-    }
-
-    switch (expression->binary.op) {
-        case M_BINARY_PLUS_OP: return evaluate_expression(expression->binary.left) + evaluate_expression(expression->binary.right);
-        case M_BINARY_TIMES_OP: return evaluate_expression(expression->binary.left) * evaluate_expression(expression->binary.right);
-        case M_BINARY_DIVIDE_OP: return evaluate_expression(expression->binary.left) / evaluate_expression(expression->binary.right);
-        case M_BINARY_SUBTRACT_OP: return evaluate_expression(expression->binary.left) - evaluate_expression(expression->binary.right);
-        case M_BINARY_MOD_OP: return fmod(evaluate_expression(expression->binary.left), evaluate_expression(expression->binary.right));
-        case M_BINARY_POW_OP: return pow(evaluate_expression(expression->binary.left), evaluate_expression(expression->binary.right));
-        default:
-            assert(0 && "evaluate_expression: invalid binary expression operator");
-    }
-}
-
-int compile_math(const char *filename, const char *string, const size_t string_size, M_Expression **expression_output) {
+int compile(const char *filename, const char *string, const size_t string_size, M_Expression **expression_output) {
     LOG("[*] compiling math\n");
 
     M_Lexer lexer = m_lexer_create(filename, string, string_size);
@@ -186,8 +156,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    int result;
-    M_Expression *expression;
+    int result = 0;
+    M_Expression *expression = NULL;
 
     if (p_arguments.input_file_name != NULL) {
         char *input;
@@ -195,32 +165,34 @@ int main(int argc, char **argv) {
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        result = compile_math(p_arguments.input_file_name, input, size, &expression);
+        result = compile(p_arguments.input_file_name, input, size, &expression);
         free(input);
 
     } else {
-        result = compile_math(NULL, p_arguments.math, strlen(p_arguments.math), &expression);
+        result = compile(NULL, p_arguments.math, strlen(p_arguments.math), &expression);
     }
 
-    if (result == 0) {
-        if (expression->kind == M_EK_EXPRESSION_LIST) {
-            for (int i = 0; i < expression->expressions_list.expressions_length; i++) {
-                M_Expression *expr = expression->expressions_list.expressions[i];
+    if (result != 0) return result;
 
-                if (expr == NULL) {
-                    printf("EXP %d: <empty>\n", i + 1);
-                } else {
-                    double evaluated_expression = evaluate_expression(expr);
+    if (expression == NULL) return 0;
 
-                    printf("EXP %d: %f\n", i + 1, evaluated_expression);
-                }
+    if (expression->kind == M_EK_EXPRESSION_LIST) {
+        for (int i = 0; i < expression->expressions_list.expressions_length; i++) {
+            M_Expression *expr = expression->expressions_list.expressions[i];
+
+            if (expr == NULL) {
+                printf("EXP %d: <empty>\n", i + 1);
+            } else {
+                double evaluated_expression = evaluate_expression(expr);
+
+                printf("EXP %d: %f\n", i + 1, evaluated_expression);
             }
-        } else {
-            double evaluated_expression = evaluate_expression(expression);
-
-            printf("%f\n", evaluated_expression);
         }
+    } else {
+        double evaluated_expression = evaluate_expression(expression);
+
+        printf("%f\n", evaluated_expression);
     }
 
-    return result;
+    return 0;
 }

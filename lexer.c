@@ -171,6 +171,12 @@ static void tokenize_single(M_Lexer *lexer) {
     }
 }
 
+static void skip_comment(M_Lexer *lexer) {
+    while (chr(lexer) != '\n') advance_cursor(lexer);
+
+    advance_cursor(lexer);
+}
+
 M_Token *m_lexer_tokenize(M_Lexer *lexer) {
     while (chr(lexer) != '\0') {
         trim_whitespaces_and_line_breaks(lexer);
@@ -187,6 +193,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '7':
             case '8':
             case '9': tokenize_number(lexer); break;
+            case '#': skip_comment(lexer); break;
             case '*': tokenize_single(lexer); break;
             case '/': tokenize_single(lexer); break;
             case '(': tokenize_single(lexer); break;
