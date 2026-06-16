@@ -202,9 +202,11 @@ int main(int argc, char **argv) {
         result = compile_math(NULL, p_arguments.math, strlen(p_arguments.math), &expression);
     }
 
-    double evaluated_expression = evaluate_expression(expression);
+    if (result == 0) {
+        double evaluated_expression = evaluate_expression(expression);
 
-    printf("%f\n", evaluated_expression);
+        printf("%f\n", evaluated_expression);
+    }
 
     return result;
 }
