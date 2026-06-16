@@ -87,10 +87,8 @@ EXP 2: 100.000000
 EXP 3: <empty>
 ```
 
-## We have some bugs yet
-
-I'm not properly parsing the tokens before mount the ast, so expressions like `2 + 2 2 2 2` will not throw a syntax error.
-Or for example `2 (^ 2 + 2)`, will return a wrong result without any errors.
+> [!NOTE]
+> We need to have better error reporting at parsing level
 
 ## Debugging
 

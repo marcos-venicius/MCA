@@ -5,6 +5,8 @@
 #include <string.h>
 #include "./ast.h"
 
+static M_Expression *parse_expression_impl(M_Token **tokens, bool is_main);
+
 static double convert_to_double(M_Token *token) {
     char buffer[token->size + 1];
 
@@ -60,7 +62,7 @@ static M_Expression *parse_primary_expression(M_Token **tokens) {
     } else if (current->kind == M_LPAREN) {
         *tokens = current->next;
 
-        M_Expression *expr = parse_expression(tokens);
+        M_Expression *expr = parse_expression_impl(tokens, false);
 
         if (*tokens == NULL || (*tokens)->kind != M_RPAREN) {
             fprintf(stderr, "syntax error\n");
@@ -168,7 +170,7 @@ static M_Expression *parse_term_expression(M_Token **tokens) {
     return left;
 }
 
-M_Expression *parse_expression(M_Token **tokens) {
+static M_Expression *parse_expression_impl(M_Token **tokens, bool is_main) {
     if (*tokens == NULL) return NULL;
 
     M_Expression *left = parse_term_expression(tokens);
@@ -222,5 +224,14 @@ M_Expression *parse_expression(M_Token **tokens) {
         }
     }
 
+    if (is_main && *tokens != NULL) {
+        fprintf(stderr, "syntax error\n");
+        exit(1);
+    }
+
     return left;
+}
+
+M_Expression *parse_expression(M_Token **tokens) {
+    return parse_expression_impl(tokens, true);
 }
