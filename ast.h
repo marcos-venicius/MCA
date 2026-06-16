@@ -2,6 +2,7 @@
 #define AST_H_
 
 #include "./lexer.h"
+#include "./arena.h"
 
 typedef struct M_Expression M_Expression;
 
@@ -46,14 +47,18 @@ struct M_Expression {
 
             M_Expression *operand;
         } unary;
-
-        struct {
-            M_Expression **expressions;
-            int            expressions_length;
-        } expressions_list;
     };
 };
 
-M_Expression *parse_expression(M_Token **tokens);
+typedef struct {
+    Clibs_Arena  *single_expression_arena;
+
+    Clibs_Arena   *expressions_array_arena;
+    M_Expression **expressions_array;
+    int            expressions_array_length;
+} M_Ast;
+
+M_Ast *parse_expression(M_Token **tokens);
+void ast_free(M_Ast *ast);
 
 #endif // AST_H_

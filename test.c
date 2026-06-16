@@ -6,6 +6,8 @@
 #include "./lexer.h"
 #include "./ast.h"
 #include "./evaluator.h"
+#define CLIBS_ARENA_IMPLEMENTATION
+#include "./arena.h"
 
 
 static inline void LOG_ERROR(const char *expression, double expected, double *actual) {
@@ -31,13 +33,14 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
         return;
     }
 
-    M_Expression *expr = parse_expression(&tokens);
+    M_Ast *ast = parse_expression(&tokens);
 
-    assert(expr->kind != M_EK_EXPRESSION_LIST && "RUN_TEST_CASE: we do not handle M_EK_EXPRESSION_LIST in this test case scenario");
+    assert(ast->expressions_array_length == 1 && "RUN_TEST_CASE: we do not handle multiple (or empty) expressions in this test case scenario");
 
-    double evaluated_expression = evaluate_expression(expr);
+    double evaluated_expression = evaluate_expression(ast->expressions_array[0]);
 
     m_lexer_free(&lexer);
+    ast_free(ast);
 
     if (evaluated_expression == expected || (isnan(evaluated_expression) && isnan(expected))) LOG_SUCCESS(expression);
     else LOG_ERROR(expression, expected, &evaluated_expression);

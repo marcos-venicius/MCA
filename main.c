@@ -9,6 +9,9 @@
 #include "./io.h"
 #include "./evaluator.h"
 
+#define CLIBS_ARENA_IMPLEMENTATION
+#include "./arena.h"
+
 typedef struct {
     const char *input_file_name;
     const char *math;
@@ -64,7 +67,7 @@ void print_expr(M_Expression *expr) {
     }
 }
 
-int compile(const char *filename, const char *string, const size_t string_size, M_Expression **expression_output) {
+int compile(const char *filename, const char *string, const size_t string_size, M_Ast **ast_output) {
     LOG("[*] compiling math\n");
 
     M_Lexer lexer = m_lexer_create(filename, string, string_size);
@@ -87,22 +90,25 @@ int compile(const char *filename, const char *string, const size_t string_size, 
         }
     }
 
-    if (expression_output == NULL) {
+    if (ast_output == NULL) {
         m_lexer_free(&lexer);
         return 0;
     }
 
-    *expression_output = parse_expression(&tokens);
+    *ast_output = parse_expression(&tokens);
 
-    if (*expression_output == NULL) {
+    if (*ast_output == NULL) {
         m_lexer_free(&lexer);
         LOG("[*] There is no expression\n");
         return 0;
     }
 
     if (is_log_enabled()) {
-        print_expr(*expression_output);
-        printf("\n");
+        for (int i = 0; i < (*ast_output)->expressions_array_length; i++) {
+            printf("EXP %d:\n", i + 1);
+            print_expr((*ast_output)->expressions_array[i]);
+            printf("\n");
+        }
     }
 
     m_lexer_free(&lexer);
@@ -157,7 +163,7 @@ int main(int argc, char **argv) {
     }
 
     int result = 0;
-    M_Expression *expression = NULL;
+    M_Ast *ast = NULL;
 
     if (p_arguments.input_file_name != NULL) {
         char *input;
@@ -165,20 +171,24 @@ int main(int argc, char **argv) {
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
-        result = compile(p_arguments.input_file_name, input, size, &expression);
+        result = compile(p_arguments.input_file_name, input, size, &ast);
         free(input);
 
     } else {
-        result = compile(NULL, p_arguments.math, strlen(p_arguments.math), &expression);
+        result = compile(NULL, p_arguments.math, strlen(p_arguments.math), &ast);
     }
 
-    if (result != 0) return result;
+    if (result != 0) {
+        if (ast != NULL) ast_free(ast);
 
-    if (expression == NULL) return 0;
+        return result;
+    }
 
-    if (expression->kind == M_EK_EXPRESSION_LIST) {
-        for (int i = 0; i < expression->expressions_list.expressions_length; i++) {
-            M_Expression *expr = expression->expressions_list.expressions[i];
+    if (ast == NULL) return 0;
+
+    if (ast->expressions_array_length > 1) {
+        for (int i = 0; i < ast->expressions_array_length; i++) {
+            M_Expression *expr = ast->expressions_array[i];
 
             if (expr == NULL) {
                 printf("EXP %d: <empty>\n", i + 1);
@@ -188,11 +198,13 @@ int main(int argc, char **argv) {
                 printf("EXP %d: %f\n", i + 1, evaluated_expression);
             }
         }
-    } else {
-        double evaluated_expression = evaluate_expression(expression);
+    } else if (ast->expressions_array_length == 1) {
+        double evaluated_expression = evaluate_expression(ast->expressions_array[0]);
 
         printf("%f\n", evaluated_expression);
     }
+
+    ast_free(ast);
 
     return 0;
 }
