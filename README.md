@@ -76,7 +76,7 @@ you can have leading empty expressions:
 ```python
 10 * 10;
 
-5! - 20; # <-- not the ';'
+5! - 20; # <-- note the ';'
 ```
 
 this will result in:
