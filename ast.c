@@ -7,7 +7,7 @@
 
 // TODO: use arena to the expressions
 
-static M_Expression *parse_expression_impl(M_Token **tokens, bool is_main);
+static M_Expression *parse_expression_impl(M_Token **tokens);
 
 static double convert_to_double(M_Token *token) {
     char buffer[token->size + 1];
@@ -64,7 +64,7 @@ static M_Expression *parse_primary_expression(M_Token **tokens) {
     } else if (current->kind == M_LPAREN) {
         *tokens = current->next;
 
-        M_Expression *expr = parse_expression_impl(tokens, false);
+        M_Expression *expr = parse_expression_impl(tokens);
 
         if (*tokens == NULL || (*tokens)->kind != M_RPAREN) {
             fprintf(stderr, "syntax error\n");
@@ -172,68 +172,63 @@ static M_Expression *parse_term_expression(M_Token **tokens) {
     return left;
 }
 
-static M_Expression *parse_expression_impl(M_Token **tokens, bool is_main) {
+static M_Expression *parse_expression_impl(M_Token **tokens) {
     if (*tokens == NULL) return NULL;
 
     M_Expression *left = parse_term_expression(tokens);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_PLUS || (*tokens)->kind == M_MINUS || (*tokens)->kind == M_SEMI)) {
+    while (*tokens != NULL && ((*tokens)->kind == M_PLUS || (*tokens)->kind == M_MINUS)) {
         M_Token *op_token = *tokens;
 
         *tokens = (*tokens)->next;
 
-        if (op_token->kind == M_SEMI) {
-            if (left->kind == M_EK_EXPRESSION_LIST) {
-                left->expressions_list.expressions = realloc(
-                    left->expressions_list.expressions,
-                    sizeof(M_Expression*) * (left->expressions_list.expressions_length + 1)
-                );
+        M_Expression *right = parse_term_expression(tokens);
 
-                M_Expression *expr = parse_term_expression(tokens);
+        M_Expression *expr = malloc(sizeof(M_Expression));
 
-                left->expressions_list.expressions[left->expressions_list.expressions_length++] = expr;
-            } else {
-                M_Expression *expr = malloc(sizeof(M_Expression));
+        expr->kind = M_EK_BINARY;
+        expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
+        expr->binary.left = left;
+        expr->binary.right = right;
 
-                expr->kind = M_EK_EXPRESSION_LIST;
-                expr->expressions_list.expressions = malloc(sizeof(M_Expression*) * 2);
-                expr->expressions_list.expressions_length = 2;
-                expr->expressions_list.expressions[0] = left;
-                expr->expressions_list.expressions[1] = parse_term_expression(tokens);
-
-                left = expr;
-            }
-        } else {
-            M_Expression *right = parse_term_expression(tokens);
-
-            M_Expression *expr = malloc(sizeof(M_Expression));
-
-            if (left->kind == M_EK_EXPRESSION_LIST) {
-                expr->kind = M_EK_BINARY;
-                expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
-                expr->binary.left = left->expressions_list.expressions[left->expressions_list.expressions_length - 1];
-                expr->binary.right = right;
-
-                left->expressions_list.expressions[left->expressions_list.expressions_length - 1] = expr;
-            } else {
-                expr->kind = M_EK_BINARY;
-                expr->binary.op = token_kind_as_binary_expression_operator(op_token->kind);
-                expr->binary.left = left;
-                expr->binary.right = right;
-
-                left = expr;
-            }
-        }
-    }
-
-    if (is_main && *tokens != NULL) {
-        fprintf(stderr, "syntax error\n");
-        exit(1);
+        left = expr;
     }
 
     return left;
 }
 
 M_Expression *parse_expression(M_Token **tokens) {
-    return parse_expression_impl(tokens, true);
+    M_Expression *left = parse_expression_impl(tokens);
+
+    while (*tokens != NULL && (*tokens)->kind == M_SEMI) {
+        *tokens = (*tokens)->next;
+
+        if (left->kind == M_EK_EXPRESSION_LIST) {
+            left->expressions_list.expressions = realloc(
+                left->expressions_list.expressions,
+                sizeof(M_Expression*) * (left->expressions_list.expressions_length + 1)
+            );
+
+            M_Expression *expr = parse_expression_impl(tokens);
+
+            left->expressions_list.expressions[left->expressions_list.expressions_length++] = expr;
+        } else {
+            M_Expression *expr = malloc(sizeof(M_Expression));
+
+            expr->kind = M_EK_EXPRESSION_LIST;
+            expr->expressions_list.expressions = malloc(sizeof(M_Expression*) * 2);
+            expr->expressions_list.expressions_length = 2;
+            expr->expressions_list.expressions[0] = left;
+            expr->expressions_list.expressions[1] = parse_expression_impl(tokens);
+
+            left = expr;
+        }
+    }
+
+    if (*tokens != NULL) {
+        fprintf(stderr, "syntax error\n");
+        exit(1);
+    }
+
+    return left;
 }

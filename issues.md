@@ -2,9 +2,11 @@
 
 This document tracks critical logical bugs and edge cases found in the AST parsing and evaluation logic (`ast.c` and `main.c`).
 
-### 1. `M_EK_EXPRESSION_LIST` Union Corruption Inside Parentheses
-The `parse_primary_expression` function calls `parse_expression_impl(tokens, false)` to process anything within parentheses. Because `parse_expression_impl` parses semicolons (`;`) into `M_EK_EXPRESSION_LIST` nodes unconditionally, it is possible to syntactically nest an expression list inside a binary expression, such as `(1 ; 2) + 3`. 
-The problem arises in `evaluate_expression()`: it explicitly handles `M_EK_NUMBER` and `M_EK_UNARY`, but **assumes any other node is an `M_EK_BINARY` node**. If it tries to evaluate a nested list node, it accesses the `binary.op` and `binary.left` fields, which overlap in the C `union` with the `expressions**` pointer. This results in the evaluator interpreting raw memory addresses as enum integers, leading to severe memory corruption and segfaults.
+### ~1. `M_EK_EXPRESSION_LIST` Union Corruption Inside Parentheses~
+
+- ~The `parse_primary_expression` function calls `parse_expression_impl(tokens, false)` to process anything within parentheses. Because `parse_expression_impl` parses semicolons (`;`) into `M_EK_EXPRESSION_LIST` nodes unconditionally, it is possible to syntactically nest an expression list inside a binary expression, such as `(1 ; 2) + 3`.~
+
+- ~The problem arises in `evaluate_expression()`: it explicitly handles `M_EK_NUMBER` and `M_EK_UNARY`, but **assumes any other node is an `M_EK_BINARY` node**. If it tries to evaluate a nested list node, it accesses the `binary.op` and `binary.left` fields, which overlap in the C `union` with the `expressions**` pointer. This results in the evaluator interpreting raw memory addresses as enum integers, leading to severe memory corruption and segfaults.~
 
 ### 2. Missing Right-Operands Cause Silent Null-Dereference Segfaults
 If a user writes an incomplete binary expression like `1 + ` or `5 * ;`, the parser does not throw a syntax error.
