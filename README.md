@@ -1,16 +1,15 @@
 # MCA
 
-![image](https://github.com/user-attachments/assets/50a4b7c1-8b11-4aa6-acfd-3a368a365f54)
+<img width="1920" height="1048" alt="image" src="https://github.com/user-attachments/assets/deb8e1b7-e375-4a14-ace1-9f335ad23400" />
 
-It's a math expression evaluator/compiler to asm.
+It's a math expression calculator.
 
-Basically, you can pass programming language math as a string, and get back a file in asm that do this math or just evaluate (which is very useful).
+Basically, you can pass programming language math as a string, and evaluate it (which is very useful).
 
 The name:
 
 - **M** math
-- **C** compiler
-- **A** asm
+- **CA** calculator
 
 ![error handling](https://github.com/user-attachments/assets/5d7906aa-09e9-4c29-a8b4-b8422a441b7c "error handling")
 
@@ -22,6 +21,7 @@ The name:
 - `/` divide
 - `%` modules
 - `^` power
+- `!` factorial
 
 all the numbers will be handled as C Doubles.
 
@@ -47,9 +47,18 @@ all the numbers will be handled as C Doubles.
 5.5 * 2 / 3
 ```
 
+```
+5! - 20
+```
+
+```
+-100 * -1
+```
+
 ## We have some bugs yet
 
-I'm not properly parsing the tokens before mount the ast, so expressions like `2 * 2 - 2 2 2` will kinda work, but with the wrong result.
+I'm not properly parsing the tokens before mount the ast, so expressions like `
+` will kinda work, but with the wrong result.
 Or for example `2 (^ 2 + 2)`, will return a wrong result without any errors.
 
 ## Debugging
