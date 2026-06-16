@@ -17,6 +17,7 @@ typedef enum {
     M_MINUS,
     M_MOD,
     M_POW,
+    M_FACTORIAL,
 
     // symbols
     M_LPAREN,

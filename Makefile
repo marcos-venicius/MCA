@@ -2,7 +2,7 @@ CC = gcc
 CC_FLAGS = -Wall -Wextra -pedantic -ggdb
 CC_LIBS = -lm
 
-mca: main.o lexer.o log.o ast.o
+mca: main.o lexer.o log.o ast.o io.o
 	$(CC) $(CC_FLAGS) -o mca $^ $(CC_LIBS)
 
 log.o: log.c log.h
@@ -16,6 +16,9 @@ lexer.o: lexer.c lexer.h log.h log.c
 
 ast.o: ast.c ast.h lexer.h lexer.c
 	$(CC) $(CC_FLAGS) -c ast.c $(CC_LIBS)
+
+io.o: io.c io.h
+	$(CC) $(CC_FLAGS) -c io.c $(CC_LIBS)
 
 clean:
 	rm -rf *.o mca

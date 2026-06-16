@@ -8,16 +8,22 @@ typedef struct M_Expression M_Expression;
 typedef enum {
     M_EK_NUMBER = 0,
     M_EK_BINARY,
+    M_EK_UNARY,
 } M_Expression_Kind;
 
 typedef enum {
-    M_OP_PLUS = 0,
-    M_OP_TIMES,
-    M_OP_DIVIDE,
-    M_OP_SUBTRACT,
-    M_OP_MOD,
-    M_OP_POW,
-} M_Expression_Operator;
+    M_BINARY_PLUS_OP = 0,
+    M_BINARY_TIMES_OP,
+    M_BINARY_DIVIDE_OP,
+    M_BINARY_SUBTRACT_OP,
+    M_BINARY_MOD_OP,
+    M_BINARY_POW_OP,
+} M_Binary_Expression_Operator;
+
+typedef enum {
+    M_UNARY_MINUS_OP,
+    M_UNARY_FACTORIAL_OP,
+} M_Unary_Expression_Operator;
 
 struct M_Expression {
     M_Expression_Kind kind;
@@ -28,11 +34,17 @@ struct M_Expression {
 
         // when the kind is M_EK_BINARY
         struct {
-            M_Expression_Operator operator;
+            M_Binary_Expression_Operator op;
 
             M_Expression *left;
             M_Expression *right;
         } binary;
+
+        struct {
+            M_Unary_Expression_Operator op;
+
+            M_Expression *operand;
+        } unary;
     };
 };
 
