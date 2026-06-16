@@ -2,8 +2,8 @@ CC = gcc
 CC_FLAGS = -Wall -Wextra -pedantic -ggdb
 CC_LIBS = -lm
 
-mca: main.o lexer.o log.o ast.o io.o
-	$(CC) $(CC_FLAGS) -o mca $^ $(CC_LIBS)
+bin/mca: main.o lexer.o log.o ast.o io.o
+	$(CC) $(CC_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
 
 log.o: log.c log.h
 	$(CC) $(CC_FLAGS) -c log.c $(CC_LIBS)
@@ -21,4 +21,4 @@ io.o: io.c io.h
 	$(CC) $(CC_FLAGS) -c io.c $(CC_LIBS)
 
 clean:
-	rm -rf *.o mca
+	rm -rf *.o bin/mca
