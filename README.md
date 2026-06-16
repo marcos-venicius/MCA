@@ -89,8 +89,7 @@ EXP 3: <empty>
 
 ## We have some bugs yet
 
-I'm not properly parsing the tokens before mount the ast, so expressions like `
-` will kinda work, but with the wrong result.
+I'm not properly parsing the tokens before mount the ast, so expressions like `2 + 2 2 2 2` will not throw a syntax error.
 Or for example `2 (^ 2 + 2)`, will return a wrong result without any errors.
 
 ## Debugging
