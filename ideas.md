@@ -76,9 +76,13 @@ If a function calls another I need to keep track of the 'call stack'.
 
 If I have recursion, would I need to have if statements (**well, we don't even have the concept of statements yet**)?
 
+Well, we will have the concept statement at the moment we introduce variable definitions, right?
+Hmm, not if the variable definition is in fact an expression.
+But there is a problem, those kind of expression `(def PI = 3.14) * 2 - PI` would need to be possible to make it **really** an expression.
+
 -----
 
-Maybe, the best approach would be to have only variables for now.
+Maybe, the best approach would be to support only builtin functions for now; just while I don't think in a good way to handle the rest.
 
 ### 4. Graceful Error Reporting and Synchronization
 **Feature:** Instead of calling `exit(1)` upon the first syntax error, collect the error, print a clear error message pointing to the exact line and column (e.g., like Rust or Clang does), and try to "synchronize" the parser to continue finding other errors.
