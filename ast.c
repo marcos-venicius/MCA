@@ -14,9 +14,14 @@ static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
 }
 
-static inline void next_token(M_Ast *ast) {
-    if (ast->current_token != NULL)
+static inline M_Token *next_token(M_Ast *ast) {
+    if (ast->current_token != NULL) {
         ast->current_token = ast->current_token->next;
+
+        return ast->current_token;
+    }
+
+    return NULL;
 }
 
 static double convert_to_double(M_Token *token) {
@@ -102,6 +107,80 @@ static void ast_error(M_Ast *ast, M_Token *token, const char *message, ...) {
     ast->errors++;
 }
 
+
+static M_Expression *parse_function_call_expression(M_Ast *ast) {
+    M_Token *fn_name = token(ast);
+
+    M_Token *lparen = next_token(ast);
+
+    if (lparen == NULL) {
+        ast_error(ast, fn_name, "expected '(' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Token *next = next_token(ast);
+
+    if (next == NULL) {
+        ast_error(ast, lparen, "expected ')' or an expression but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Expression *fn = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+    fn->kind = M_EK_CALL;
+    fn->call.fn_name = fn_name->value;
+    fn->call.fn_name_length = fn_name->size;
+    fn->call.arguments_length = 0;
+
+    // 'identifier()' a function call with no args.
+    if (next->kind == M_RPAREN) {
+        next_token(ast); // skip ')'
+
+        return fn;
+    }
+
+    // consume arguments
+    while (token(ast) != NULL && token(ast)->kind != M_RPAREN) {
+        M_Expression *expr = parse_expression_impl(ast);
+
+        // something went wrong while parsing expression
+        // so we just propagate the error
+        if (expr == NULL) return NULL;
+
+        fn->call.arguments[fn->call.arguments_length++] = expr;
+
+        if (token(ast)->kind == M_RPAREN) break;
+
+        if (token(ast)->kind != M_COMMA) {
+            ast_error(ast, lparen, "expected ',' but got '%.*s'", token(ast)->size, token(ast)->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip ','
+    }
+
+    next = token(ast);
+
+    if (next == NULL) {
+        ast_error(ast, lparen, "expected ')' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (next->kind != M_RPAREN) {
+        ast_error(ast, lparen, "expected ')' but got '%.*s'", next->size, next->value);
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast);
+
+    return fn;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -113,6 +192,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         next_token(ast);
 
         return expr;
+    } else if (token(ast)->kind == M_ID) {
+        return parse_function_call_expression(ast);
     } else if (token(ast)->kind == M_LPAREN) {
         M_Token *first_token = token(ast);
 
@@ -136,7 +217,7 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
         return expr;
     } else {
-        ast_error(ast, token(ast), "expected number literal or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
+        ast_error(ast, token(ast), "expected number literal, function call or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
         synchronize(ast);
         return NULL;
     }

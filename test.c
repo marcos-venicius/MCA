@@ -19,8 +19,8 @@ static inline void LOG_ERROR(const char *expression, double expected, double *ac
     }
 }
 
-static inline void LOG_SUCCESS(const char *expression) {
-    fprintf(stderr, "  \033[1;32mPASS\033[0m '%s'\n", expression);
+static inline void LOG_SUCCESS(const char *expression, double result) {
+    fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37m%f\033[0m\n", expression, result);
 }
 
 static void RUN_TEST_CASE(const char *expression, double expected) {
@@ -42,7 +42,7 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
     m_lexer_free(&lexer);
     ast_free(ast);
 
-    if (evaluated_expression == expected || (isnan(evaluated_expression) && isnan(expected))) LOG_SUCCESS(expression);
+    if (evaluated_expression == expected || (isnan(evaluated_expression) && isnan(expected))) LOG_SUCCESS(expression, expected);
     else LOG_ERROR(expression, expected, &evaluated_expression);
 }
 
@@ -79,4 +79,16 @@ int main(void) {
     TEST_CASE_LABEL("Combinations");
     RUN_TEST_CASE("2 * 3! + 4 ^ 2 / -2", 4.0);
     RUN_TEST_CASE("-((((5.0! + -20) / 10) ^ 2) % 11) * 10 * -1 - 10", 0.0);
+
+    TEST_CASE_LABEL("Call builtin functions");
+    RUN_TEST_CASE("abs(-1)", 1);
+    RUN_TEST_CASE("abs(abs(-1) - 2)", 1);
+    RUN_TEST_CASE("(abs(-1) * 2) ^ 2", 4);
+    RUN_TEST_CASE("min(-10.5, -10.4)", -10.5);
+    RUN_TEST_CASE("max(-10.5, -10.4)", -10.4);
+    RUN_TEST_CASE("abs(min(abs(-1), max(-5, -4)) * 1)", 4);
+    RUN_TEST_CASE("rad(180)", M_PI);
+    RUN_TEST_CASE("sin(30)", sin(30));
+    RUN_TEST_CASE("sin(rad(30))", sin(30.0 * (M_PI / 180.0)));
+    RUN_TEST_CASE("cos(0)", 1);
 }

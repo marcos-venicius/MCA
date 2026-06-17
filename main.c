@@ -51,7 +51,15 @@ void print_expr(M_Expression *expr) {
             print_expr(expr->unary.operand);
             printf(")!");
         }
-    } else {
+    } else if (expr->kind == M_EK_CALL) {
+        printf("%.*s(", expr->call.fn_name_length, expr->call.fn_name);
+        for (int i = 0; i < expr->call.arguments_length; i++) {
+            if (i > 0) printf(", ");
+
+            print_expr(expr->call.arguments[i]);
+        }
+        printf(")");
+    } else if (expr->kind == M_EK_BINARY) {
         printf("(");
         print_expr(expr->binary.left);
         switch (expr->binary.op) {
@@ -64,6 +72,8 @@ void print_expr(M_Expression *expr) {
         }
         print_expr(expr->binary.right);
         printf(")");
+    } else {
+        assert(0 && "print_expr: missing M_Expression_Kind handler");
     }
 }
 

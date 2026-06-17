@@ -4,6 +4,9 @@
 #include "./lexer.h"
 #include "./arena.h"
 
+// @Note: completely arbitrary number. May study what's the best value for this later
+#define M_EK_CALL_MAX_ARGUMENTS 32
+
 typedef struct M_Expression M_Expression;
 
 typedef enum {
@@ -11,6 +14,7 @@ typedef enum {
     M_EK_BINARY,
     M_EK_UNARY,
     M_EK_EXPRESSION_LIST,
+    M_EK_CALL,
 } M_Expression_Kind;
 
 typedef enum {
@@ -47,6 +51,14 @@ struct M_Expression {
 
             M_Expression *operand;
         } unary;
+
+        struct {
+            const char *fn_name;
+            int         fn_name_length;
+
+            M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
+            int           arguments_length;
+        } call;
     };
 };
 

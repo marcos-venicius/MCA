@@ -1,6 +1,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
+
 #include "./lexer.h"
 #include "./log.h"
 
@@ -53,8 +55,12 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_LPAREN: return "LPAREN";
         case M_RPAREN: return "RPAREN";
         case M_FACTORIAL: return "FACTORIAL";
-        default: return "<UNKOWN>";
+        case M_ID: return "ID";
+        case M_COMMA: return "COMMA";
+        case M_SEMI: return "SEMI";
     }
+
+    assert(0 && "m_lexer_token_kind_display_name: unhandled M_Token_Kind case");
 }
 
 M_Lexer m_lexer_create(const char *filename, const char *content, const size_t content_size) {
@@ -68,6 +74,14 @@ M_Lexer m_lexer_create(const char *filename, const char *content, const size_t c
         .tail = NULL,
         .head = NULL
     };
+}
+
+static inline bool is_identifier_start(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
+static inline bool keep_being_identifier(char c) {
+    return is_identifier_start(c) || (c >= '0' && c <= '9');
 }
 
 static inline char chr(M_Lexer *lexer) {
@@ -169,8 +183,15 @@ static void tokenize_single(M_Lexer *lexer) {
         case '^': { advance_cursor(lexer); save_token(lexer, M_POW); } break;
         case '!': { advance_cursor(lexer); save_token(lexer, M_FACTORIAL); } break;
         case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
+        case ',': { advance_cursor(lexer); save_token(lexer, M_COMMA); } break;
         default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
     }
+}
+
+static void tokenize_identifier(M_Lexer *lexer) {
+    while (keep_being_identifier(chr(lexer))) advance_cursor(lexer);
+
+    save_token(lexer, M_ID);
 }
 
 static void skip_comment(M_Lexer *lexer) {
@@ -197,20 +218,31 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '6':
             case '7':
             case '8':
-            case '9': tokenize_number(lexer); break;
+            case '9':
+                tokenize_number(lexer);
+                break;
+            case '*':
+            case '/':
+            case '(':
+            case ')':
+            case '+':
+            case '%':
+            case '^':
+            case '-':
+            case '!':
+            case ';':
+            case ',':
+                tokenize_single(lexer);
+                break;
             case '#': skip_comment(lexer); break;
-            case '*': tokenize_single(lexer); break;
-            case '/': tokenize_single(lexer); break;
-            case '(': tokenize_single(lexer); break;
-            case ')': tokenize_single(lexer); break;
-            case '+': tokenize_single(lexer); break;
-            case '%': tokenize_single(lexer); break;
-            case '^': tokenize_single(lexer); break;
-            case '-': tokenize_single(lexer); break;
-            case '!': tokenize_single(lexer); break;
-            case ';': tokenize_single(lexer); break;
             case '\0': break;
-            default: unrecognized_symbol_error(lexer); break;
+            default: {
+                if (is_identifier_start(chr(lexer))) {
+                    tokenize_identifier(lexer);
+                } else {
+                    unrecognized_symbol_error(lexer);
+                }
+             } break;
         }
     }
 

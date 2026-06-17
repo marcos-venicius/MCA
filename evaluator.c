@@ -1,12 +1,70 @@
 #include <math.h>
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "./evaluator.h"
+
+typedef double (*M_Fn_C_Impl)(M_Expression *arguments[]);
+
+// BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
+static double __builtin_mca_abs(M_Expression *arguments[]);
+static double __builtin_mca_max(M_Expression *arguments[]);
+static double __builtin_mca_min(M_Expression *arguments[]);
+static double __builtin_mca_sin(M_Expression *arguments[]);
+static double __builtin_mca_cos(M_Expression *arguments[]);
+static double __builtin_mca_rad(M_Expression *arguments[]);
+// BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
+
+typedef struct {
+    const char *name;
+    int         name_length;
+    int         arguments_count;
+    M_Fn_C_Impl c_impl;
+} M_Fn_Binding;
+
+static M_Fn_Binding builtin_functions_bindings[] = {
+    { "abs", 3, 1, &__builtin_mca_abs },
+    { "max", 3, 2, &__builtin_mca_max },
+    { "min", 3, 2, &__builtin_mca_min },
+    { "sin", 3, 1, &__builtin_mca_sin },
+    { "cos", 3, 1, &__builtin_mca_cos },
+    { "rad", 3, 1, &__builtin_mca_rad },
+};
+
+static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
 
 static double calculate_factorial(double number) {
     if (number < 0 && number == (int)number) return NAN;
     
     return tgamma(number + 1.0);
+}
+
+static double evaluate_function_call_expression(M_Expression *expr) {
+    for (int i = 0; i < builtin_functions_bindings_length; i++) {
+        M_Fn_Binding signature = builtin_functions_bindings[i];
+
+        if (signature.name_length != expr->call.fn_name_length) continue;
+
+        if (strncmp(signature.name, expr->call.fn_name, signature.name_length) != 0) continue;
+
+        if (expr->call.arguments_length > signature.arguments_count) {
+            // TODO: implement better error reporting at evaluation level
+            fprintf(stderr, "\033[1;31merror:\033[0m to many arguments %s(...). expected %d but got %d\n", signature.name, signature.arguments_count, expr->call.arguments_length);
+            exit(1);
+        } else if (expr->call.arguments_length < signature.arguments_count) {
+            // TODO: implement better error reporting at evaluation level
+            fprintf(stderr, "\033[1;31merror:\033[0m to few arguments %s(...). expected %d but got %d\n", signature.name, signature.arguments_count, expr->call.arguments_length);
+            exit(1);
+        }
+
+        return signature.c_impl(expr->call.arguments);
+    }
+
+    // TODO: implement better error reporting at evaluation level
+    fprintf(stderr, "\033[1;31merror:\033[0m function '%.*s' does not exists\n", expr->call.fn_name_length, expr->call.fn_name);
+    exit(1);
 }
 
 static double evaluate_expression_impl(M_Expression *expression) {
@@ -22,6 +80,8 @@ static double evaluate_expression_impl(M_Expression *expression) {
                 assert(0 && "evaluate_expression_impl: invalid unary expression operator");
         }
     }
+
+    if (expression->kind == M_EK_CALL) return evaluate_function_call_expression(expression);
 
     assert(expression->kind == M_EK_BINARY && "evaluate_expression_impl: should be a binary expression");
 
@@ -41,4 +101,47 @@ double evaluate_expression(M_Expression *expression) {
     if (expression == NULL) return 0;
 
     return evaluate_expression_impl(expression);
+}
+
+// BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
+static double __builtin_mca_abs(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return fabs(a0);
+}
+
+static double __builtin_mca_max(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+    double a1 = evaluate_expression_impl(arguments[1]);
+
+    if (a0 > a1) return a0;
+
+    return a1;
+}
+
+static double __builtin_mca_min(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+    double a1 = evaluate_expression_impl(arguments[1]);
+
+    if (a0 < a1) return a0;
+
+    return a1;
+}
+
+static double __builtin_mca_sin(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return sin(a0);
+}
+
+static double __builtin_mca_cos(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return cos(a0);
+}
+
+static double __builtin_mca_rad(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return a0 * (M_PI / 180.0);
 }

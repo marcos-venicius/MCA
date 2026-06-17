@@ -10,6 +10,8 @@ typedef enum {
     // all numbers will be handled as C doubles
     M_NUMBER = 0,
 
+    M_ID,
+
     // signs
     M_PLUS,
     M_DIVIDE,
@@ -23,6 +25,7 @@ typedef enum {
     M_LPAREN,
     M_RPAREN,
     M_SEMI,
+    M_COMMA,
 } M_Token_Kind;
 
 struct M_Token {
