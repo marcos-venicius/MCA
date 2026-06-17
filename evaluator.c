@@ -9,12 +9,24 @@
 typedef double (*M_Fn_C_Impl)(M_Expression *arguments[]);
 
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
+static double __builtin_mca_pi(M_Expression *arguments[]);
+static double __builtin_mca_e(M_Expression *arguments[]);
+
 static double __builtin_mca_abs(M_Expression *arguments[]);
 static double __builtin_mca_max(M_Expression *arguments[]);
 static double __builtin_mca_min(M_Expression *arguments[]);
 static double __builtin_mca_sin(M_Expression *arguments[]);
 static double __builtin_mca_cos(M_Expression *arguments[]);
 static double __builtin_mca_rad(M_Expression *arguments[]);
+static double __builtin_mca_deg(M_Expression *arguments[]);
+static double __builtin_mca_tan(M_Expression *arguments[]);
+static double __builtin_mca_sqrt(M_Expression *arguments[]);
+static double __builtin_mca_log(M_Expression *arguments[]);
+static double __builtin_mca_log10(M_Expression *arguments[]);
+static double __builtin_mca_exp(M_Expression *arguments[]);
+static double __builtin_mca_floor(M_Expression *arguments[]);
+static double __builtin_mca_ceil(M_Expression *arguments[]);
+static double __builtin_mca_round(M_Expression *arguments[]);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -25,12 +37,26 @@ typedef struct {
 } M_Fn_Binding;
 
 static M_Fn_Binding builtin_functions_bindings[] = {
-    { "abs", 3, 1, &__builtin_mca_abs },
-    { "max", 3, 2, &__builtin_mca_max },
-    { "min", 3, 2, &__builtin_mca_min },
-    { "sin", 3, 1, &__builtin_mca_sin },
-    { "cos", 3, 1, &__builtin_mca_cos },
-    { "rad", 3, 1, &__builtin_mca_rad },
+    // constants (TODO: should we have variables?)
+    { "pi", 2, 0, &__builtin_mca_pi },
+    { "e",  1, 0, &__builtin_mca_e },
+
+    // functions
+    { "abs",   3, 1, &__builtin_mca_abs },
+    { "max",   3, 2, &__builtin_mca_max },
+    { "min",   3, 2, &__builtin_mca_min },
+    { "sin",   3, 1, &__builtin_mca_sin },
+    { "cos",   3, 1, &__builtin_mca_cos },
+    { "tan",   3, 1, &__builtin_mca_tan },
+    { "rad",   3, 1, &__builtin_mca_rad },
+    { "deg",   3, 1, &__builtin_mca_deg },
+    { "sqrt",  4, 1, &__builtin_mca_sqrt },
+    { "log",   3, 1, &__builtin_mca_log },
+    { "log10", 5, 1, &__builtin_mca_log10 },
+    { "expr",  3, 1, &__builtin_mca_exp },
+    { "floor", 5, 1, &__builtin_mca_floor },
+    { "ceil",  4, 1, &__builtin_mca_ceil },
+    { "round", 5, 1, &__builtin_mca_round },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -104,6 +130,18 @@ double evaluate_expression(M_Expression *expression) {
 }
 
 // BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
+static double __builtin_mca_pi(M_Expression *arguments[]) {
+    (void)arguments;
+
+    return M_PI;
+}
+
+static double __builtin_mca_e(M_Expression *arguments[]) {
+    (void)arguments;
+
+    return M_E;
+}
+
 static double __builtin_mca_abs(M_Expression *arguments[]) {
     double a0 = evaluate_expression_impl(arguments[0]);
 
@@ -144,4 +182,58 @@ static double __builtin_mca_rad(M_Expression *arguments[]) {
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return a0 * (M_PI / 180.0);
+}
+
+static double __builtin_mca_deg(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return a0 * (180.0 / M_PI);
+}
+
+static double __builtin_mca_tan(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return tan(a0);
+}
+
+static double __builtin_mca_sqrt(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return sqrt(a0);
+}
+
+static double __builtin_mca_log(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return log(a0);
+}
+
+static double __builtin_mca_log10(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return log10(a0);
+}
+
+static double __builtin_mca_exp(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return exp(a0);
+}
+
+static double __builtin_mca_floor(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return floor(a0);
+}
+
+static double __builtin_mca_ceil(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return ceil(a0);
+}
+
+static double __builtin_mca_round(M_Expression *arguments[]) {
+    double a0 = evaluate_expression_impl(arguments[0]);
+
+    return round(a0);
 }

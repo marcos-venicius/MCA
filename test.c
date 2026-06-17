@@ -88,7 +88,19 @@ int main(void) {
     RUN_TEST_CASE("max(-10.5, -10.4)", -10.4);
     RUN_TEST_CASE("abs(min(abs(-1), max(-5, -4)) * 1)", 4);
     RUN_TEST_CASE("rad(180)", M_PI);
+    RUN_TEST_CASE("deg(rad(180))", 180);
     RUN_TEST_CASE("sin(30)", sin(30));
     RUN_TEST_CASE("sin(rad(30))", sin(30.0 * (M_PI / 180.0)));
     RUN_TEST_CASE("cos(0)", 1);
+    RUN_TEST_CASE("tan(23)", tan(23));
+    RUN_TEST_CASE("sqrt(25)", 5);
+    RUN_TEST_CASE("sqrt(45)", sqrt(45));
+    RUN_TEST_CASE("log(1024)", log(1024));
+    RUN_TEST_CASE("log10(100)", 2);
+    RUN_TEST_CASE("exp(2)", exp(2));
+    RUN_TEST_CASE("floor(rad(180))", floor(M_PI));
+    RUN_TEST_CASE("ceil(rad(180))", ceil(M_PI));
+    RUN_TEST_CASE("round(rad(180))", round(M_PI));
+    RUN_TEST_CASE("pi()", M_PI);
+    RUN_TEST_CASE("e()", M_E);
 }
