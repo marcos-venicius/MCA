@@ -103,4 +103,5 @@ int main(void) {
     RUN_TEST_CASE("round(rad(180))", round(M_PI));
     RUN_TEST_CASE("pi()", M_PI);
     RUN_TEST_CASE("e()", M_E);
+    RUN_TEST_CASE("max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", 14);
 }
