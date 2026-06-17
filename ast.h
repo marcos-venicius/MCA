@@ -64,7 +64,7 @@ typedef struct {
     const char *filename;
 } M_Ast;
 
-M_Ast *parse_expression(M_Token *head);
+M_Ast *parse_expression(const char *filename, M_Token *head);
 void ast_free(M_Ast *ast);
 
 #endif // AST_H_

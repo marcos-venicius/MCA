@@ -33,7 +33,7 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
         return;
     }
 
-    M_Ast *ast = parse_expression(tokens);
+    M_Ast *ast = parse_expression(NULL, tokens);
 
     assert(ast->expressions_array_length == 1 && "RUN_TEST_CASE: we do not handle multiple (or empty) expressions in this test case scenario");
 
