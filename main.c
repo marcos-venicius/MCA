@@ -95,7 +95,7 @@ int compile(const char *filename, const char *string, const size_t string_size, 
         return 0;
     }
 
-    *ast_output = parse_expression(&tokens);
+    *ast_output = parse_expression(tokens);
 
     if (*ast_output == NULL) {
         m_lexer_free(&lexer);

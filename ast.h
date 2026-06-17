@@ -56,9 +56,15 @@ typedef struct {
     Clibs_Arena   *expressions_array_arena;
     M_Expression **expressions_array;
     int            expressions_array_length;
+
+    size_t errors;
+
+    M_Token *current_token;
+
+    const char *filename;
 } M_Ast;
 
-M_Ast *parse_expression(M_Token **tokens);
+M_Ast *parse_expression(M_Token *head);
 void ast_free(M_Ast *ast);
 
 #endif // AST_H_

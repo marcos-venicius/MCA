@@ -7,7 +7,16 @@
 #include "./ast.h"
 #include "./arena.h"
 
-static M_Expression *parse_expression_impl(M_Token **tokens, Clibs_Arena *arena);
+static M_Expression *parse_expression_impl(M_Ast *ast);
+
+static inline M_Token *token(M_Ast *ast) {
+    return ast->current_token;
+}
+
+static inline void next_token(M_Ast *ast) {
+    if (ast->current_token != NULL)
+        ast->current_token = ast->current_token->next;
+}
 
 static double convert_to_double(M_Token *token) {
     char buffer[token->size + 1];
@@ -70,30 +79,28 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
     }
 }
 
-static M_Expression *parse_primary_expression(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_primary_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    M_Token *current = *tokens;
-
-    if (current->kind == M_NUMBER) {
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+    if (token(ast)->kind == M_NUMBER) {
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
         expr->kind = M_EK_NUMBER;
-        expr->number = convert_to_double(current);
+        expr->number = convert_to_double(token(ast));
 
-        *tokens = current->next;
+        next_token(ast);
 
         return expr;
-    } else if (current->kind == M_LPAREN) {
-        *tokens = current->next;
+    } else if (token(ast)->kind == M_LPAREN) {
+        next_token(ast);
 
-        M_Expression *expr = parse_expression_impl(tokens, arena);
+        M_Expression *expr = parse_expression_impl(ast);
 
-        if (*tokens == NULL || (*tokens)->kind != M_RPAREN) {
+        if (token(ast) == NULL || token(ast)->kind != M_RPAREN) {
             fprintf(stderr, "syntax error\n");
             exit(1);
         }
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
         return expr;
     } else {
@@ -104,20 +111,20 @@ static M_Expression *parse_primary_expression(M_Token **tokens, Clibs_Arena *are
     return NULL;
 }
 
-static M_Expression *parse_factorial_expression(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_factorial_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    M_Expression *left = parse_primary_expression(tokens, arena);
+    M_Expression *left = parse_primary_expression(ast);
 
-    while (*tokens != NULL && (*tokens)->kind == M_FACTORIAL) {
-        M_Token *op_token = *tokens;
+    while (token(ast) != NULL && token(ast)->kind == M_FACTORIAL) {
+        M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_UNARY;
-        expr->unary.op = token_kind_as_unary_expression_operator(op_token->kind);
+        expr->unary.op = op;
         expr->unary.operand = left;
 
         left = expr;
@@ -126,22 +133,22 @@ static M_Expression *parse_factorial_expression(M_Token **tokens, Clibs_Arena *a
     return left;
 }
 
-static M_Expression *parse_unary_expression(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_unary_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    if ((*tokens)->kind == M_MINUS) {
-        M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator((*tokens)->kind);
+    if (token(ast)->kind == M_MINUS) {
+        M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
-        M_Expression *operand = parse_factorial_expression(tokens, arena);
+        M_Expression *operand = parse_factorial_expression(ast);
 
         if (operand == NULL) {
             fprintf(stderr, "syntax error: missing operand for unary '%s'\n", unary_expression_operator_name(op));
             exit(1);
         }
 
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_UNARY;
         expr->unary.op = op;
@@ -150,27 +157,27 @@ static M_Expression *parse_unary_expression(M_Token **tokens, Clibs_Arena *arena
         return expr;
     }
 
-    return parse_factorial_expression(tokens, arena);
+    return parse_factorial_expression(ast);
 }
 
-static M_Expression *parse_power_expression(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_power_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    M_Expression *left = parse_unary_expression(tokens, arena);
+    M_Expression *left = parse_unary_expression(ast);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_POW)) {
-        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator((*tokens)->kind);
+    while (token(ast) != NULL && (token(ast)->kind == M_POW)) {
+        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator(token(ast)->kind);
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
-        M_Expression *right = parse_power_expression(tokens, arena);
+        M_Expression *right = parse_power_expression(ast);
 
         if (right == NULL) {
             fprintf(stderr, "syntax error: missing right operand for '%s'\n", binary_expression_operator_name(op));
             exit(1);
         }
 
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
         expr->binary.op = op;
@@ -183,24 +190,24 @@ static M_Expression *parse_power_expression(M_Token **tokens, Clibs_Arena *arena
     return left;
 }
 
-static M_Expression *parse_term_expression(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_term_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    M_Expression *left = parse_power_expression(tokens, arena);
+    M_Expression *left = parse_power_expression(ast);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_TIMES || (*tokens)->kind == M_DIVIDE || (*tokens)->kind == M_MOD)) {
-        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator((*tokens)->kind);
+    while (token(ast) != NULL && (token(ast)->kind == M_TIMES || token(ast)->kind == M_DIVIDE || token(ast)->kind == M_MOD)) {
+        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator(token(ast)->kind);
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
-        M_Expression *right = parse_power_expression(tokens, arena);
+        M_Expression *right = parse_power_expression(ast);
 
         if (right == NULL) {
             fprintf(stderr, "syntax error: missing right operand for '%s'\n", binary_expression_operator_name(op));
             exit(1);
         }
 
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
         expr->kind = M_EK_BINARY;
         expr->binary.op = op;
         expr->binary.left = left;
@@ -212,24 +219,24 @@ static M_Expression *parse_term_expression(M_Token **tokens, Clibs_Arena *arena)
     return left;
 }
 
-static M_Expression *parse_expression_impl(M_Token **tokens, Clibs_Arena *arena) {
-    if (*tokens == NULL) return NULL;
+static M_Expression *parse_expression_impl(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
 
-    M_Expression *left = parse_term_expression(tokens, arena);
+    M_Expression *left = parse_term_expression(ast);
 
-    while (*tokens != NULL && ((*tokens)->kind == M_PLUS || (*tokens)->kind == M_MINUS)) {
-        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator((*tokens)->kind);
+    while (token(ast) != NULL && (token(ast)->kind == M_PLUS || token(ast)->kind == M_MINUS)) {
+        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator(token(ast)->kind);
 
-        *tokens = (*tokens)->next;
+        next_token(ast);
 
-        M_Expression *right = parse_term_expression(tokens, arena);
+        M_Expression *right = parse_term_expression(ast);
 
         if (right == NULL) {
             fprintf(stderr, "syntax error: missing right operand for '%s'\n", binary_expression_operator_name(op));
             exit(1);
         }
 
-        M_Expression *expr = clibs_arena_alloc(arena, sizeof(M_Expression));
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
         expr->binary.op = op;
@@ -244,18 +251,19 @@ static M_Expression *parse_expression_impl(M_Token **tokens, Clibs_Arena *arena)
 
 #define M_AST_MAX_EXPRESSION_ARRAY_SIZE 256
 
-M_Ast *parse_expression(M_Token **tokens) {
+M_Ast *parse_expression(M_Token *head) {
     M_Ast *ast = malloc(sizeof(M_Ast));
 
+    ast->current_token = head;
     ast->expressions_array_length = 0;
     ast->single_expression_arena = clibs_arena_create(sizeof(M_Expression) * 256, sizeof(M_Expression));;
     ast->expressions_array_arena = clibs_arena_create(sizeof(M_Expression*) * M_AST_MAX_EXPRESSION_ARRAY_SIZE, sizeof(M_Expression*));
     ast->expressions_array = (M_Expression**)ast->expressions_array_arena->buffer;
 
-    ast->expressions_array[ast->expressions_array_length++] = parse_expression_impl(tokens, ast->single_expression_arena);
+    ast->expressions_array[ast->expressions_array_length++] = parse_expression_impl(ast);
 
-    while (*tokens != NULL && (*tokens)->kind == M_SEMI) {
-        *tokens = (*tokens)->next;
+    while (token(ast) != NULL && token(ast)->kind == M_SEMI) {
+        next_token(ast);
 
         if (ast->expressions_array_length >= M_AST_MAX_EXPRESSION_ARRAY_SIZE) {
             fprintf(stderr, "error: you exceeded the maximum expressions list size of %d\n", M_AST_MAX_EXPRESSION_ARRAY_SIZE);
@@ -263,12 +271,12 @@ M_Ast *parse_expression(M_Token **tokens) {
             return NULL;
         }
 
-        M_Expression *expr = parse_expression_impl(tokens, ast->single_expression_arena);
+        M_Expression *expr = parse_expression_impl(ast);
 
         ast->expressions_array[ast->expressions_array_length++] = expr;
     }
 
-    if (*tokens != NULL) {
+    if (token(ast) != NULL) {
         fprintf(stderr, "syntax error\n");
         exit(1);
     }

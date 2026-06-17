@@ -31,6 +31,10 @@ struct M_Token {
     size_t size;
 
     M_Token *next;
+
+    struct {
+        int col, line;
+    } loc;
 };
 
 typedef struct {
@@ -38,6 +42,10 @@ typedef struct {
     const char *content;
     const size_t content_size;
     size_t cursor, bot, line, col;
+
+    // those are the column and the line
+    // at the start of the token
+    size_t tok_col, tok_line;
 
     M_Token *head;
     M_Token *tail;

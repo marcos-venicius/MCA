@@ -118,6 +118,8 @@ static void save_token(M_Lexer *lexer, M_Token_Kind kind) {
     token->value = lexer->content + lexer->bot;
     token->size = lexer->cursor - lexer->bot;
     token->next = NULL;
+    token->loc.line = lexer->tok_line;
+    token->loc.col = lexer->tok_col;
 
     if (lexer->head == NULL) {
         lexer->head = token;
@@ -181,6 +183,9 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
     while (chr(lexer) != '\0') {
         trim_whitespaces_and_line_breaks(lexer);
         update_bot(lexer);
+
+        lexer->tok_col = lexer->col;
+        lexer->tok_line = lexer->line;
 
         switch (chr(lexer)) {
             case '0':
