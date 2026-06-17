@@ -1,9 +1,14 @@
 CC = gcc
 CC_FLAGS = -Wall -Wextra -pedantic -ggdb
 CC_LIBS = -lm
+OPTIMIZATION_FLAGS = 
+
+ifdef MCA_OPTIMIZE
+	OPTIMIZATION_FLAGS = -O3
+endif
 
 bin/mca: main.o lexer.o log.o ast.o io.o evaluator.o
-	$(CC) $(CC_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
+	$(CC) $(CC_FLAGS) $(OPTIMIZATION_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
 
 bin/test: test.o lexer.o log.o ast.o io.o evaluator.o
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)
