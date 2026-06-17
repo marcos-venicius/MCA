@@ -66,6 +66,20 @@ D(10, 20);
 
 This assumes we already is capable of having builtin functions like: `sqrt`, `abs`, `...`.
 
+**Would that imply in recursive calls?**
+
+Is it a good idea to have function definitions but do not let them call themselves?
+
+Would I be able to do this easily without a VM?
+
+If a function calls another I need to keep track of the 'call stack'.
+
+If I have recursion, would I need to have if statements (**well, we don't even have the concept of statements yet**)?
+
+-----
+
+Maybe, the best approach would be to have only variables for now.
+
 ### 4. Graceful Error Reporting and Synchronization
 **Feature:** Instead of calling `exit(1)` upon the first syntax error, collect the error, print a clear error message pointing to the exact line and column (e.g., like Rust or Clang does), and try to "synchronize" the parser to continue finding other errors.
 **Goals / Concepts to learn:** I will learn about **Panic Mode Error Recovery**. When an error hits, I will discard tokens until finding a safe synchronization point (like a semicolon `;`), then resume parsing. This is crucial for building real-world compilers that give a complete list of errors instead of crashing at the first typo.
