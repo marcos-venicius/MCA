@@ -6,6 +6,9 @@
 
 #include "./evaluator.h"
 
+#define TRUE 1.0
+#define FALSE 0.0
+
 typedef double (*M_Fn_C_Impl)(M_Expression *arguments[]);
 
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
@@ -107,25 +110,35 @@ static double evaluate_expression_impl(M_Expression *expression) {
         switch (expression->unary.op) {
             case M_UNARY_MINUS_OP: return -evaluate_expression_impl(expression->unary.operand);
             case M_UNARY_FACTORIAL_OP: return calculate_factorial(evaluate_expression_impl(expression->unary.operand));
-            default:
-                assert(0 && "evaluate_expression_impl: invalid unary expression operator");
         }
+
+        assert(0 && "evaluate_expression_impl: invalid unary expression operator");
     }
 
     if (expression->kind == M_EK_CALL) return evaluate_function_call_expression(expression);
 
     assert(expression->kind == M_EK_BINARY && "evaluate_expression_impl: should be a binary expression");
 
+    double left = evaluate_expression_impl(expression->binary.left);
+    double right = evaluate_expression_impl(expression->binary.right);
+
     switch (expression->binary.op) {
-        case M_BINARY_PLUS_OP: return evaluate_expression_impl(expression->binary.left) + evaluate_expression_impl(expression->binary.right);
-        case M_BINARY_TIMES_OP: return evaluate_expression_impl(expression->binary.left) * evaluate_expression_impl(expression->binary.right);
-        case M_BINARY_DIVIDE_OP: return evaluate_expression_impl(expression->binary.left) / evaluate_expression_impl(expression->binary.right);
-        case M_BINARY_SUBTRACT_OP: return evaluate_expression_impl(expression->binary.left) - evaluate_expression_impl(expression->binary.right);
-        case M_BINARY_MOD_OP: return fmod(evaluate_expression_impl(expression->binary.left), evaluate_expression_impl(expression->binary.right));
-        case M_BINARY_POW_OP: return pow(evaluate_expression_impl(expression->binary.left), evaluate_expression_impl(expression->binary.right));
-        default:
-            assert(0 && "evaluate_expression_impl: invalid binary expression operator");
+        case M_BINARY_PLUS_OP: return left + right;
+        case M_BINARY_TIMES_OP: return left * right;
+        case M_BINARY_DIVIDE_OP: return left / right;
+        case M_BINARY_SUBTRACT_OP: return left - right;
+        case M_BINARY_MOD_OP: return fmod(left, right);
+        case M_BINARY_POW_OP: return pow(left, right);
+
+        case M_BINARY_EQUAL_OP: return left == right ? TRUE : FALSE;
+        case M_BINARY_NOT_EQUAL_OP: return left != right ? TRUE : FALSE;
+        case M_BINARY_GT_OP: return left > right ? TRUE : FALSE;
+        case M_BINARY_LT_OP: return left < right ? TRUE : FALSE;
+        case M_BINARY_GTE_OP: return left >= right ? TRUE : FALSE;
+        case M_BINARY_LTE_OP: return left <= right ? TRUE : FALSE;
     }
+
+    assert(0 && "evaluate_expression_impl: invalid binary expression operator");
 }
 
 double evaluate_expression(M_Expression *expression) {

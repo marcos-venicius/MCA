@@ -69,6 +69,13 @@ void print_expr(M_Expression *expr) {
             case M_BINARY_SUBTRACT_OP: printf(" - "); break;
             case M_BINARY_MOD_OP: printf(" %% "); break;
             case M_BINARY_POW_OP: printf(" ^ "); break;
+
+            case M_BINARY_EQUAL_OP: printf(" == "); break;
+            case M_BINARY_NOT_EQUAL_OP: printf(" != "); break;
+            case M_BINARY_GT_OP: printf(" > "); break;
+            case M_BINARY_LT_OP: printf(" < "); break;
+            case M_BINARY_GTE_OP: printf(" >= "); break;
+            case M_BINARY_LTE_OP: printf(" <= "); break;
         }
         print_expr(expr->binary.right);
         printf(")");

@@ -24,6 +24,13 @@ typedef enum {
     M_BINARY_SUBTRACT_OP,
     M_BINARY_MOD_OP,
     M_BINARY_POW_OP,
+
+    M_BINARY_EQUAL_OP,
+    M_BINARY_NOT_EQUAL_OP,
+    M_BINARY_GT_OP,
+    M_BINARY_LT_OP,
+    M_BINARY_GTE_OP,
+    M_BINARY_LTE_OP,
 } M_Binary_Expression_Operator;
 
 typedef enum {

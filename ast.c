@@ -35,54 +35,89 @@ static double convert_to_double(M_Token *token) {
 
 static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_Token_Kind kind) {
     switch (kind) {
-        case M_PLUS:
-            return M_BINARY_PLUS_OP;
-        case M_TIMES:
-            return M_BINARY_TIMES_OP;
-        case M_MINUS:
-            return M_BINARY_SUBTRACT_OP;
-        case M_DIVIDE:
-            return M_BINARY_DIVIDE_OP;
-        case M_MOD:
-            return M_BINARY_MOD_OP;
-        case M_POW:
-            return M_BINARY_POW_OP;
-        default:
-            assert(0 && "token_kind_as_binary_expression_operator: unreacheable");
+        case M_PLUS:    return M_BINARY_PLUS_OP;
+        case M_TIMES:   return M_BINARY_TIMES_OP;
+        case M_MINUS:   return M_BINARY_SUBTRACT_OP;
+        case M_DIVIDE:  return M_BINARY_DIVIDE_OP;
+        case M_MOD:     return M_BINARY_MOD_OP;
+        case M_POW:     return M_BINARY_POW_OP;
+
+        case M_EQUAL:       return M_BINARY_EQUAL_OP;
+        case M_NOT_EQUAL:   return M_BINARY_NOT_EQUAL_OP;
+        case M_GT:          return M_BINARY_GT_OP;
+        case M_LT:          return M_BINARY_LT_OP;
+        case M_GTE:         return M_BINARY_GTE_OP;
+        case M_LTE:         return M_BINARY_LTE_OP;
+
+        case M_ID:
+        case M_NUMBER:
+        case M_FACTORIAL:
+        case M_LPAREN:
+        case M_RPAREN:
+        case M_SEMI:
+        case M_COMMA:
+            assert(0 && "token_kind_as_binary_expression_operator: invalid token kind as binary operator");
+            break;
     }
+
+    assert(0 && "token_kind_as_binary_expression_operator: unreacheable");
 }
 
 static const char *binary_expression_operator_name(M_Binary_Expression_Operator op) {
     switch (op) {
-        case M_BINARY_PLUS_OP: return "+";
-        case M_BINARY_TIMES_OP: return "*";
-        case M_BINARY_SUBTRACT_OP: return "-";
-        case M_BINARY_DIVIDE_OP: return "/";
-        case M_BINARY_MOD_OP: return "%";
-        case M_BINARY_POW_OP: return "^";
-        default:
-            assert(0 && "binary_expression_operator_name: unreacheable");
+        case M_BINARY_PLUS_OP:      return "+";
+        case M_BINARY_TIMES_OP:     return "*";
+        case M_BINARY_SUBTRACT_OP:  return "-";
+        case M_BINARY_DIVIDE_OP:    return "/";
+        case M_BINARY_MOD_OP:       return "%";
+        case M_BINARY_POW_OP:       return "^";
+
+        case M_BINARY_EQUAL_OP:     return "==";
+        case M_BINARY_NOT_EQUAL_OP: return "!=";
+        case M_BINARY_GT_OP:        return ">";
+        case M_BINARY_LT_OP:        return "<";
+        case M_BINARY_GTE_OP:       return ">=";
+        case M_BINARY_LTE_OP:       return "<=";
     }
+
+    assert(0 && "binary_expression_operator_name: unreacheable");
 }
 
 static const char *unary_expression_operator_name(M_Unary_Expression_Operator op) {
     switch (op) {
-        case M_UNARY_MINUS_OP: return "-";
-        case M_UNARY_FACTORIAL_OP: return "!";
-        default:
-            assert(0 && "unary_expression_operator_name: unreacheable");
+        case M_UNARY_MINUS_OP:      return "-";
+        case M_UNARY_FACTORIAL_OP:  return "!";
     }
+
+    assert(0 && "unary_expression_operator_name: unreacheable");
 }
 
 static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Token_Kind kind) {
     switch (kind) {
-        case M_MINUS:
-            return M_UNARY_MINUS_OP;
-        case M_FACTORIAL:
-            return M_UNARY_FACTORIAL_OP;
-        default:
-            assert(0 && "token_kind_as_unary_expression_operator: unreacheable");
+        case M_MINUS:       return M_UNARY_MINUS_OP;
+        case M_FACTORIAL:   return M_UNARY_FACTORIAL_OP;
+
+        case M_PLUS:
+        case M_TIMES:
+        case M_DIVIDE:
+        case M_MOD:
+        case M_POW:
+        case M_EQUAL:
+        case M_NOT_EQUAL:
+        case M_GT:
+        case M_LT:
+        case M_GTE:
+        case M_LTE:
+        case M_ID:
+        case M_NUMBER:
+        case M_LPAREN:
+        case M_RPAREN:
+        case M_SEMI:
+        case M_COMMA:
+            assert(0 && "token_kind_as_unary_expression_operator: invalid token kind as unary operator");
     }
+
+    assert(0 && "token_kind_as_unary_expression_operator: unreacheable");
 }
 
 static void synchronize(M_Ast *ast) {
@@ -348,7 +383,7 @@ static M_Expression *parse_term_expression(M_Ast *ast) {
     return left;
 }
 
-static M_Expression *parse_expression_impl(M_Ast *ast) {
+static M_Expression *parse_additive_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
     M_Expression *left = parse_term_expression(ast);
@@ -381,6 +416,79 @@ static M_Expression *parse_expression_impl(M_Ast *ast) {
     }
 
     return left;
+}
+
+static M_Expression *parse_relational_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
+
+    M_Expression *left = parse_additive_expression(ast);
+
+    if (left == NULL) return NULL;
+
+    while (token(ast) != NULL && (
+               token(ast)->kind == M_LT || token(ast)->kind == M_LTE ||
+               token(ast)->kind == M_GT || token(ast)->kind == M_GTE)) {
+        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator(token(ast)->kind);
+
+        M_Token *first_token = token(ast);
+        next_token(ast);
+
+        M_Expression *right = parse_additive_expression(ast);
+
+        if (right == NULL) {
+            ast_error(ast, first_token, "missing right operand for '%s'", binary_expression_operator_name(op));
+            synchronize(ast);
+            return NULL;
+        }
+
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+        expr->kind = M_EK_BINARY;
+        expr->binary.op = op;
+        expr->binary.left = left;
+        expr->binary.right = right;
+
+        left = expr;
+    }
+
+    return left;
+}
+
+static M_Expression *parse_equality_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
+
+    M_Expression *left = parse_relational_expression(ast);
+
+    if (left == NULL) return NULL;
+
+    while (token(ast) != NULL && (token(ast)->kind == M_EQUAL || token(ast)->kind == M_NOT_EQUAL)) {
+        M_Binary_Expression_Operator op = token_kind_as_binary_expression_operator(token(ast)->kind);
+        M_Token *first_token = token(ast);
+        next_token(ast);
+
+        M_Expression *right = parse_relational_expression(ast);
+
+        if (right == NULL) {
+            ast_error(ast, first_token, "missing right operand for '%s'", binary_expression_operator_name(op));
+            synchronize(ast);
+            return NULL;
+        }
+
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+        expr->kind = M_EK_BINARY;
+        expr->binary.op = op;
+        expr->binary.left = left;
+        expr->binary.right = right;
+
+        left = expr;
+    }
+
+    return left;
+}
+
+static inline M_Expression *parse_expression_impl(M_Ast *ast) {
+    return parse_equality_expression(ast);
 }
 
 #define M_AST_MAX_EXPRESSION_ARRAY_SIZE 256

@@ -25,6 +25,20 @@ static void unrecognized_symbol_error(M_Lexer *lexer) {
     advance_cursor(lexer);
 }
 
+static void did_you_mean_equal_error(M_Lexer *lexer) {
+    errors++;
+
+    if (lexer->filename) {
+        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m=\033[0m did you mean \033[1;35m==\033[0m?\n",
+                lexer->filename, lexer->line, lexer->col);
+    } else {
+        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m=\033[0m did you mean \033[1;35m==\033[0m?\n",
+                lexer->line, lexer->col);
+    }
+
+    advance_cursor(lexer);
+}
+
 static void invalid_floating_number_error(M_Lexer *lexer) {
     errors++;
 
@@ -46,16 +60,27 @@ bool m_lexer_finished_with_errors() {
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
         case M_NUMBER: return "NUMBER";
+
+        case M_ID: return "ID";
+
         case M_PLUS: return "PLUS";
         case M_DIVIDE: return "DIVIDE";
         case M_TIMES: return "TIMES";
         case M_MOD: return "MOD";
         case M_POW: return "POW";
         case M_MINUS: return "MINUS";
+
+        case M_FACTORIAL: return "FACTORIAL";
+
+        case M_EQUAL: return "EQUAL";
+        case M_NOT_EQUAL: return "NOT_EQUAL";
+        case M_GT: return "GT";
+        case M_LT: return "LT";
+        case M_GTE: return "GTE";
+        case M_LTE: return "LTE";
+
         case M_LPAREN: return "LPAREN";
         case M_RPAREN: return "RPAREN";
-        case M_FACTORIAL: return "FACTORIAL";
-        case M_ID: return "ID";
         case M_COMMA: return "COMMA";
         case M_SEMI: return "SEMI";
     }
@@ -188,6 +213,12 @@ static void tokenize_single(M_Lexer *lexer) {
     }
 }
 
+static void tokenize_n(M_Lexer *lexer, int n, M_Token_Kind kind) {
+    for (int i = 0; i < n; i++) advance_cursor(lexer);
+
+    save_token(lexer, kind);
+}
+
 static void tokenize_identifier(M_Lexer *lexer) {
     while (keep_being_identifier(chr(lexer))) advance_cursor(lexer);
 
@@ -229,10 +260,37 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '%':
             case '^':
             case '-':
-            case '!':
             case ';':
             case ',':
                 tokenize_single(lexer);
+                break;
+            case '!':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_NOT_EQUAL);
+                } else {
+                    tokenize_n(lexer, 1, M_FACTORIAL);
+                }
+                break;
+            case '=':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_EQUAL);
+                } else {
+                    did_you_mean_equal_error(lexer);
+                }
+                break;
+            case '<':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_LTE);
+                } else {
+                    tokenize_n(lexer, 1, M_LT);
+                }
+                break;
+            case '>':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_GTE);
+                } else {
+                    tokenize_n(lexer, 1, M_GT);
+                }
                 break;
             case '#': skip_comment(lexer); break;
             case '\0': break;

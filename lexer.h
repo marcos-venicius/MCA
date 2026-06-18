@@ -12,14 +12,24 @@ typedef enum {
 
     M_ID,
 
-    // signs
+    // binary operators
     M_PLUS,
     M_DIVIDE,
     M_TIMES,
-    M_MINUS,
+    M_MINUS, // may be unary too when describing negative numbers
     M_MOD,
     M_POW,
+
+    // unary operators
     M_FACTORIAL,
+
+    // logical operators
+    M_EQUAL,
+    M_NOT_EQUAL,
+    M_GT,
+    M_LT,
+    M_GTE,
+    M_LTE,
 
     // symbols
     M_LPAREN,
