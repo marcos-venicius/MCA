@@ -18,7 +18,8 @@ typedef enum {
     M_EK_EXPRESSION_LIST,
     M_EK_CALL,
     M_EK_LOOP,
-    M_EK_BREAK
+    M_EK_BREAK,
+    M_EK_IF,
 } M_Expression_Kind;
 
 typedef enum {
@@ -104,6 +105,13 @@ struct M_Expression {
             M_Expression        *condition;
             M_Expression_Block  *block;
         } loop;
+
+        // this is the same as loop for now, but in the future I plan to add else if and else blocks to it,
+        // so it will be easier to extend it later
+        struct {
+            M_Expression        *condition;
+            M_Expression_Block  *block;
+        } if_expr;
     };
 };
 

@@ -1,0 +1,24 @@
+a = 0;
+b = 1;
+n = 0;
+M = 15;
+
+CONSTANT = 11.13;
+
+break_value = while {
+    t = a;
+    a = b;
+    b = t + b;
+    n = n + 1;
+
+    print(n, a);
+
+    if n >= M {
+        break CONSTANT;
+    }
+};
+
+if break_value == CONSTANT {
+    print();
+    print(1337)
+}

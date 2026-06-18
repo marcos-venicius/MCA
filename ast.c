@@ -342,6 +342,94 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
     return expr;
 }
 
+static M_Expression *parse_if_expression(M_Ast *ast) {
+    M_Token *first_token = token(ast);
+
+    next_token(ast); // jump keyword
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated if expression. expected an expression or a '{' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Expression *condition = parse_expression_impl(ast);
+
+    if (condition == NULL) {
+        ast_error(ast, first_token, "unterminated if expression. expected an expression 'if ... {");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated if expression. expected '{' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (token(ast)->kind != M_LCURLY) {
+        ast_error(ast, first_token, "unterminated if expression. expected '{' but got '%.*s'", token(ast)->size, token(ast)->value);
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '{'
+
+    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
+    M_Expression_Block *block_head = malloc(sizeof(M_Expression_Block));
+    block_head->next = NULL;
+    block_head->expr = NULL;
+    M_Expression_Block *block_tail = NULL;
+
+    // Parse block
+    while (token(ast) != NULL && token(ast)->kind != M_RCURLY) {
+        if (token(ast) != NULL && token(ast)->kind == M_SEMI) {
+            next_token(ast);
+            continue;
+        }
+
+        M_Expression *expr = parse_expression_impl(ast);
+
+        // just propagating upper errors
+        if (expr == NULL) return NULL;
+
+        if (block_tail == NULL) {
+            block_head->expr = expr;
+            block_head->next = NULL;
+            block_tail = block_head;
+        } else {
+            M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+
+            inner_block->expr = expr;
+            inner_block->next = NULL;
+
+            block_tail->next = inner_block;
+            block_tail = block_tail->next;
+        }
+    }
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated if expression. expected '}' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (token(ast)->kind != M_RCURLY) {
+        ast_error(ast, first_token, "unterminated if expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '}'
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_IF;
+    expr->if_expr.condition = condition;
+    expr->if_expr.block = block_head;
+
+    return expr;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -362,6 +450,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
             return parse_loop_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
+        } else if (token(ast)->size == 2 && strncmp(token(ast)->value, "if", 2) == 0) {
+            return parse_if_expression(ast);
         }
 
         if (checkahead(ast, M_LPAREN)) return parse_function_call_expression(ast);
