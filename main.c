@@ -1,3 +1,5 @@
+#define CLIBS_HT_IMPLEMENTATION
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -7,7 +9,8 @@
 #include "./ast.h"
 #include "./log.h"
 #include "./io.h"
-#include "./evaluator.h"
+#include "./interpreter.h"
+
 
 #define CLIBS_ARENA_IMPLEMENTATION
 #include "./arena.h"
@@ -105,6 +108,7 @@ int compile(const char *filename, const char *string, const size_t string_size, 
         for (M_Token *token = tokens; token != NULL; token = token->next) {
             printf("    <Token value=[%.*s] kind=[%s] />\n", (int)token->size, token->value, m_lexer_token_kind_display_name(token->kind));
         }
+        printf("\n");
     }
 
     if (ast_output == NULL) {
@@ -127,8 +131,6 @@ int compile(const char *filename, const char *string, const size_t string_size, 
             printf("\n");
         }
     }
-
-    m_lexer_free(&lexer);
 
     return 0;
 }
@@ -181,16 +183,14 @@ int main(int argc, char **argv) {
 
     int result = 0;
     M_Ast *ast = NULL;
+    char *input = NULL;
 
     if (p_arguments.input_file_name != NULL) {
-        char *input;
         int size;
 
         if ((size = read_file_content(p_arguments.input_file_name, &input)) < 0) return 1;
 
         result = compile(p_arguments.input_file_name, input, size, &ast);
-        free(input);
-
     } else {
         result = compile(NULL, p_arguments.math, strlen(p_arguments.math), &ast);
     }
@@ -203,15 +203,12 @@ int main(int argc, char **argv) {
 
     if (ast == NULL) return 0;
 
-    for (int i = 0; i < ast->expressions_array_length; i++) {
-        M_Expression *expr = ast->expressions_array[i];
+    M_Interpreter *interpreter = m_interpreter_create(ast);
 
-        if (expr != NULL) {
-            evaluate_expression(expr);
-        }
-    }
+    m_interpreter_run(interpreter);
+    m_interpreter_free(interpreter);
 
-    ast_free(ast);
+    if (input != NULL) free(input);
 
     return 0;
 }

@@ -23,6 +23,9 @@ typedef enum {
     // unary operators
     M_FACTORIAL,
 
+    // '=' operator
+    M_ASSIGN,
+
     // logical operators
     M_EQUAL,
     M_NOT_EQUAL,
@@ -34,6 +37,8 @@ typedef enum {
     // symbols
     M_LPAREN,
     M_RPAREN,
+    M_LCURLY,
+    M_RCURLY,
     M_SEMI,
     M_COMMA,
 } M_Token_Kind;

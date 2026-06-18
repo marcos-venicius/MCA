@@ -14,6 +14,10 @@ static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
 }
 
+static inline bool checkahead(M_Ast *ast, M_Token_Kind kind) {
+    return ast->current_token != NULL && ast->current_token->next != NULL && ast->current_token->next->kind == kind;
+}
+
 static inline M_Token *next_token(M_Ast *ast) {
     if (ast->current_token != NULL) {
         ast->current_token = ast->current_token->next;
@@ -49,11 +53,14 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_GTE:         return M_BINARY_GTE_OP;
         case M_LTE:         return M_BINARY_LTE_OP;
 
+        case M_ASSIGN:
         case M_ID:
         case M_NUMBER:
         case M_FACTORIAL:
         case M_LPAREN:
         case M_RPAREN:
+        case M_LCURLY:
+        case M_RCURLY:
         case M_SEMI:
         case M_COMMA:
             assert(0 && "token_kind_as_binary_expression_operator: invalid token kind as binary operator");
@@ -97,6 +104,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_MINUS:       return M_UNARY_MINUS_OP;
         case M_FACTORIAL:   return M_UNARY_FACTORIAL_OP;
 
+        case M_ASSIGN:
         case M_PLUS:
         case M_TIMES:
         case M_DIVIDE:
@@ -112,6 +120,8 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_NUMBER:
         case M_LPAREN:
         case M_RPAREN:
+        case M_LCURLY:
+        case M_RCURLY:
         case M_SEMI:
         case M_COMMA:
             assert(0 && "token_kind_as_unary_expression_operator: invalid token kind as unary operator");
@@ -216,6 +226,122 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
     return fn;
 }
 
+static M_Expression *parse_variable_expression(M_Ast *ast) {
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_ID;
+    expr->id.value = token(ast)->value;
+    expr->id.value_length = token(ast)->size;
+
+    next_token(ast);
+
+    return expr;
+}
+
+static M_Expression *parse_break_expression(M_Ast *ast) {
+    next_token(ast); // jump 'break'
+
+    M_Expression *break_value = NULL;
+
+    if (token(ast) != NULL && token(ast)->kind != M_SEMI)
+        break_value = parse_expression_impl(ast);
+
+    M_Expression *loop_break = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+    loop_break->kind = M_EK_BREAK;
+    loop_break->expr = break_value;
+
+    return loop_break;
+}
+
+static M_Expression *parse_loop_expression(M_Ast *ast) {
+    M_Token *first_token = token(ast);
+
+    next_token(ast); // jump keyword
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated loop expression. expected an expression or a '{' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Expression *condition = NULL;
+
+    if (token(ast)->kind != M_LCURLY) {
+        condition = parse_expression_impl(ast);
+
+        // just propagating upper errors
+        if (condition == NULL) return NULL;
+    }
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated loop expression. expected '{' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (token(ast)->kind != M_LCURLY) {
+        ast_error(ast, first_token, "unterminated loop expression. expected '{' but got '%.*s'", token(ast)->size, token(ast)->value);
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '{'
+
+    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
+    M_Expression_Block *block_head = malloc(sizeof(M_Expression_Block));
+    block_head->next = NULL;
+    block_head->expr = NULL;
+    M_Expression_Block *block_tail = NULL;
+
+    // Parse block
+    while (token(ast) != NULL && token(ast)->kind != M_RCURLY) {
+        if (token(ast) != NULL && token(ast)->kind == M_SEMI) {
+            next_token(ast);
+            continue;
+        }
+
+        M_Expression *expr = parse_expression_impl(ast);
+
+        // just propagating upper errors
+        if (expr == NULL) return NULL;
+
+        if (block_tail == NULL) {
+            block_head->expr = expr;
+            block_head->next = NULL;
+            block_tail = block_head;
+        } else {
+            M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+
+            inner_block->expr = expr;
+            inner_block->next = NULL;
+
+            block_tail->next = inner_block;
+            block_tail = block_tail->next;
+        }
+    }
+
+    if (token(ast) == NULL) {
+        ast_error(ast, first_token, "unterminated loop expression. expected '}' but got EOF");
+        synchronize(ast);
+        return NULL;
+    }
+
+    if (token(ast)->kind != M_RCURLY) {
+        ast_error(ast, first_token, "unterminated loop expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '}'
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_LOOP;
+    expr->loop.condition = condition; // means infinite
+    expr->loop.block = block_head;
+
+    return expr;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -228,7 +354,19 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
         return expr;
     } else if (token(ast)->kind == M_ID) {
-        return parse_function_call_expression(ast);
+        // TODO: extract this to a list of keyword bindings where a name binds to a pointer
+        // and this pointer is a function that parses this keyword semantics
+
+        // WHILE
+        if (token(ast)->size == 5 && strncmp(token(ast)->value, "while", 5) == 0) {
+            return parse_loop_expression(ast);
+        } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
+            return parse_break_expression(ast);
+        }
+
+        if (checkahead(ast, M_LPAREN)) return parse_function_call_expression(ast);
+
+        return parse_variable_expression(ast);
     } else if (token(ast)->kind == M_LPAREN) {
         M_Token *first_token = token(ast);
 
@@ -487,8 +625,41 @@ static M_Expression *parse_equality_expression(M_Ast *ast) {
     return left;
 }
 
-static inline M_Expression *parse_expression_impl(M_Ast *ast) {
+static M_Expression *parse_assignment_expression(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
+
+    if (token(ast)->kind == M_ID && checkahead(ast, M_ASSIGN)) {
+        M_Token *first_token = token(ast);
+
+        const char *name = token(ast)->value;
+        int name_length = token(ast)->size;
+
+        next_token(ast); // '='
+        next_token(ast); // jumped '='
+
+        M_Expression *right = parse_expression_impl(ast);
+
+        if (right == NULL) {
+            ast_error(ast, first_token, "missing right operand for assignment '%.*s = ...'", first_token->size, first_token->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        M_Expression *assignment_expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+        assignment_expr->kind = M_EK_ASSIGN;
+        assignment_expr->assign.name.value = name;
+        assignment_expr->assign.name.length = name_length;
+        assignment_expr->assign.right = right;
+
+        return assignment_expr;
+    }
+
     return parse_equality_expression(ast);
+}
+
+static inline M_Expression *parse_expression_impl(M_Ast *ast) {
+    return parse_assignment_expression(ast);
 }
 
 #define M_AST_MAX_EXPRESSION_ARRAY_SIZE 256

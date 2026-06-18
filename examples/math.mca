@@ -1,0 +1,19 @@
+# working example
+
+x = -((((5.0! + -20) / 10) ^ 2) % 11) * 10 * -1 - 10;
+y = 3 * 3 - 1;
+z = 3 * (3 - 1);
+
+print(x, y, z);
+
+print();
+
+result = abs(x + y / -z);
+
+capture_print_last_value = print(result);
+
+print();
+
+print(capture_print_last_value);
+
+# vim: set syntax=python :

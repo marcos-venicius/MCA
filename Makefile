@@ -7,10 +7,10 @@ ifdef MCA_OPTIMIZE
 	OPTIMIZATION_FLAGS = -O3
 endif
 
-bin/mca: main.o lexer.o log.o ast.o io.o evaluator.o
+bin/mca: main.o lexer.o log.o ast.o io.o interpreter.o
 	$(CC) $(CC_FLAGS) $(OPTIMIZATION_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
 
-bin/test: test.o lexer.o log.o ast.o io.o evaluator.o
+bin/test: test.o lexer.o log.o ast.o io.o interpreter.o
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)
 
 log.o: log.c log.h
@@ -28,10 +28,10 @@ ast.o: ast.c ast.h lexer.h lexer.c
 io.o: io.c io.h
 	$(CC) $(CC_FLAGS) -c io.c $(CC_LIBS)
 
-evaluator.o: evaluator.c evaluator.h
-	$(CC) $(CC_FLAGS) -c evaluator.c $(CC_LIBS)
+interpreter.o: interpreter.c interpreter.h
+	$(CC) $(CC_FLAGS) -c interpreter.c $(CC_LIBS)
 
-test.o: test.c lexer.h lexer.c ast.h ast.c evaluator.h evaluator.c
+test.o: test.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c
 	$(CC) $(CC_FLAGS) -c test.c $(CC_LIBS)
 
 clean:

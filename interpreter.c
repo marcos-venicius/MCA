@@ -4,10 +4,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "./evaluator.h"
+#include "./interpreter.h"
+#include "./ast.h"
+#include "./ht.h"
 
 #define TRUE 1.0
 #define FALSE 0.0
+
+
+#define ctrl_normal(v) ((M_Eval_Result){ .value = v, .flow = M_CTRL_NORMAL })
+#define ctrl_break(x) ((M_Eval_Result){ .value = x.value, .flow = M_CTRL_BREAK })
+#define ctrl_break_value(x) ((M_Eval_Result){ .value = x, .flow = M_CTRL_BREAK })
+#define ctrl_unwrap(c) (c.value)
+#define ctrl_negate(x) ((M_Eval_Result){ .value = -x.value, .flow = x.flow })
+
+//
+// Here is the whole state of the interpreter.
+// It's global, so, you cannot run, at this moment multiple programs.
+// For now, let's focuse in run at least one single program well.
+//
+static M_Interpreter *interpreter = NULL;
 
 typedef double (*M_Fn_C_Impl)(M_Expression *arguments[], int arguments_count);
 
@@ -31,7 +47,6 @@ static double __builtin_mca_floor(M_Expression *arguments[], int arguments_count
 static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_round(M_Expression *arguments[], int arguments_count);
 
-static double __builtin_mca_if(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
@@ -64,18 +79,17 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "ceil",  4, 1, &__builtin_mca_ceil },
     { "round", 5, 1, &__builtin_mca_round },
 
-    // conditionals
-    { "if", 2, 3, &__builtin_mca_if },
-
     { "print", 5, -1, &__builtin_mca_print },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
 
-static double calculate_factorial(double number) {
-    if (number < 0 && number == (int)number) return NAN;
+static M_Eval_Result calculate_factorial(M_Eval_Result r) {
+    if (r.value < 0 && r.value == (int)r.value) return (M_Eval_Result){.flow = r.flow, .value = NAN};
     
-    return tgamma(number + 1.0);
+    double x = tgamma(r.value + 1.0);
+
+    return (M_Eval_Result){.flow = r.flow, .value = x};
 }
 
 static double evaluate_function_call_expression(M_Expression *expr) {
@@ -107,50 +121,140 @@ static double evaluate_function_call_expression(M_Expression *expr) {
     exit(1);
 }
 
-static double evaluate_expression_impl(M_Expression *expression) {
+M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
-    if (expression->kind == M_EK_NUMBER) return expression->number;
+    switch (expression->kind) {
+        case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
+        case M_EK_NUMBER: return ctrl_normal(expression->number);
+        case M_EK_ID: {
+            char *key = strndup(expression->id.value, expression->id.value_length);
 
-    if (expression->kind == M_EK_UNARY) {
-        switch (expression->unary.op) {
-            case M_UNARY_MINUS_OP: return -evaluate_expression_impl(expression->unary.operand);
-            case M_UNARY_FACTORIAL_OP: return calculate_factorial(evaluate_expression_impl(expression->unary.operand));
-        }
+            double *value = ht_find(interpreter->global_variables, key);
 
-        assert(0 && "evaluate_expression_impl: invalid unary expression operator");
+            if (value == NULL) {
+                // TODO: implement better error reporting at evaluation level
+                fprintf(stderr, "\033[1;31merror:\033[0m variable '%s' does not exists\n", key);
+                exit(1);
+            }
+
+            free(key);
+
+            return ctrl_normal(*value);
+        };
+        case M_EK_ASSIGN: {
+            // TODO: shouldn't I just keep the expression and lazy-evaluate it?
+            double value = ctrl_unwrap(evaluate_expression(expression->assign.right));
+
+            // @Leak TODO: we're not cleaning this
+            const char *key = strndup(expression->assign.name.value, expression->assign.name.length);
+
+            ht_add(interpreter->global_variables, key, &value);
+
+            return ctrl_normal(value);
+        };
+        case M_EK_UNARY: {
+            switch (expression->unary.op) {
+                case M_UNARY_MINUS_OP: return ctrl_negate(evaluate_expression(expression->unary.operand));
+                case M_UNARY_FACTORIAL_OP: return calculate_factorial(evaluate_expression(expression->unary.operand));
+            }
+
+            assert(0 && "evaluate_expression_impl: invalid unary expression operator");
+        } break;
+        case M_EK_CALL: return ctrl_normal(evaluate_function_call_expression(expression));
+        case M_EK_BINARY: {
+            double left = ctrl_unwrap(evaluate_expression(expression->binary.left));
+            double right = ctrl_unwrap(evaluate_expression(expression->binary.right));
+
+            switch (expression->binary.op) {
+                case M_BINARY_PLUS_OP: return ctrl_normal(left + right);
+                case M_BINARY_TIMES_OP: return ctrl_normal(left * right);
+                case M_BINARY_DIVIDE_OP: return ctrl_normal(left / right);
+                case M_BINARY_SUBTRACT_OP: return ctrl_normal(left - right);
+                case M_BINARY_MOD_OP: return ctrl_normal(fmod(left, right));
+                case M_BINARY_POW_OP: return ctrl_normal(pow(left, right));
+
+                case M_BINARY_EQUAL_OP: return ctrl_normal(left == right ? TRUE : FALSE);
+                case M_BINARY_NOT_EQUAL_OP: return ctrl_normal(left != right ? TRUE : FALSE);
+                case M_BINARY_GT_OP: return ctrl_normal(left > right ? TRUE : FALSE);
+                case M_BINARY_LT_OP: return ctrl_normal(left < right ? TRUE : FALSE);
+                case M_BINARY_GTE_OP: return ctrl_normal(left >= right ? TRUE : FALSE);
+                case M_BINARY_LTE_OP: return ctrl_normal(left <= right ? TRUE : FALSE);
+            }
+
+            assert(0 && "evaluate_expression_impl: invalid binary expression operator");
+        } break;
+        case M_EK_LOOP: {
+            M_Eval_Result last_evaluated_expression = {0};
+
+            while (1) {
+                if (expression->loop.condition != NULL) {
+                    if (ctrl_unwrap(evaluate_expression(expression->loop.condition)) == 0) break;
+                }
+
+                M_Expression_Block *current = expression->loop.block;
+
+                while (current != NULL) {
+                    if (current->expr != NULL) {
+                        last_evaluated_expression = evaluate_expression(current->expr);
+                    }
+
+                    if (last_evaluated_expression.flow == M_CTRL_BREAK) goto m_ek_loop_out;
+
+                    current = current->next;
+                }
+            }
+m_ek_loop_out:
+
+            return last_evaluated_expression;
+        } break;
+        case M_EK_BREAK:
+            return expression->expr != NULL ? ctrl_break(evaluate_expression(expression->expr)) : ctrl_break_value(0);
     }
 
-    if (expression->kind == M_EK_CALL) return evaluate_function_call_expression(expression);
-
-    assert(expression->kind == M_EK_BINARY && "evaluate_expression_impl: should be a binary expression");
-
-    double left = evaluate_expression_impl(expression->binary.left);
-    double right = evaluate_expression_impl(expression->binary.right);
-
-    switch (expression->binary.op) {
-        case M_BINARY_PLUS_OP: return left + right;
-        case M_BINARY_TIMES_OP: return left * right;
-        case M_BINARY_DIVIDE_OP: return left / right;
-        case M_BINARY_SUBTRACT_OP: return left - right;
-        case M_BINARY_MOD_OP: return fmod(left, right);
-        case M_BINARY_POW_OP: return pow(left, right);
-
-        case M_BINARY_EQUAL_OP: return left == right ? TRUE : FALSE;
-        case M_BINARY_NOT_EQUAL_OP: return left != right ? TRUE : FALSE;
-        case M_BINARY_GT_OP: return left > right ? TRUE : FALSE;
-        case M_BINARY_LT_OP: return left < right ? TRUE : FALSE;
-        case M_BINARY_GTE_OP: return left >= right ? TRUE : FALSE;
-        case M_BINARY_LTE_OP: return left <= right ? TRUE : FALSE;
-    }
-
-    assert(0 && "evaluate_expression_impl: invalid binary expression operator");
+    return ctrl_normal(0);
 }
 
-double evaluate_expression(M_Expression *expression) {
-    if (expression == NULL) return 0;
+M_Interpreter *m_interpreter_create(M_Ast *program) {
+    interpreter = malloc(sizeof(M_Interpreter));
 
-    return evaluate_expression_impl(expression);
+    interpreter->program = program;
+    // TODO: for now, we can only work with numbers
+    interpreter->global_variables = ht_init(sizeof(double));
+
+    return interpreter;
+}
+
+double m_interpreter_run(M_Interpreter *interpreter) {
+    if (interpreter->program == NULL) return 0;
+
+    double last_evaluated_expression = 0;
+
+    for (int i = 0; i < interpreter->program->expressions_array_length; i++) {
+        M_Expression *expr = interpreter->program->expressions_array[i];
+
+        if (expr != NULL) {
+            M_Eval_Result r = evaluate_expression(expr);
+
+            if (r.flow == M_CTRL_BREAK) {
+                // TODO: implement better error reporting at evaluation level
+                fprintf(stderr, "\033[1;31merror:\033[0m cannot use 'break' outside of a loop\n");
+                exit(1);
+            }
+
+            last_evaluated_expression = r.value;
+        }
+    }
+
+    return last_evaluated_expression;
+}
+
+void m_interpreter_free(M_Interpreter *interpreter) {
+    ht_free(interpreter->global_variables);
+    ast_free(interpreter->program);
+    free(interpreter);
+
+    interpreter = NULL;
 }
 
 // BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
@@ -170,15 +274,15 @@ static double __builtin_mca_e(M_Expression *arguments[], int arguments_count) {
 
 static double __builtin_mca_abs(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return fabs(a0);
 }
 
 static double __builtin_mca_max(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
-    double a1 = evaluate_expression_impl(arguments[1]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
+    double a1 = ctrl_unwrap(evaluate_expression(arguments[1]));
 
     if (a0 > a1) return a0;
 
@@ -187,8 +291,8 @@ static double __builtin_mca_max(M_Expression *arguments[], int arguments_count) 
 
 static double __builtin_mca_min(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
-    double a1 = evaluate_expression_impl(arguments[1]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
+    double a1 = ctrl_unwrap(evaluate_expression(arguments[1]));
 
     if (a0 < a1) return a0;
 
@@ -197,97 +301,86 @@ static double __builtin_mca_min(M_Expression *arguments[], int arguments_count) 
 
 static double __builtin_mca_sin(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return sin(a0);
 }
 
 static double __builtin_mca_cos(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return cos(a0);
 }
 
 static double __builtin_mca_rad(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return a0 * (M_PI / 180.0);
 }
 
 static double __builtin_mca_deg(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return a0 * (180.0 / M_PI);
 }
 
 static double __builtin_mca_tan(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return tan(a0);
 }
 
 static double __builtin_mca_sqrt(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return sqrt(a0);
 }
 
 static double __builtin_mca_log(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return log(a0);
 }
 
 static double __builtin_mca_log10(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return log10(a0);
 }
 
 static double __builtin_mca_exp(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return exp(a0);
 }
 
 static double __builtin_mca_floor(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return floor(a0);
 }
 
 static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return ceil(a0);
 }
 
 static double __builtin_mca_round(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = evaluate_expression_impl(arguments[0]);
+    double a0 = ctrl_unwrap(evaluate_expression(arguments[0]));
 
     return round(a0);
-}
-
-static double __builtin_mca_if(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    M_Expression *condition = arguments[0];
-    M_Expression *then      = arguments[1];
-    M_Expression *elze      = arguments[2];
-
-    if (evaluate_expression(condition) != 0.0) return evaluate_expression(then);
-
-    return evaluate_expression(elze);
 }
 
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count) {
@@ -296,7 +389,7 @@ static double __builtin_mca_print(M_Expression *arguments[], int arguments_count
     for (int i = 0; i < arguments_count; i++) {
         if (i > 0) printf(" ");
 
-        last_value = evaluate_expression_impl(arguments[i]);
+        last_value = ctrl_unwrap(evaluate_expression(arguments[i]));
 
         printf("%f", last_value);
     }

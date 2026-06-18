@@ -58,6 +58,8 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
 
         case M_FACTORIAL: return "FACTORIAL";
 
+        case M_ASSIGN: return "ASSIGN";
+
         case M_EQUAL: return "EQUAL";
         case M_NOT_EQUAL: return "NOT_EQUAL";
         case M_GT: return "GT";
@@ -67,6 +69,8 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
 
         case M_LPAREN: return "LPAREN";
         case M_RPAREN: return "RPAREN";
+        case M_LCURLY: return "LCURLY";
+        case M_RCURLY: return "RCURLY";
         case M_COMMA: return "COMMA";
         case M_SEMI: return "SEMI";
     }
@@ -188,6 +192,8 @@ static void tokenize_single(M_Lexer *lexer) {
         case '/': { advance_cursor(lexer); save_token(lexer, M_DIVIDE); } break;
         case '(': { advance_cursor(lexer); save_token(lexer, M_LPAREN); } break;
         case ')': { advance_cursor(lexer); save_token(lexer, M_RPAREN); } break;
+        case '{': { advance_cursor(lexer); save_token(lexer, M_LCURLY); } break;
+        case '}': { advance_cursor(lexer); save_token(lexer, M_RCURLY); } break;
         case '+': { advance_cursor(lexer); save_token(lexer, M_PLUS); } break;
         case '-': { advance_cursor(lexer); save_token(lexer, M_MINUS); } break;
         case '%': { advance_cursor(lexer); save_token(lexer, M_MOD); } break;
@@ -242,6 +248,8 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '/':
             case '(':
             case ')':
+            case '{':
+            case '}':
             case '+':
             case '%':
             case '^':
@@ -261,7 +269,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
                 if (nchr(lexer) == '=') {
                     tokenize_n(lexer, 2, M_EQUAL);
                 } else {
-                    did_you_mean_equal_error(lexer);
+                    tokenize_n(lexer, 1, M_ASSIGN);
                 }
                 break;
             case '<':

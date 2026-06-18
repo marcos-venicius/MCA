@@ -11,10 +11,14 @@ typedef struct M_Expression M_Expression;
 
 typedef enum {
     M_EK_NUMBER = 0,
+    M_EK_ID,
     M_EK_BINARY,
+    M_EK_ASSIGN,
     M_EK_UNARY,
     M_EK_EXPRESSION_LIST,
     M_EK_CALL,
+    M_EK_LOOP,
+    M_EK_BREAK
 } M_Expression_Kind;
 
 typedef enum {
@@ -38,12 +42,23 @@ typedef enum {
     M_UNARY_FACTORIAL_OP,
 } M_Unary_Expression_Operator;
 
+typedef struct M_Expression_Block M_Expression_Block;
+
+struct M_Expression_Block {
+    M_Expression *expr;
+
+    M_Expression_Block *next;
+};
+
 struct M_Expression {
     M_Expression_Kind kind;
 
     union {
         // when the kind is M_EK_NUMBER
         double number;
+
+        // when the kind is M_EK_BREAK it can be null or filled
+        M_Expression *expr;
 
         // when the kind is M_EK_BINARY
         struct {
@@ -66,6 +81,29 @@ struct M_Expression {
             M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
             int           arguments_length;
         } call;
+
+        // I'm separating this way because in the future I plan
+        // to add metadata to the expressions like location of the token
+        // in the file, raw representation, datatype etc, so it will be easier
+        // to display error reporting to the user
+        struct {
+            const char *value;
+            int         value_length;
+        } id;
+
+        struct {
+            struct {
+                const char *value;
+                int         length;
+            } name;
+
+            M_Expression *right;
+        } assign;
+
+        struct {
+            M_Expression        *condition;
+            M_Expression_Block  *block;
+        } loop;
     };
 };
 

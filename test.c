@@ -3,9 +3,10 @@
 #include <stdio.h>
 #include <assert.h>
 
+#define CLIBS_HT_IMPLEMENTATION
 #include "./lexer.h"
 #include "./ast.h"
-#include "./evaluator.h"
+#include "./interpreter.h"
 #define CLIBS_ARENA_IMPLEMENTATION
 #include "./arena.h"
 
@@ -35,12 +36,11 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
 
     M_Ast *ast = parse_expression(NULL, tokens);
 
-    assert(ast->expressions_array_length == 1 && "RUN_TEST_CASE: we do not handle multiple (or empty) expressions in this test case scenario");
-
-    double evaluated_expression = evaluate_expression(ast->expressions_array[0]);
+    M_Interpreter *interpreter = m_interpreter_create(ast);
+    double evaluated_expression = m_interpreter_run(interpreter);
 
     m_lexer_free(&lexer);
-    ast_free(ast);
+    m_interpreter_free(interpreter);
 
     if (evaluated_expression == expected || (isnan(evaluated_expression) && isnan(expected))) LOG_SUCCESS(expression, expected);
     else LOG_ERROR(expression, expected, &evaluated_expression);
@@ -130,20 +130,24 @@ int main(void) {
     RUN_TEST_CASE("10 == 5 * 2 != 0", 1.0);
     RUN_TEST_CASE("0 == 1 < 2", 0.0);
 
-    TEST_CASE_LABEL("'if' expression");
-    RUN_TEST_CASE("if(1, 10, 20)", 10.0);
-    RUN_TEST_CASE("if(0, 10, 20)", 20.0);
-    RUN_TEST_CASE("if(-5, 10, 20)", 10.0);
-    RUN_TEST_CASE("if(0.5, 10, 20)", 10.0);
-    RUN_TEST_CASE("if(5 > 3, 100, 200)", 100.0);
-    RUN_TEST_CASE("if(5 == 10, 100, 200)", 200.0);
-    RUN_TEST_CASE("if(10 <= 10, 1 + 2, 3 + 4)", 3.0);
-    RUN_TEST_CASE("if(10 != 10, 1 + 2, 3 + 4)", 7.0);
-    RUN_TEST_CASE("if(1, if(0, 10, 20), 30)", 20.0);
-    RUN_TEST_CASE("if(0, 10, if(1, 20, 30))", 20.0);
-
     TEST_CASE_LABEL("Printing (return last argument)");
     RUN_TEST_CASE("print()", 0.0);
     RUN_TEST_CASE("print(pi())", M_PI);
     RUN_TEST_CASE("print(pi(), e(), 10)", 10.0);
+
+    TEST_CASE_LABEL("Global variables");
+    RUN_TEST_CASE("x = 10", 10.0);
+    RUN_TEST_CASE("y = x = 10", 10.0);
+    RUN_TEST_CASE("y = x = 10;y", 10.0);
+    RUN_TEST_CASE("x = 10; y = -5.5; z = abs(x * y); print(x, y, z, x + y + z)", 59.5);
+
+    TEST_CASE_LABEL("Loops");
+    RUN_TEST_CASE("n = 10; while n < 20 { n = n + 1 }", 20);
+    RUN_TEST_CASE("a = 0; b = 1; n = 0; while n < 15 { n = n + 1; t = a; a = b; b = t + b; a }", 610.0); // fib
+    RUN_TEST_CASE("while 0 {}", 0);
+
+    TEST_CASE_LABEL("Break");
+    RUN_TEST_CASE("r = while 1 { n = 10; break 11.3; print(0); }; r", 11.3);
+    RUN_TEST_CASE("r = while 1 { n = 10; break; print(10); }; r", 0);
+    RUN_TEST_CASE("r = while 1 { n = 10; break floor(10 * 10 - cos(45)); print(10); }; r", 99);
 }
