@@ -376,10 +376,16 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
     next_token(ast); // skip '{'
 
     // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
-    M_Expression_Block *block_head = malloc(sizeof(M_Expression_Block));
-    block_head->next = NULL;
-    block_head->expr = NULL;
-    M_Expression_Block *block_tail = NULL;
+    M_Expression_Block *then_head = malloc(sizeof(M_Expression_Block));
+    then_head->next = NULL;
+    then_head->expr = NULL;
+    M_Expression_Block *then_tail = NULL;
+
+    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
+    M_Expression_Block *else_head = malloc(sizeof(M_Expression_Block));
+    else_head->next = NULL;
+    else_head->expr = NULL;
+    M_Expression_Block *else_tail = NULL;
 
     // Parse block
     while (token(ast) != NULL && token(ast)->kind != M_RCURLY) {
@@ -393,18 +399,18 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         // just propagating upper errors
         if (expr == NULL) return NULL;
 
-        if (block_tail == NULL) {
-            block_head->expr = expr;
-            block_head->next = NULL;
-            block_tail = block_head;
+        if (then_tail == NULL) {
+            then_head->expr = expr;
+            then_head->next = NULL;
+            then_tail = then_head;
         } else {
             M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
 
             inner_block->expr = expr;
             inner_block->next = NULL;
 
-            block_tail->next = inner_block;
-            block_tail = block_tail->next;
+            then_tail->next = inner_block;
+            then_tail = then_tail->next;
         }
     }
 
@@ -422,10 +428,70 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
 
     next_token(ast); // skip '}'
 
+    if (token(ast) != NULL && token(ast)->kind == M_ID && token(ast)->size == 4 && strncmp(token(ast)->value, "else", 4) == 0) {
+        next_token(ast); // jump 'else'
+
+        if (token(ast) == NULL) {
+            ast_error(ast, first_token, "unterminated if expression. expected 'else' block but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
+
+        if (token(ast)->kind != M_LCURLY) {
+            ast_error(ast, first_token, "unterminated if expression. expected '{' but got '%.*s'", token(ast)->size, token(ast)->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip '{'
+
+        // Parse else block
+        while (token(ast) != NULL && token(ast)->kind != M_RCURLY) {
+            if (token(ast) != NULL && token(ast)->kind == M_SEMI) {
+                next_token(ast);
+                continue;
+            }
+
+            M_Expression *expr = parse_expression_impl(ast);
+
+            // just propagating upper errors
+            if (expr == NULL) return NULL;
+
+            if (else_tail == NULL) {
+                else_head->expr = expr;
+                else_head->next = NULL;
+                else_tail = else_head;
+            } else {
+                M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+
+                inner_block->expr = expr;
+                inner_block->next = NULL;
+
+                else_tail->next = inner_block;
+                else_tail = else_tail->next;
+            }
+        }
+
+        if (token(ast) == NULL) {
+            ast_error(ast, first_token, "unterminated if expression. expected '}' but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
+
+        if (token(ast)->kind != M_RCURLY) {
+            ast_error(ast, first_token, "unterminated if expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip '}'
+    }
+
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
     expr->kind = M_EK_IF;
     expr->if_expr.condition = condition;
-    expr->if_expr.block = block_head;
+    expr->if_expr.then_block = then_head;
+    expr->if_expr.else_block = else_head;
 
     return expr;
 }

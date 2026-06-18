@@ -156,4 +156,8 @@ int main(void) {
     RUN_TEST_CASE("x = 10; if x == 10 { x = 11.3 }", 11.3);
     RUN_TEST_CASE("x = if 10 != 10.1 { 1337 }", 1337);
     RUN_TEST_CASE("x = if 10 != 10.1 {}", 0);
+
+    TEST_CASE_LABEL("Else's");
+    RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { 42 }", 42);
+    RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { }", 0);
 }

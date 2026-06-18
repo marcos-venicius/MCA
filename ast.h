@@ -110,7 +110,8 @@ struct M_Expression {
         // so it will be easier to extend it later
         struct {
             M_Expression        *condition;
-            M_Expression_Block  *block;
+            M_Expression_Block  *then_block;
+            M_Expression_Block  *else_block;
         } if_expr;
     };
 };

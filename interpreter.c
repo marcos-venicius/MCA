@@ -191,7 +191,24 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             M_Eval_Result condition_result = evaluate_expression(expression->if_expr.condition);
 
             if (ctrl_unwrap(condition_result) != 0) {
-                M_Expression_Block *current = expression->if_expr.block;
+                M_Expression_Block *current = expression->if_expr.then_block;
+
+                M_Eval_Result last_evaluated_expression = {0};
+
+                while (current != NULL) {
+                    if (current->expr != NULL) {
+                        last_evaluated_expression = evaluate_expression(current->expr);
+                    }
+
+                    // propagate break flow if exists
+                    if (last_evaluated_expression.flow == M_CTRL_BREAK) break;
+
+                    current = current->next;
+                }
+
+                return last_evaluated_expression;
+            } else {
+                M_Expression_Block *current = expression->if_expr.else_block;
 
                 M_Eval_Result last_evaluated_expression = {0};
 
@@ -208,7 +225,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
 
                 return last_evaluated_expression;
             }
-            
+
             return ctrl_normal(0);
         } break;
         case M_EK_LOOP: {
