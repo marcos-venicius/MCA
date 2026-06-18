@@ -129,4 +129,16 @@ int main(void) {
     RUN_TEST_CASE("5 < 3 + 4", 1.0);
     RUN_TEST_CASE("10 == 5 * 2 != 0", 1.0);
     RUN_TEST_CASE("0 == 1 < 2", 0.0);
+
+    TEST_CASE_LABEL("'if' expression");
+    RUN_TEST_CASE("if(1, 10, 20)", 10.0);
+    RUN_TEST_CASE("if(0, 10, 20)", 20.0);
+    RUN_TEST_CASE("if(-5, 10, 20)", 10.0);
+    RUN_TEST_CASE("if(0.5, 10, 20)", 10.0);
+    RUN_TEST_CASE("if(5 > 3, 100, 200)", 100.0);
+    RUN_TEST_CASE("if(5 == 10, 100, 200)", 200.0);
+    RUN_TEST_CASE("if(10 <= 10, 1 + 2, 3 + 4)", 3.0);
+    RUN_TEST_CASE("if(10 != 10, 1 + 2, 3 + 4)", 7.0);
+    RUN_TEST_CASE("if(1, if(0, 10, 20), 30)", 20.0);
+    RUN_TEST_CASE("if(0, 10, if(1, 20, 30))", 20.0);
 }
