@@ -104,4 +104,29 @@ int main(void) {
     RUN_TEST_CASE("pi()", M_PI);
     RUN_TEST_CASE("e()", M_E);
     RUN_TEST_CASE("max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", 14);
+
+    TEST_CASE_LABEL("Binary operators (equality & relational)");
+    RUN_TEST_CASE("5 == 5", 1.0);
+    RUN_TEST_CASE("10 == 5", 0.0);
+    RUN_TEST_CASE("0 == 0", 1.0);
+    RUN_TEST_CASE("10 != 5", 1.0);
+    RUN_TEST_CASE("5 != 5", 0.0);
+    RUN_TEST_CASE("0 != 0", 0.0);
+    RUN_TEST_CASE("10 > 5", 1.0);
+    RUN_TEST_CASE("5 > 10", 0.0);
+    RUN_TEST_CASE("5 > 5", 0.0);
+    RUN_TEST_CASE("5 < 10", 1.0);
+    RUN_TEST_CASE("10 < 5", 0.0);
+    RUN_TEST_CASE("5 < 5", 0.0);
+    RUN_TEST_CASE("10 >= 5", 1.0);
+    RUN_TEST_CASE("5 >= 5", 1.0);
+    RUN_TEST_CASE("5 >= 10", 0.0);
+    RUN_TEST_CASE("5 <= 10", 1.0);
+    RUN_TEST_CASE("5 <= 5", 1.0);
+    RUN_TEST_CASE("10 <= 5", 0.0);
+    RUN_TEST_CASE("1 + 2 == 3", 1.0);
+    RUN_TEST_CASE("10 - 5 > 2 * 2", 1.0);
+    RUN_TEST_CASE("5 < 3 + 4", 1.0);
+    RUN_TEST_CASE("10 == 5 * 2 != 0", 1.0);
+    RUN_TEST_CASE("0 == 1 < 2", 0.0);
 }
