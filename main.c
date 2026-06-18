@@ -203,22 +203,12 @@ int main(int argc, char **argv) {
 
     if (ast == NULL) return 0;
 
-    if (ast->expressions_array_length > 1) {
-        for (int i = 0; i < ast->expressions_array_length; i++) {
-            M_Expression *expr = ast->expressions_array[i];
+    for (int i = 0; i < ast->expressions_array_length; i++) {
+        M_Expression *expr = ast->expressions_array[i];
 
-            if (expr == NULL) {
-                printf("EXP %d: <empty>\n", i + 1);
-            } else {
-                double evaluated_expression = evaluate_expression(expr);
-
-                printf("EXP %d: %f\n", i + 1, evaluated_expression);
-            }
+        if (expr != NULL) {
+            evaluate_expression(expr);
         }
-    } else if (ast->expressions_array_length == 1) {
-        double evaluated_expression = evaluate_expression(ast->expressions_array[0]);
-
-        printf("%f\n", evaluated_expression);
     }
 
     ast_free(ast);

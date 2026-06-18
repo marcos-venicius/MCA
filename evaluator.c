@@ -9,29 +9,30 @@
 #define TRUE 1.0
 #define FALSE 0.0
 
-typedef double (*M_Fn_C_Impl)(M_Expression *arguments[]);
+typedef double (*M_Fn_C_Impl)(M_Expression *arguments[], int arguments_count);
 
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
-static double __builtin_mca_pi(M_Expression *arguments[]);
-static double __builtin_mca_e(M_Expression *arguments[]);
+static double __builtin_mca_pi(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_e(M_Expression *arguments[], int arguments_count);
 
-static double __builtin_mca_abs(M_Expression *arguments[]);
-static double __builtin_mca_max(M_Expression *arguments[]);
-static double __builtin_mca_min(M_Expression *arguments[]);
-static double __builtin_mca_sin(M_Expression *arguments[]);
-static double __builtin_mca_cos(M_Expression *arguments[]);
-static double __builtin_mca_rad(M_Expression *arguments[]);
-static double __builtin_mca_deg(M_Expression *arguments[]);
-static double __builtin_mca_tan(M_Expression *arguments[]);
-static double __builtin_mca_sqrt(M_Expression *arguments[]);
-static double __builtin_mca_log(M_Expression *arguments[]);
-static double __builtin_mca_log10(M_Expression *arguments[]);
-static double __builtin_mca_exp(M_Expression *arguments[]);
-static double __builtin_mca_floor(M_Expression *arguments[]);
-static double __builtin_mca_ceil(M_Expression *arguments[]);
-static double __builtin_mca_round(M_Expression *arguments[]);
+static double __builtin_mca_abs(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_max(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_min(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_sin(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_cos(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_rad(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_deg(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_tan(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_sqrt(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_log(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_log10(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_exp(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_floor(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_round(M_Expression *arguments[], int arguments_count);
 
-static double __builtin_mca_if(M_Expression *arguments[]);
+static double __builtin_mca_if(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_print(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -65,6 +66,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
 
     // conditionals
     { "if", 2, 3, &__builtin_mca_if },
+
+    { "print", 5, -1, &__builtin_mca_print },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -83,6 +86,9 @@ static double evaluate_function_call_expression(M_Expression *expr) {
 
         if (strncmp(signature.name, expr->call.fn_name, signature.name_length) != 0) continue;
 
+        if (signature.arguments_count == -1)
+            return signature.c_impl(expr->call.arguments, expr->call.arguments_length);
+
         if (expr->call.arguments_length > signature.arguments_count) {
             // TODO: implement better error reporting at evaluation level
             fprintf(stderr, "\033[1;31merror:\033[0m to many arguments %s(...). expected %d but got %d\n", signature.name, signature.arguments_count, expr->call.arguments_length);
@@ -93,7 +99,7 @@ static double evaluate_function_call_expression(M_Expression *expr) {
             exit(1);
         }
 
-        return signature.c_impl(expr->call.arguments);
+        return signature.c_impl(expr->call.arguments, expr->call.arguments_length);
     }
 
     // TODO: implement better error reporting at evaluation level
@@ -148,25 +154,29 @@ double evaluate_expression(M_Expression *expression) {
 }
 
 // BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
-static double __builtin_mca_pi(M_Expression *arguments[]) {
+static double __builtin_mca_pi(M_Expression *arguments[], int arguments_count) {
     (void)arguments;
+    (void)arguments_count;
 
     return M_PI;
 }
 
-static double __builtin_mca_e(M_Expression *arguments[]) {
+static double __builtin_mca_e(M_Expression *arguments[], int arguments_count) {
     (void)arguments;
+    (void)arguments_count;
 
     return M_E;
 }
 
-static double __builtin_mca_abs(M_Expression *arguments[]) {
+static double __builtin_mca_abs(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return fabs(a0);
 }
 
-static double __builtin_mca_max(M_Expression *arguments[]) {
+static double __builtin_mca_max(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
     double a1 = evaluate_expression_impl(arguments[1]);
 
@@ -175,7 +185,8 @@ static double __builtin_mca_max(M_Expression *arguments[]) {
     return a1;
 }
 
-static double __builtin_mca_min(M_Expression *arguments[]) {
+static double __builtin_mca_min(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
     double a1 = evaluate_expression_impl(arguments[1]);
 
@@ -184,79 +195,92 @@ static double __builtin_mca_min(M_Expression *arguments[]) {
     return a1;
 }
 
-static double __builtin_mca_sin(M_Expression *arguments[]) {
+static double __builtin_mca_sin(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return sin(a0);
 }
 
-static double __builtin_mca_cos(M_Expression *arguments[]) {
+static double __builtin_mca_cos(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return cos(a0);
 }
 
-static double __builtin_mca_rad(M_Expression *arguments[]) {
+static double __builtin_mca_rad(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return a0 * (M_PI / 180.0);
 }
 
-static double __builtin_mca_deg(M_Expression *arguments[]) {
+static double __builtin_mca_deg(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return a0 * (180.0 / M_PI);
 }
 
-static double __builtin_mca_tan(M_Expression *arguments[]) {
+static double __builtin_mca_tan(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return tan(a0);
 }
 
-static double __builtin_mca_sqrt(M_Expression *arguments[]) {
+static double __builtin_mca_sqrt(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return sqrt(a0);
 }
 
-static double __builtin_mca_log(M_Expression *arguments[]) {
+static double __builtin_mca_log(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return log(a0);
 }
 
-static double __builtin_mca_log10(M_Expression *arguments[]) {
+static double __builtin_mca_log10(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return log10(a0);
 }
 
-static double __builtin_mca_exp(M_Expression *arguments[]) {
+static double __builtin_mca_exp(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return exp(a0);
 }
 
-static double __builtin_mca_floor(M_Expression *arguments[]) {
+static double __builtin_mca_floor(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return floor(a0);
 }
 
-static double __builtin_mca_ceil(M_Expression *arguments[]) {
+static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return ceil(a0);
 }
 
-static double __builtin_mca_round(M_Expression *arguments[]) {
+static double __builtin_mca_round(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return round(a0);
 }
 
-static double __builtin_mca_if(M_Expression *arguments[]) {
+static double __builtin_mca_if(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
     M_Expression *condition = arguments[0];
     M_Expression *then      = arguments[1];
     M_Expression *elze      = arguments[2];
@@ -264,4 +288,19 @@ static double __builtin_mca_if(M_Expression *arguments[]) {
     if (evaluate_expression(condition) != 0.0) return evaluate_expression(then);
 
     return evaluate_expression(elze);
+}
+
+static double __builtin_mca_print(M_Expression *arguments[], int arguments_count) {
+    double last_value = 0.0;
+
+    for (int i = 0; i < arguments_count; i++) {
+        if (i > 0) printf(" ");
+
+        last_value = evaluate_expression_impl(arguments[i]);
+
+        printf("%f", last_value);
+    }
+    printf("\n");
+
+    return last_value;
 }

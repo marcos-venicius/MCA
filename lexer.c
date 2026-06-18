@@ -25,20 +25,6 @@ static void unrecognized_symbol_error(M_Lexer *lexer) {
     advance_cursor(lexer);
 }
 
-static void did_you_mean_equal_error(M_Lexer *lexer) {
-    errors++;
-
-    if (lexer->filename) {
-        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m=\033[0m did you mean \033[1;35m==\033[0m?\n",
-                lexer->filename, lexer->line, lexer->col);
-    } else {
-        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m=\033[0m did you mean \033[1;35m==\033[0m?\n",
-                lexer->line, lexer->col);
-    }
-
-    advance_cursor(lexer);
-}
-
 static void invalid_floating_number_error(M_Lexer *lexer) {
     errors++;
 
@@ -226,7 +212,7 @@ static void tokenize_identifier(M_Lexer *lexer) {
 }
 
 static void skip_comment(M_Lexer *lexer) {
-    while (chr(lexer) != '\n') advance_cursor(lexer);
+    while (chr(lexer) != '\0' && chr(lexer) != '\n') advance_cursor(lexer);
 
     advance_cursor(lexer);
 }

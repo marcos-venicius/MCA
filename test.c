@@ -141,4 +141,9 @@ int main(void) {
     RUN_TEST_CASE("if(10 != 10, 1 + 2, 3 + 4)", 7.0);
     RUN_TEST_CASE("if(1, if(0, 10, 20), 30)", 20.0);
     RUN_TEST_CASE("if(0, 10, if(1, 20, 30))", 20.0);
+
+    TEST_CASE_LABEL("Printing (return last argument)");
+    RUN_TEST_CASE("print()", 0.0);
+    RUN_TEST_CASE("print(pi())", M_PI);
+    RUN_TEST_CASE("print(pi(), e(), 10)", 10.0);
 }
