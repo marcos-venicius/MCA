@@ -27,6 +27,8 @@ static double __builtin_mca_exp(M_Expression *arguments[]);
 static double __builtin_mca_floor(M_Expression *arguments[]);
 static double __builtin_mca_ceil(M_Expression *arguments[]);
 static double __builtin_mca_round(M_Expression *arguments[]);
+
+static double __builtin_mca_if(M_Expression *arguments[]);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -57,6 +59,9 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "floor", 5, 1, &__builtin_mca_floor },
     { "ceil",  4, 1, &__builtin_mca_ceil },
     { "round", 5, 1, &__builtin_mca_round },
+
+    // conditionals
+    { "if", 2, 3, &__builtin_mca_if },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -236,4 +241,14 @@ static double __builtin_mca_round(M_Expression *arguments[]) {
     double a0 = evaluate_expression_impl(arguments[0]);
 
     return round(a0);
+}
+
+static double __builtin_mca_if(M_Expression *arguments[]) {
+    M_Expression *condition = arguments[0];
+    M_Expression *then      = arguments[1];
+    M_Expression *elze      = arguments[2];
+
+    if (evaluate_expression(condition) != 0.0) return evaluate_expression(then);
+
+    return evaluate_expression(elze);
 }
