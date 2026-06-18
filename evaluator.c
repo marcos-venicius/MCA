@@ -53,7 +53,7 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "sqrt",  4, 1, &__builtin_mca_sqrt },
     { "log",   3, 1, &__builtin_mca_log },
     { "log10", 5, 1, &__builtin_mca_log10 },
-    { "expr",  3, 1, &__builtin_mca_exp },
+    { "exp",  3, 1, &__builtin_mca_exp },
     { "floor", 5, 1, &__builtin_mca_floor },
     { "ceil",  4, 1, &__builtin_mca_ceil },
     { "round", 5, 1, &__builtin_mca_round },
