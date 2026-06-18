@@ -150,4 +150,10 @@ int main(void) {
     RUN_TEST_CASE("r = while 1 { n = 10; break 11.3; print(0); }; r", 11.3);
     RUN_TEST_CASE("r = while 1 { n = 10; break; print(10); }; r", 0);
     RUN_TEST_CASE("r = while 1 { n = 10; break floor(10 * 10 - cos(45)); print(10); }; r", 99);
+
+    TEST_CASE_LABEL("If's");
+
+    RUN_TEST_CASE("x = 10; if x == 10 { x = 11.3 }", 11.3);
+    RUN_TEST_CASE("x = if 10 != 10.1 { 1337 }", 1337);
+    RUN_TEST_CASE("x = if 10 != 10.1 {}", 0);
 }

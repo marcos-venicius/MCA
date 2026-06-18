@@ -143,15 +143,16 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             return ctrl_normal(*value);
         };
         case M_EK_ASSIGN: {
+            M_Eval_Result result = evaluate_expression(expression->assign.right);
             // TODO: shouldn't I just keep the expression and lazy-evaluate it?
-            double value = ctrl_unwrap(evaluate_expression(expression->assign.right));
+            double value = ctrl_unwrap(result);
 
             // @Leak TODO: we're not cleaning this
             const char *key = strndup(expression->assign.name.value, expression->assign.name.length);
 
             ht_add(interpreter->global_variables, key, &value);
 
-            return ctrl_normal(value);
+            return result;
         };
         case M_EK_UNARY: {
             switch (expression->unary.op) {

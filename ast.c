@@ -768,8 +768,11 @@ M_Ast *parse_expression(const char *filename, M_Token *head) {
     ast->expressions_array[ast->expressions_array_length++] = parse_expression_impl(ast);
 
 parse_expression_loop:
-    while (token(ast) != NULL && token(ast)->kind == M_SEMI) {
-        next_token(ast);
+    while (token(ast) != NULL) {
+        if (token(ast)->kind == M_SEMI) {
+            next_token(ast);
+            continue;
+        }
 
         if (ast->expressions_array_length >= M_AST_MAX_EXPRESSION_ARRAY_SIZE) {
             fprintf(stderr, "panic: you exceeded the maximum expressions list size of %d\n", M_AST_MAX_EXPRESSION_ARRAY_SIZE);
