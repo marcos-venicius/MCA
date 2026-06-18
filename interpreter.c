@@ -48,6 +48,7 @@ static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count)
 static double __builtin_mca_round(M_Expression *arguments[], int arguments_count);
 
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -80,6 +81,7 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "round", 5, 1, &__builtin_mca_round },
 
     { "print", 5, -1, &__builtin_mca_print },
+    { "exit", 4, 1, &__builtin_mca_exit },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -424,4 +426,11 @@ static double __builtin_mca_print(M_Expression *arguments[], int arguments_count
     printf("\n");
 
     return last_value;
+}
+
+
+static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    exit((int)ctrl_unwrap(evaluate_expression(arguments[0])));
 }

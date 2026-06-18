@@ -26,3 +26,5 @@ if break_value == CONSTANT {
 };
 
 print(should_be_0)
+
+# vim: set syntax=python :
