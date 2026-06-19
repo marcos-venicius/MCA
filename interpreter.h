@@ -27,12 +27,26 @@ typedef struct {
 } M_Interpreter;
 
 typedef enum {
+    M_T_NUMBER,
+} M_Value_Type;
+
+typedef union {
+    double number;
+} M_Value_Union;
+
+typedef struct {
+    M_Value_Type type;
+
+    M_Value_Union as;
+} M_Value;
+
+typedef enum {
     M_CTRL_NORMAL,
     M_CTRL_BREAK,
 } M_Control_Flow;
 
 typedef struct {
-    double value;
+    M_Value value;
     M_Control_Flow flow;
 } M_Eval_Result;
 
@@ -40,7 +54,7 @@ M_Interpreter *m_interpreter_create(M_Ast *program);
 void m_interpreter_set_stdin(M_Interpreter *interpreter, FILE *stream);
 void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream);
 void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream);
-double m_interpreter_run(M_Interpreter *interpreter);
+M_Value m_interpreter_run(M_Interpreter *interpreter);
 void m_interpreter_free(M_Interpreter *interpreter);
 
 // TODO: just for testing purposes. I should think of a better

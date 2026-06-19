@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
+#include <time.h>
 
 #define CLIBS_HT_IMPLEMENTATION
 #include "./lexer.h"
@@ -53,13 +54,15 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
         fprintf(stderr, "\033[1;34m[RUN_TEST_CASE] Warning: Could not open null device.\033[0m\n");
     }
 
-    double evaluated_expression = m_interpreter_run(interpreter);
+    // TODO: test other data types
+    M_Value evaluated_expression = m_interpreter_run(interpreter);
 
     m_lexer_free(&lexer);
     m_interpreter_free(interpreter);
 
-    if (evaluated_expression == expected || (isnan(evaluated_expression) && isnan(expected))) LOG_SUCCESS(expression, expected);
-    else LOG_ERROR(expression, expected, &evaluated_expression);
+    // TODO: test other data types
+    if (evaluated_expression.as.number == expected || (isnan(evaluated_expression.as.number) && isnan(expected))) LOG_SUCCESS(expression, expected);
+    else LOG_ERROR(expression, expected, &evaluated_expression.as.number);
 }
 
 static inline void TEST_CASE_LABEL(const char *label) {
@@ -97,29 +100,28 @@ int main(void) {
     RUN_TEST_CASE("-((((5.0! + -20) / 10) ^ 2) % 11) * 10 * -1 - 10", 0.0);
 
     TEST_CASE_LABEL("Call builtin functions");
-    RUN_TEST_CASE("abs(-1)", 1);
     RUN_TEST_CASE("abs(abs(-1) - 2)", 1);
     RUN_TEST_CASE("(abs(-1) * 2) ^ 2", 4);
-    RUN_TEST_CASE("min(-10.5, -10.4)", -10.5);
-    RUN_TEST_CASE("max(-10.5, -10.4)", -10.4);
     RUN_TEST_CASE("abs(min(abs(-1), max(-5, -4)) * 1)", 4);
-    RUN_TEST_CASE("rad(180)", M_PI);
-    RUN_TEST_CASE("deg(rad(180))", 180);
-    RUN_TEST_CASE("sin(30)", sin(30));
-    RUN_TEST_CASE("sin(rad(30))", sin(30.0 * (M_PI / 180.0)));
-    RUN_TEST_CASE("cos(0)", 1);
-    RUN_TEST_CASE("tan(23)", tan(23));
-    RUN_TEST_CASE("sqrt(25)", 5);
-    RUN_TEST_CASE("sqrt(45)", sqrt(45));
-    RUN_TEST_CASE("log(1024)", log(1024));
-    RUN_TEST_CASE("log10(100)", 2);
-    RUN_TEST_CASE("exp(2)", exp(2));
-    RUN_TEST_CASE("floor(rad(180))", floor(M_PI));
-    RUN_TEST_CASE("ceil(rad(180))", ceil(M_PI));
-    RUN_TEST_CASE("round(rad(180))", round(M_PI));
+    RUN_TEST_CASE("max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", 14);
     RUN_TEST_CASE("pi()", M_PI);
     RUN_TEST_CASE("e()", M_E);
-    RUN_TEST_CASE("max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", 14);
+    RUN_TEST_CASE("abs(-15.5)", 15.5);
+    RUN_TEST_CASE("max(10.5, 20.0)", 20.0);
+    RUN_TEST_CASE("min(10.5, 20.0)", 10.5);
+    RUN_TEST_CASE("sin(0)", 0.0);
+    RUN_TEST_CASE("cos(0)", 1.0);
+    RUN_TEST_CASE("tan(0)", 0.0);
+    RUN_TEST_CASE("rad(180)", M_PI);
+    RUN_TEST_CASE("deg(3.14159265358979323846)", 180.0);
+    RUN_TEST_CASE("sqrt(25)", 5.0);
+    RUN_TEST_CASE("log(1)", 0.0);
+    RUN_TEST_CASE("log10(1000)", 3.0);
+    RUN_TEST_CASE("exp(1)", M_E);
+    RUN_TEST_CASE("floor(4.8)", 4.0);
+    RUN_TEST_CASE("ceil(4.2)", 5.0);
+    RUN_TEST_CASE("round(4.5)", 5.0);
+    RUN_TEST_CASE("round(4.4)", 4.0);
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     RUN_TEST_CASE("5 == 5", 1.0);
