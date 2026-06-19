@@ -4,8 +4,19 @@
 #include "./ast.h"
 #include "./ht.h"
 
+typedef struct M_Interpreter_Environment M_Interpreter_Environment;
+
+struct M_Interpreter_Environment {
+    ht_t *variables;
+
+    M_Interpreter_Environment *parent;
+};
+
 typedef struct {
-    ht_t *global_variables;
+    M_Interpreter_Environment *global_environment;
+
+    M_Interpreter_Environment *current_environment;
+
     M_Ast *program;
 } M_Interpreter;
 

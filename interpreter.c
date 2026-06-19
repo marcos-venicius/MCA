@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "./interpreter.h"
 #include "./ast.h"
@@ -50,6 +51,15 @@ static double __builtin_mca_round(M_Expression *arguments[], int arguments_count
 static double __builtin_mca_println(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count);
+
+static double __builtin_mca_time(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_year(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_month(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_date(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_day(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_hour(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_minute(M_Expression *arguments[], int arguments_count);
+static double __builtin_mca_second(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -60,11 +70,9 @@ typedef struct {
 } M_Fn_Binding;
 
 static M_Fn_Binding builtin_functions_bindings[] = {
-    // constants (TODO: should we have variables?)
-    { "pi", 2, 0, &__builtin_mca_pi },
-    { "e",  1, 0, &__builtin_mca_e },
-
-    // functions
+    // Math related
+    { "pi",    2, 0, &__builtin_mca_pi }, // TODO: should it become a constant variable?
+    { "e",     1, 0, &__builtin_mca_e },  // TODO: should it become a constant variable?
     { "abs",   3, 1, &__builtin_mca_abs },
     { "max",   3, 2, &__builtin_mca_max },
     { "min",   3, 2, &__builtin_mca_min },
@@ -81,9 +89,20 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "ceil",  4, 1, &__builtin_mca_ceil },
     { "round", 5, 1, &__builtin_mca_round },
 
+    // I/O / System related
     { "println", 7, -1, &__builtin_mca_println },
     { "print",   5, -1, &__builtin_mca_print },
     { "exit",    4,  1, &__builtin_mca_exit },
+
+    // datetime related
+    { "time",   4, 0, &__builtin_mca_time },
+    { "year",   4, 1, &__builtin_mca_year },
+    { "month",  5, 1, &__builtin_mca_month },
+    { "date",   4, 1, &__builtin_mca_date },
+    { "day",    3, 1, &__builtin_mca_day },
+    { "hour",   4, 1, &__builtin_mca_hour },
+    { "minute", 6, 1, &__builtin_mca_minute },
+    { "second", 6, 1, &__builtin_mca_second },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -125,6 +144,36 @@ static double evaluate_function_call_expression(M_Expression *expr) {
     exit(1);
 }
 
+static void enter_new_environment() {
+    M_Interpreter_Environment *new_env = malloc(sizeof(M_Interpreter_Environment));
+    new_env->variables = ht_init(sizeof(double)); // TODO: later this should be a struct M_Value that can hold different datatypes, not only numbers
+    new_env->parent = interpreter->current_environment;
+
+    interpreter->current_environment = new_env;
+}
+
+static void destroy_current_environment() {
+    M_Interpreter_Environment *current_env = interpreter->current_environment;
+
+    if (current_env == NULL) return;
+
+    ht_free(current_env->variables);
+
+    interpreter->current_environment = current_env->parent;
+
+    free(current_env);
+}
+
+static void *get_variable_from_environment(M_Interpreter_Environment *env, const char *key) {
+    if (env == NULL) return NULL;
+
+    double *value = ht_find(env->variables, key);
+
+    if (value != NULL) return value;
+
+    return get_variable_from_environment(env->parent, key);
+}
+
 M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
@@ -134,7 +183,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_ID: {
             char *key = strndup(expression->id.value, expression->id.value_length);
 
-            double *value = ht_find(interpreter->global_variables, key);
+            double *value = get_variable_from_environment(interpreter->current_environment, key);
 
             if (value == NULL) {
                 // TODO: implement better error reporting at evaluation level
@@ -154,7 +203,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             // @Leak TODO: we're not cleaning this
             const char *key = strndup(expression->assign.name.value, expression->assign.name.length);
 
-            ht_add(interpreter->global_variables, key, &value);
+            ht_add(interpreter->current_environment->variables, key, &value);
 
             return result;
         };
@@ -191,6 +240,9 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
         } break;
         case M_EK_IF: {
             M_Eval_Result condition_result = evaluate_expression(expression->if_expr.condition);
+            M_Eval_Result last_evaluated_expression = {0};
+
+            enter_new_environment();
 
             if (ctrl_unwrap(condition_result) != 0) {
                 M_Expression_Block *current = expression->if_expr.then_block;
@@ -207,12 +259,8 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
 
                     current = current->next;
                 }
-
-                return last_evaluated_expression;
             } else {
                 M_Expression_Block *current = expression->if_expr.else_block;
-
-                M_Eval_Result last_evaluated_expression = {0};
 
                 while (current != NULL) {
                     if (current->expr != NULL) {
@@ -224,14 +272,16 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
 
                     current = current->next;
                 }
-
-                return last_evaluated_expression;
             }
 
-            return ctrl_normal(0);
+            destroy_current_environment();
+
+            return last_evaluated_expression;
         } break;
         case M_EK_LOOP: {
             M_Eval_Result last_evaluated_expression = {0};
+
+            enter_new_environment();
 
             while (1) {
                 if (expression->loop.condition != NULL) {
@@ -254,6 +304,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                 }
             }
 m_ek_loop_out:
+            destroy_current_environment();
 
             return last_evaluated_expression;
         } break;
@@ -268,8 +319,11 @@ M_Interpreter *m_interpreter_create(M_Ast *program) {
     interpreter = malloc(sizeof(M_Interpreter));
 
     interpreter->program = program;
+    interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
     // TODO: for now, we can only work with numbers
-    interpreter->global_variables = ht_init(sizeof(double));
+    interpreter->global_environment->variables = ht_init(sizeof(double)); // TODO: later this should be a struct M_Value that can hold different datatypes, not only numbers
+    interpreter->global_environment->parent = NULL;
+    interpreter->current_environment = interpreter->global_environment;
 
     return interpreter;
 }
@@ -299,7 +353,8 @@ double m_interpreter_run(M_Interpreter *interpreter) {
 }
 
 void m_interpreter_free(M_Interpreter *interpreter) {
-    ht_free(interpreter->global_variables);
+    ht_free(interpreter->global_environment->variables);
+    free(interpreter->global_environment);
     ast_free(interpreter->program);
     free(interpreter);
 
@@ -458,4 +513,102 @@ static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count)
     (void)arguments_count;
 
     exit((int)ctrl_unwrap(evaluate_expression(arguments[0])));
+}
+
+static double __builtin_mca_time(M_Expression *arguments[], int arguments_count) {
+    (void)arguments;
+    (void)arguments_count;
+
+    return (double)time(NULL);
+}
+
+static double __builtin_mca_year(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)(time_info->tm_year + 1900);
+}
+
+static double __builtin_mca_month(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)(time_info->tm_mon + 1);
+}
+
+static double __builtin_mca_date(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)time_info->tm_mday;
+}
+
+static double __builtin_mca_day(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)time_info->tm_wday;
+}
+
+static double __builtin_mca_hour(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)time_info->tm_hour;
+}
+
+static double __builtin_mca_minute(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)time_info->tm_min;
+}
+
+static double __builtin_mca_second(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    int offset = (int)ctrl_unwrap(evaluate_expression(arguments[0]));
+
+    time_t current_time = time(NULL);
+    time_t adjusted_time = current_time + (offset * 3600);
+
+    struct tm *time_info = gmtime(&adjusted_time);
+
+    return (double)time_info->tm_sec;
 }

@@ -152,6 +152,21 @@ static void ast_error(M_Ast *ast, M_Token *token, const char *message, ...) {
     ast->errors++;
 }
 
+static void ast_info(M_Ast *ast, M_Token *token, const char *message, ...) {
+    va_list args;
+    va_start(args, message);
+
+    if (ast->filename != NULL) {
+        fprintf(stderr, "%s:%d:%d \033[0;36minfo\033[0m: ", ast->filename, token->loc.line, token->loc.col);
+    } else {
+        fprintf(stderr, "%d:%d \033[0;36minfo\033[0m: ", token->loc.line, token->loc.col);
+    }
+
+    vfprintf(stderr, message, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+}
 
 static M_Expression *parse_function_call_expression(M_Ast *ast) {
     M_Token *fn_name = token(ast);
@@ -238,12 +253,22 @@ static M_Expression *parse_variable_expression(M_Ast *ast) {
 }
 
 static M_Expression *parse_break_expression(M_Ast *ast) {
+    M_Token *first_token = token(ast);
+
     next_token(ast); // jump 'break'
 
     M_Expression *break_value = NULL;
 
-    if (token(ast) != NULL && token(ast)->kind != M_SEMI)
+    if (token(ast) != NULL && token(ast)->kind != M_SEMI) {
         break_value = parse_expression_impl(ast);
+
+        if (break_value == NULL) {
+            ast_error(ast, first_token, "invalid break expression. Isn't it missing a ';'? 'break\033[1;35m;\033[0m'");
+            ast_info(ast, first_token, "all break expressions that doesn't have a value should be terminated with a ';'");
+            synchronize(ast);
+            return NULL;
+        }
+    }
 
     M_Expression *loop_break = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 

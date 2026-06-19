@@ -1,0 +1,37 @@
+#!/usr/local/bin/mca -i
+
+# It's just a playground file so I can test things easily.
+
+## Getting unix time
+#println(time())
+#
+#println()
+#
+## Getting date with timezone applied
+#println(
+#  year(0),
+#  month(0),
+#  date(0),
+#  hour(-3),
+#  minute(-3),
+#  second(-3)
+#)
+
+global_variable = 11
+
+if year(0) == 2026 {
+  z = while {
+    n = 10
+    println(n, global_variable)
+
+    break;
+  }
+
+  while {
+    break;
+  }
+
+  println(z)
+}
+
+# vim: set syntax=python :
