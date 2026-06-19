@@ -2,7 +2,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <assert.h>
-#include <time.h>
 
 #define CLIBS_HT_IMPLEMENTATION
 #include "./lexer.h"
