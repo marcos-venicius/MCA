@@ -269,8 +269,6 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             if (ctrl_unwrap(condition_result) != 0) {
                 M_Expression_Block *current = expression->if_expr.then_block;
 
-                M_Eval_Result last_evaluated_expression = {0};
-
                 while (current != NULL) {
                     if (current->expr != NULL) {
                         last_evaluated_expression = evaluate_expression(current->expr);
@@ -342,12 +340,27 @@ M_Interpreter *m_interpreter_create(M_Ast *program) {
 
     interpreter->program = program;
     interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
+    interpreter->io_in = stdin;
+    interpreter->io_out = stdout;
+    interpreter->io_err = stderr;
     // TODO: for now, we can only work with numbers
     interpreter->global_environment->variables = ht_init(sizeof(double)); // TODO: later this should be a struct M_Value that can hold different datatypes, not only numbers
     interpreter->global_environment->parent = NULL;
     interpreter->current_environment = interpreter->global_environment;
 
     return interpreter;
+}
+
+void m_interpreter_set_stdin(M_Interpreter *interpreter, FILE *stream) {
+    interpreter->io_in = stream;
+}
+
+void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream) {
+    interpreter->io_out = stream;
+}
+
+void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream) {
+    interpreter->io_err = stream;
 }
 
 double m_interpreter_run(M_Interpreter *interpreter) {
@@ -512,7 +525,7 @@ static double __builtin_mca_round(M_Expression *arguments[], int arguments_count
 static double __builtin_mca_println(M_Expression *arguments[], int arguments_count) {
     double last_value = __builtin_mca_print(arguments, arguments_count);
 
-    printf("\n");
+    fprintf(interpreter->io_out, "\n");
 
     return last_value;
 }
@@ -521,11 +534,11 @@ static double __builtin_mca_print(M_Expression *arguments[], int arguments_count
     double last_value = 0.0;
 
     for (int i = 0; i < arguments_count; i++) {
-        if (i > 0) printf(" ");
+        if (i > 0) fprintf(interpreter->io_out, " ");
 
         last_value = ctrl_unwrap(evaluate_expression(arguments[i]));
 
-        printf("%f", last_value);
+        fprintf(interpreter->io_out, "%f", last_value);
     }
 
     return last_value;

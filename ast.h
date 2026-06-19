@@ -119,6 +119,7 @@ struct M_Expression {
 typedef struct {
     Clibs_Arena  *single_expression_arena;
 
+    Clibs_Arena  *block_expression_arena;
     Clibs_Arena   *expressions_array_arena;
     M_Expression **expressions_array;
     int            expressions_array_length;

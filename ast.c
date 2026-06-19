@@ -312,8 +312,7 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
 
     next_token(ast); // skip '{'
 
-    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
-    M_Expression_Block *block_head = malloc(sizeof(M_Expression_Block));
+    M_Expression_Block *block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
     block_head->next = NULL;
     block_head->expr = NULL;
     M_Expression_Block *block_tail = NULL;
@@ -335,7 +334,7 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
             block_head->next = NULL;
             block_tail = block_head;
         } else {
-            M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+            M_Expression_Block *inner_block = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
 
             inner_block->expr = expr;
             inner_block->next = NULL;
@@ -400,14 +399,12 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
 
     next_token(ast); // skip '{'
 
-    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
-    M_Expression_Block *then_head = malloc(sizeof(M_Expression_Block));
+    M_Expression_Block *then_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
     then_head->next = NULL;
     then_head->expr = NULL;
     M_Expression_Block *then_tail = NULL;
 
-    // @Leak TODO: maybe, use an arena. Just fix this leak. This block struct is never gonna be 'freed
-    M_Expression_Block *else_head = malloc(sizeof(M_Expression_Block));
+    M_Expression_Block *else_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
     else_head->next = NULL;
     else_head->expr = NULL;
     M_Expression_Block *else_tail = NULL;
@@ -429,7 +426,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             then_head->next = NULL;
             then_tail = then_head;
         } else {
-            M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+            M_Expression_Block *inner_block = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
 
             inner_block->expr = expr;
             inner_block->next = NULL;
@@ -487,7 +484,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
                 else_head->next = NULL;
                 else_tail = else_head;
             } else {
-                M_Expression_Block *inner_block = malloc(sizeof(M_Expression_Block));
+                M_Expression_Block *inner_block = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
 
                 inner_block->expr = expr;
                 inner_block->next = NULL;
@@ -852,7 +849,9 @@ M_Ast *parse_expression(const char *filename, M_Token *head) {
     ast->filename = filename;
     ast->current_token = head;
     ast->expressions_array_length = 0;
-    ast->single_expression_arena = clibs_arena_create(sizeof(M_Expression) * 256, sizeof(M_Expression));;
+    // TODO: I have these values fixed, maybe in the future we should make them grow (inside the arena library)
+    ast->block_expression_arena = clibs_arena_create(sizeof(M_Expression_Block) * 256, sizeof(M_Expression_Block));
+    ast->single_expression_arena = clibs_arena_create(sizeof(M_Expression) * 256, sizeof(M_Expression));
     ast->expressions_array_arena = clibs_arena_create(sizeof(M_Expression*) * M_AST_MAX_EXPRESSION_ARRAY_SIZE, sizeof(M_Expression*));
     ast->expressions_array = (M_Expression**)ast->expressions_array_arena->buffer;
 
@@ -897,6 +896,7 @@ parse_expression_loop:
 void ast_free(M_Ast *ast) {
     clibs_arena_destroy(ast->single_expression_arena);
     clibs_arena_destroy(ast->expressions_array_arena);
+    clibs_arena_destroy(ast->block_expression_arena);
 
     free(ast);
 }

@@ -37,6 +37,22 @@ static void RUN_TEST_CASE(const char *expression, double expected) {
     M_Ast *ast = parse_expression(NULL, tokens);
 
     M_Interpreter *interpreter = m_interpreter_create(ast);
+
+    FILE *dev_null;
+
+#ifdef _WIN32
+    dev_null = fopen("nul", "w");
+#else
+    dev_null = fopen("/dev/null", "w");
+#endif
+
+    if (dev_null != NULL) {
+        m_interpreter_set_stdout(interpreter, dev_null);
+        m_interpreter_set_stderr(interpreter, dev_null);
+    } else {
+        fprintf(stderr, "\033[1;34m[RUN_TEST_CASE] Warning: Could not open null device.\033[0m\n");
+    }
+
     double evaluated_expression = m_interpreter_run(interpreter);
 
     m_lexer_free(&lexer);
@@ -134,12 +150,15 @@ int main(void) {
     RUN_TEST_CASE("print()", 0.0);
     RUN_TEST_CASE("print(pi())", M_PI);
     RUN_TEST_CASE("print(pi(), e(), 10)", 10.0);
+    RUN_TEST_CASE("println()", 0.0);
+    RUN_TEST_CASE("println(pi())", M_PI);
+    RUN_TEST_CASE("println(pi(), e(), 10)", 10.0);
 
     TEST_CASE_LABEL("Global variables");
     RUN_TEST_CASE("x = 10", 10.0);
     RUN_TEST_CASE("y = x = 10", 10.0);
     RUN_TEST_CASE("y = x = 10;y", 10.0);
-    RUN_TEST_CASE("x = 10; y = -5.5; z = abs(x * y); print(x, y, z, x + y + z)", 59.5);
+    RUN_TEST_CASE("x = 10; y = -5.5; z = abs(x * y); println(x, y, z, x + y + z)", 59.5);
 
     TEST_CASE_LABEL("Loops");
     RUN_TEST_CASE("n = 10; while n < 20 { n = n + 1 }", 20);
@@ -147,12 +166,11 @@ int main(void) {
     RUN_TEST_CASE("while 0 {}", 0);
 
     TEST_CASE_LABEL("Break");
-    RUN_TEST_CASE("r = while 1 { n = 10; break 11.3; print(0); }; r", 11.3);
-    RUN_TEST_CASE("r = while 1 { n = 10; break; print(10); }; r", 0);
-    RUN_TEST_CASE("r = while 1 { n = 10; break floor(10 * 10 - cos(45)); print(10); }; r", 99);
+    RUN_TEST_CASE("r = while 1 { n = 10; break 11.3; println(0); }; r", 11.3);
+    RUN_TEST_CASE("r = while 1 { n = 10; break; println(10); }; r", 0);
+    RUN_TEST_CASE("r = while 1 { n = 10; break floor(10 * 10 - cos(45)); println(10); }; r", 99);
 
     TEST_CASE_LABEL("If's");
-
     RUN_TEST_CASE("x = 10; if x == 10 { x = 11.3 }", 11.3);
     RUN_TEST_CASE("x = if 10 != 10.1 { 1337 }", 1337);
     RUN_TEST_CASE("x = if 10 != 10.1 {}", 0);
