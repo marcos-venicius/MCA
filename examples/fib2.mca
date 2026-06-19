@@ -11,20 +11,20 @@ break_value = while {
     b = t + b
     n = n + 1
 
-    print(n, a)
+    println(n, a)
 
     should_be_0 = if n >= M {
-        print(3030)
+        println(3030)
 
         break CONSTANT
     }
 };
 
 if break_value == CONSTANT {
-    print()
-    print(1337)
+    println()
+    println(1337)
 };
 
-print(should_be_0)
+println(should_be_0)
 
 # vim: set syntax=python :

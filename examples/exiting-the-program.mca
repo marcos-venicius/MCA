@@ -6,7 +6,7 @@ while {
     V = cos(rad(n))
 
     if V >= 1 {
-        print(n, V)
+        println(n, V)
 
         exit(42) # the exit code should be 42 (echo $? (linux))
     }

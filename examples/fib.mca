@@ -11,11 +11,11 @@ LAST_FIB_VALUE = while n < M {
   b = t + b;
   n = n + 1;
 
-  print(a);
+  println(a);
 };
 
-print();
-print();
-print(t, n, LAST_FIB_VALUE)
+println();
+println();
+println(t, n, LAST_FIB_VALUE)
 
 # vim: set syntax=python :
