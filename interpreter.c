@@ -220,12 +220,13 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             // TODO: shouldn't I just keep the expression and lazy-evaluate it?
             double value = ctrl_unwrap(result);
 
-            // @Leak TODO: we're not cleaning this
-            const char *key = strndup(expression->assign.name.value, expression->assign.name.length);
+            char *key = strndup(expression->assign.name.value, expression->assign.name.length);
 
             // will try to find the variable and update
             // if not find, will create one in the current scope
             set_variable_on_environment(interpreter->current_environment, key, &value);
+
+            free(key);
 
             return result;
         };

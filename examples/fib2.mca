@@ -18,13 +18,15 @@ break_value = while {
 
         break CONSTANT
     }
+
+    if should_be_0 != 0 {
+      exit(123);
+    }
 };
 
 if break_value == CONSTANT {
     println()
     println(1337)
 };
-
-println(should_be_0)
 
 # vim: set syntax=python :

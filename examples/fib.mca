@@ -16,6 +16,6 @@ LAST_FIB_VALUE = while n < M {
 
 println();
 println();
-println(t, n, LAST_FIB_VALUE)
+println(n, LAST_FIB_VALUE)
 
 # vim: set syntax=python :
