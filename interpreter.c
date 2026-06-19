@@ -47,6 +47,7 @@ static double __builtin_mca_floor(M_Expression *arguments[], int arguments_count
 static double __builtin_mca_ceil(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_round(M_Expression *arguments[], int arguments_count);
 
+static double __builtin_mca_println(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count);
 static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
@@ -75,13 +76,14 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "sqrt",  4, 1, &__builtin_mca_sqrt },
     { "log",   3, 1, &__builtin_mca_log },
     { "log10", 5, 1, &__builtin_mca_log10 },
-    { "exp",  3, 1, &__builtin_mca_exp },
+    { "exp",   3, 1, &__builtin_mca_exp },
     { "floor", 5, 1, &__builtin_mca_floor },
     { "ceil",  4, 1, &__builtin_mca_ceil },
     { "round", 5, 1, &__builtin_mca_round },
 
-    { "print", 5, -1, &__builtin_mca_print },
-    { "exit", 4, 1, &__builtin_mca_exit },
+    { "println", 7, -1, &__builtin_mca_println },
+    { "print",   5, -1, &__builtin_mca_print },
+    { "exit",    4,  1, &__builtin_mca_exit },
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
@@ -430,6 +432,14 @@ static double __builtin_mca_round(M_Expression *arguments[], int arguments_count
     return round(a0);
 }
 
+static double __builtin_mca_println(M_Expression *arguments[], int arguments_count) {
+    double last_value = __builtin_mca_print(arguments, arguments_count);
+
+    printf("\n");
+
+    return last_value;
+}
+
 static double __builtin_mca_print(M_Expression *arguments[], int arguments_count) {
     double last_value = 0.0;
 
@@ -440,11 +450,9 @@ static double __builtin_mca_print(M_Expression *arguments[], int arguments_count
 
         printf("%f", last_value);
     }
-    printf("\n");
 
     return last_value;
 }
-
 
 static double __builtin_mca_exit(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
