@@ -174,6 +174,26 @@ static void *get_variable_from_environment(M_Interpreter_Environment *env, const
     return get_variable_from_environment(env->parent, key);
 }
 
+static void set_variable_on_environment(M_Interpreter_Environment *env, const char *key, void *data) {
+    // the variable doesn't exists on upper scopes, so we create one in the current scope
+    if (env == NULL) {
+        ht_add(interpreter->current_environment->variables, key, data);
+
+        return;
+    }
+
+    double *value = ht_find(env->variables, key);
+
+    // we find the variable at the current scope or on upper ones, so we update it
+    if (value != NULL) {
+        ht_add(env->variables, key, data);
+    }
+
+    // we did not find the variable in this scope so we climb up
+
+    set_variable_on_environment(env->parent, key, data);
+}
+
 M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
@@ -203,7 +223,9 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             // @Leak TODO: we're not cleaning this
             const char *key = strndup(expression->assign.name.value, expression->assign.name.length);
 
-            ht_add(interpreter->current_environment->variables, key, &value);
+            // will try to find the variable and update
+            // if not find, will create one in the current scope
+            set_variable_on_environment(interpreter->current_environment, key, &value);
 
             return result;
         };
