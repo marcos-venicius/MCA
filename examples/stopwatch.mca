@@ -28,12 +28,8 @@ while {
       if delta >= GAP {
         break;
       }
-    } else {
-      # we don't have 'else if' yet
-      if delta >= 1 {
-        CURRENT_GAP = CURRENT_GAP + 1
-        break;
-      }
+    } elif delta >= 1 {
+      CURRENT_GAP = CURRENT_GAP + 1 break;
     }
   }
 
@@ -48,12 +44,10 @@ while {
 
   if hours > 0 {
     println(hours, minutes, seconds)
+  } elif minutes > 0 {
+    println(minutes, seconds)
   } else {
-    if minutes > 0 {
-      println(minutes, seconds)
-    } else {
-      println(seconds)
-    }
+    println(seconds)
   }
 }
 
