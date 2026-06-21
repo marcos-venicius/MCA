@@ -46,7 +46,6 @@ while {
 
   # display
 
-  # we don't have 'and', 'or' yet
   if hours > 0 {
     println(hours, minutes, seconds)
   } else {
