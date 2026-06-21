@@ -29,7 +29,8 @@ while {
         break;
       }
     } elif delta >= 1 {
-      CURRENT_GAP = CURRENT_GAP + 1 break;
+      CURRENT_GAP = CURRENT_GAP + 1
+      break;
     }
   }
 
