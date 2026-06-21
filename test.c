@@ -249,6 +249,11 @@ int main(void) {
     RUN_TEST_CASE("if 10 == 11 or 20 == 20 { 20 } else { 10 }", T_INT(20));
     RUN_TEST_CASE("if 10 == 11 or 20 == 21 { 20 } else { 10 }", T_INT(10));
 
+    TEST_CASE_LABEL("Not operator");
+    RUN_TEST_CASE("if !(10 == 11 or 20 == 21) { 20 } else { 10 }", T_INT(20));
+    RUN_TEST_CASE("!(1 == 0)", T_INT(1));
+    RUN_TEST_CASE("!1.4", T_INT(0));
+
     if (errors == 1) {
         fprintf(stderr, "\n\033[1;31m1\033[0m test case broke\n");
     } else if (errors > 1) {

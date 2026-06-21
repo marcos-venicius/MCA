@@ -57,7 +57,7 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_POW: return "POW";
         case M_MINUS: return "MINUS";
 
-        case M_FACTORIAL: return "FACTORIAL";
+        case M_EXCLAMATION: return "EXCLAMATION";
 
         case M_ASSIGN: return "ASSIGN";
 
@@ -203,7 +203,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case '-': { advance_cursor(lexer); save_token(lexer, M_MINUS); } break;
         case '%': { advance_cursor(lexer); save_token(lexer, M_MOD); } break;
         case '^': { advance_cursor(lexer); save_token(lexer, M_POW); } break;
-        case '!': { advance_cursor(lexer); save_token(lexer, M_FACTORIAL); } break;
+        case '!': { advance_cursor(lexer); save_token(lexer, M_EXCLAMATION); } break;
         case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
         case ',': { advance_cursor(lexer); save_token(lexer, M_COMMA); } break;
         default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
@@ -267,7 +267,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
                 if (nchr(lexer) == '=') {
                     tokenize_n(lexer, 2, M_NOT_EQUAL);
                 } else {
-                    tokenize_n(lexer, 1, M_FACTORIAL);
+                    tokenize_n(lexer, 1, M_EXCLAMATION);
                 }
                 break;
             case '=':

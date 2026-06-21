@@ -74,7 +74,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_ID:
         case M_INT:
         case M_FLOAT:
-        case M_FACTORIAL:
+        case M_EXCLAMATION:
         case M_LPAREN:
         case M_RPAREN:
         case M_LCURLY:
@@ -114,6 +114,7 @@ static const char *binary_expression_operator_name(M_Binary_Expression_Operator 
 static const char *unary_expression_operator_name(M_Unary_Expression_Operator op) {
     switch (op) {
         case M_UNARY_MINUS_OP:      return "-";
+        case M_UNARY_NOT_OP:
         case M_UNARY_FACTORIAL_OP:  return "!";
     }
 
@@ -123,7 +124,7 @@ static const char *unary_expression_operator_name(M_Unary_Expression_Operator op
 static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Token_Kind kind) {
     switch (kind) {
         case M_MINUS:       return M_UNARY_MINUS_OP;
-        case M_FACTORIAL:   return M_UNARY_FACTORIAL_OP;
+        case M_EXCLAMATION: return M_UNARY_FACTORIAL_OP;
 
         case M_ASSIGN:
         case M_PLUS:
@@ -613,7 +614,7 @@ static M_Expression *parse_factorial_expression(M_Ast *ast) {
 
     if (left == NULL) return NULL;
 
-    while (token(ast) != NULL && token(ast)->kind == M_FACTORIAL) {
+    while (token(ast) != NULL && token(ast)->kind == M_EXCLAMATION) {
         M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
         next_token(ast);
@@ -635,7 +636,7 @@ static M_Expression *parse_unary_expression(M_Ast *ast) {
 
     M_Token *first_token = token(ast);
 
-    if (token(ast)->kind == M_MINUS) {
+    if (token(ast)->kind == M_MINUS || token(ast)->kind == M_EXCLAMATION) {
         M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
         next_token(ast);
@@ -651,7 +652,7 @@ static M_Expression *parse_unary_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_UNARY;
-        expr->unary.op = op;
+        expr->unary.op = op == M_UNARY_FACTORIAL_OP ? M_UNARY_NOT_OP : op;
         expr->unary.operand = operand;
 
         return expr;

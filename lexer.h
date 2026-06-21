@@ -22,7 +22,7 @@ typedef enum {
     M_POW,
 
     // unary operators
-    M_FACTORIAL,
+    M_EXCLAMATION,
 
     // '=' operator
     M_ASSIGN,

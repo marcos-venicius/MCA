@@ -55,6 +55,9 @@ void print_expr(M_Expression *expr) {
             printf("(");
             print_expr(expr->unary.operand);
             printf(")!");
+        } else if (expr->unary.op == M_UNARY_NOT_OP) {
+            printf("!");
+            print_expr(expr->unary.operand);
         }
     } else if (expr->kind == M_EK_CALL) {
         printf("%.*s(", expr->call.fn_name_length, expr->call.fn_name);

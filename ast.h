@@ -46,6 +46,7 @@ typedef enum {
 typedef enum {
     M_UNARY_MINUS_OP,
     M_UNARY_FACTORIAL_OP,
+    M_UNARY_NOT_OP,
 } M_Unary_Expression_Operator;
 
 typedef struct M_Expression_Block M_Expression_Block;

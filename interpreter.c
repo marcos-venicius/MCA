@@ -352,6 +352,28 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                         }
                     };
                 } 
+                case M_UNARY_NOT_OP: {
+                    M_Eval_Result result = m_result_expect_type(evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT);
+
+                    switch (result.value.type) {
+                        case M_T_INT:
+                            return (M_Eval_Result){
+                                .flow = result.flow,
+                                .value = (M_Value){
+                                    .type = M_T_INT,
+                                    .as.integer = !result.value.as.integer
+                                }
+                            };
+                        case M_T_FLOAT:
+                            return (M_Eval_Result){
+                                .flow = result.flow,
+                                .value = (M_Value){
+                                    .type = M_T_INT,
+                                    .as.integer = !result.value.as.floating
+                                }
+                            };
+                    }
+                } break;
                 case M_UNARY_FACTORIAL_OP: return calculate_factorial(evaluate_expression(expression->unary.operand));
             }
 
