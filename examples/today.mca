@@ -1,0 +1,15 @@
+# This program is capable of getting the current date and time
+# using timezone -3
+
+TIMEZONE_OFFSET = -3
+
+println(
+  year(TIMEZONE_OFFSET),
+  month(TIMEZONE_OFFSET),
+  date(TIMEZONE_OFFSET),
+  hour(TIMEZONE_OFFSET),
+  minute(TIMEZONE_OFFSET),
+  second(TIMEZONE_OFFSET)
+)
+
+# vim: set syntax=python :

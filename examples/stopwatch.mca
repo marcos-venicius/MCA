@@ -1,0 +1,61 @@
+# This program is a simple and CPU-blocking
+# stopwatch implementation with the current
+# powers of the language
+
+# The program with count until the 'GAP' second by second
+# then it's gonna start to display only at the defined 'GAP'
+
+GAP         = 7 # gap between display
+CURRENT_GAP = 0
+
+BIG_BANG = time()
+
+seconds = 0
+minutes = 0
+hours   = 0
+
+while {
+  # 'sleep'
+
+  start = time()
+
+  while {
+    step = time()
+
+    delta = step - start
+
+    if CURRENT_GAP == GAP {
+      if delta >= GAP {
+        break;
+      }
+    } else {
+      # we don't have 'else if' yet
+      if delta >= 1 {
+        CURRENT_GAP = CURRENT_GAP + 1
+        break;
+      }
+    }
+  }
+
+  now      = time()
+  duration = now - BIG_BANG
+
+  hours   = floor(duration / 3600)
+  minutes = floor(duration / 60) % 60
+  seconds = duration % 60
+
+  # display
+
+  # we don't have 'and', 'or' yet
+  if hours > 0 {
+    println(hours, minutes, seconds)
+  } else {
+    if minutes > 0 {
+      println(minutes, seconds)
+    } else {
+      println(seconds)
+    }
+  }
+}
+
+# vim: set syntax=python :
