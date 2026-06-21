@@ -395,7 +395,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
     next_token(ast); // jump keyword
 
     if (token(ast) == NULL) {
-        ast_error(ast, first_token, "unterminated if expression. expected an expression or a '{' but got EOF");
+        ast_error(ast, first_token, "unterminated if expression. expected an expression but got EOF");
         synchronize(ast);
         return NULL;
     }
@@ -473,6 +473,94 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
 
     next_token(ast); // skip '}'
 
+    M_Expression_Elif_Block *elif_head = NULL;
+    M_Expression_Elif_Block *elif_tail = NULL;
+
+    while (token(ast) != NULL && token(ast)->kind == M_ID && token(ast)->size == 4 && strncmp(token(ast)->value, "elif", 4) == 0) {
+        if (elif_tail == NULL) {
+            elif_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Elif_Block));
+            elif_head->next = NULL;
+            elif_head->condition = NULL;
+            elif_head->block = NULL;
+            elif_tail = elif_head;
+        } else {
+            M_Expression_Elif_Block *next_elif = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Elif_Block));
+
+            elif_tail->next = next_elif;
+            elif_tail = elif_tail->next;
+        }
+
+        next_token(ast); // skip 'elif'
+
+        if (token(ast) == NULL) {
+            ast_error(ast, first_token, "unterminated elif expression. expected a condition 'elif ... {' but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
+
+        elif_tail->condition = parse_expression_impl(ast);
+
+        // just propagating upper errors
+        if (elif_tail->condition == NULL) return NULL;
+
+        if (token(ast)->kind != M_LCURLY) {
+            ast_error(ast, first_token, "unterminated elif expression. expected '{' but got '%.*s'", token(ast)->size, token(ast)->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip '{'
+
+        M_Expression_Block *elif_block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
+        elif_block_head->next = NULL;
+        elif_block_head->expr = NULL;
+        M_Expression_Block *elif_block_tail = NULL;
+
+        // Parse elif block
+        while (token(ast) != NULL && token(ast)->kind != M_RCURLY) {
+            // skip empty expressions ';'
+            if (token(ast) != NULL && token(ast)->kind == M_SEMI) {
+                next_token(ast);
+                continue;
+            }
+
+            M_Expression *expr = parse_expression_impl(ast);
+
+            // just propagating upper errors
+            if (expr == NULL) return NULL;
+
+            if (elif_block_tail == NULL) {
+                elif_block_head->expr = expr;
+                elif_block_head->next = NULL;
+                elif_block_tail = elif_block_head;
+            } else {
+                M_Expression_Block *inner_block = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
+
+                inner_block->expr = expr;
+                inner_block->next = NULL;
+
+                elif_block_tail->next = inner_block;
+                elif_block_tail = elif_block_tail->next;
+            }
+        }
+
+        if (token(ast) == NULL) {
+            ast_error(ast, first_token, "unterminated elif expression. expected '}' but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
+
+        if (token(ast)->kind != M_RCURLY) {
+            ast_error(ast, first_token, "unterminated elif expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip '}'
+
+        elif_tail->block = elif_block_head;
+    }
+
     if (token(ast) != NULL && token(ast)->kind == M_ID && token(ast)->size == 4 && strncmp(token(ast)->value, "else", 4) == 0) {
         next_token(ast); // jump 'else'
 
@@ -536,6 +624,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
     expr->kind = M_EK_IF;
     expr->if_expr.condition = condition;
     expr->if_expr.then_block = then_head;
+    expr->if_expr.elif_blocks = elif_head;
     expr->if_expr.else_block = else_head;
 
     return expr;

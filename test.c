@@ -239,6 +239,12 @@ int main(void) {
     RUN_TEST_CASE("x = if 10 != 10.1 { 1337 }", T_INT(1337));
     RUN_TEST_CASE("x = if 10 != 10.1 {}", T_INT(0));
 
+    TEST_CASE_LABEL("Elif's");
+    RUN_TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 20 { 56 } elif 1 == 1 { } else { 42 }", T_INT(56));
+    RUN_TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(33));
+    RUN_TEST_CASE("if 10 == 10 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(1337));
+    RUN_TEST_CASE("if 10 == 11 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 2 == 1 { 33 } else { 42 }", T_INT(42));
+
     TEST_CASE_LABEL("Else's");
     RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { 42 }", T_INT(42));
     RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { }", T_INT(0));

@@ -57,6 +57,15 @@ struct M_Expression_Block {
     M_Expression_Block *next;
 };
 
+typedef struct M_Expression_Elif_Block M_Expression_Elif_Block;
+
+struct M_Expression_Elif_Block {
+    M_Expression        *condition;
+    M_Expression_Block  *block;
+
+    M_Expression_Elif_Block *next;
+};
+
 struct M_Expression {
     M_Expression_Kind kind;
 
@@ -112,12 +121,11 @@ struct M_Expression {
             M_Expression_Block  *block;
         } loop;
 
-        // this is the same as loop for now, but in the future I plan to add else if and else blocks to it,
-        // so it will be easier to extend it later
         struct {
-            M_Expression        *condition;
-            M_Expression_Block  *then_block;
-            M_Expression_Block  *else_block;
+            M_Expression            *condition;
+            M_Expression_Block      *then_block;
+            M_Expression_Elif_Block *elif_blocks;
+            M_Expression_Block      *else_block;
         } if_expr;
     };
 };

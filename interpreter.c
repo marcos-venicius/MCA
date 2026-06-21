@@ -284,6 +284,24 @@ static void set_variable_on_environment(M_Interpreter_Environment *env, const ch
     set_variable_on_environment(env->parent, key, data);
 }
 
+M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
+    M_Eval_Result last_result = { .value = m_value_zero(), .flow = M_CTRL_NORMAL };
+
+    M_Expression_Block *current = block;
+
+    while (current != NULL) {
+        if (current->expr != NULL) {
+            last_result = evaluate_expression(current->expr);
+
+            if (last_result.flow != M_CTRL_NORMAL) return last_result;
+        }
+
+        current = current->next;
+    }
+
+    return last_result;
+}
+
 M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
@@ -465,33 +483,42 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             }
 
             if (evaluated_condition) {
-                M_Expression_Block *current = expression->if_expr.then_block;
-
-                while (current != NULL) {
-                    if (current->expr != NULL) {
-                        last_evaluated_expression = evaluate_expression(current->expr);
-                    }
-
-                    // propagate break flow if exists
-                    if (last_evaluated_expression.flow == M_CTRL_BREAK) break;
-
-                    current = current->next;
-                }
+                last_evaluated_expression = evaluate_block_expression(expression->if_expr.then_block);
             } else {
-                M_Expression_Block *current = expression->if_expr.else_block;
+                if (expression->if_expr.elif_blocks != NULL) {
+                    M_Expression_Elif_Block *current_elif = expression->if_expr.elif_blocks;
 
-                while (current != NULL) {
-                    if (current->expr != NULL) {
-                        last_evaluated_expression = evaluate_expression(current->expr);
+                    while (current_elif != NULL) {
+                        M_Eval_Result elif_condition = evaluate_expression(current_elif->condition);
+
+                        int evaluated_elif_condition = evaluate_m_value_as_internal_boolean(elif_condition.value);
+
+                        if (evaluated_elif_condition == -1) {
+                            // TODO: implement better error reporting at evaluation level
+                            fprintf(
+                                stderr,
+                                "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'elif'\n",
+                                m_value_type_name(condition.value.type)
+                            );
+                            exit(1);
+                        }
+
+                        if (evaluated_elif_condition) {
+                            if (current_elif->block != NULL)
+                                last_evaluated_expression = evaluate_block_expression(current_elif->block);
+
+                            goto after_else_block; // we reached a valid elif so we avoid going to the else block
+                        }
+
+                        current_elif = current_elif->next;
                     }
-
-                    // propagate break flow if exists
-                    if (last_evaluated_expression.flow == M_CTRL_BREAK) break;
-
-                    current = current->next;
                 }
+
+                if (expression->if_expr.else_block != NULL)
+                    last_evaluated_expression = evaluate_block_expression(expression->if_expr.else_block);
             }
 
+after_else_block:
             destroy_current_environment();
 
             return last_evaluated_expression;
@@ -523,23 +550,20 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                     if (!evaluated_condition) break;
                 }
 
-                M_Expression_Block *current = expression->loop.block;
-
-                while (current != NULL) {
-                    if (current->expr != NULL) {
-                        last_evaluated_expression = evaluate_expression(current->expr);
-                    }
+                if (expression->loop.block != NULL) {
+                    last_evaluated_expression = evaluate_block_expression(expression->loop.block);
 
                     if (last_evaluated_expression.flow == M_CTRL_BREAK) {
-                        last_evaluated_expression = (M_Eval_Result){ .value = last_evaluated_expression.value, .flow = M_CTRL_NORMAL };
+                        last_evaluated_expression = (M_Eval_Result){
+                            .value = last_evaluated_expression.value,
+                            .flow = M_CTRL_NORMAL
+                        };
 
-                        goto m_ek_loop_out;
+                        break;
                     }
-
-                    current = current->next;
                 }
             }
-m_ek_loop_out:
+
             destroy_current_environment();
 
             return last_evaluated_expression;
