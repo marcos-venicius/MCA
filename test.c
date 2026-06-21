@@ -164,8 +164,8 @@ int main(void) {
     RUN_TEST_CASE("(abs(-1) * 2) ^ 2", T_INT(4));
     RUN_TEST_CASE("abs(min(abs(-1), max(-5, -4)) * 1)", T_INT(4));
     RUN_TEST_CASE("max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", T_FLOAT(14));
-    RUN_TEST_CASE("pi()", T_FLOAT(M_PI));
-    RUN_TEST_CASE("e()", T_FLOAT(M_E));
+    RUN_TEST_CASE("PI()", T_FLOAT(M_PI));
+    RUN_TEST_CASE("E()", T_FLOAT(M_E));
     RUN_TEST_CASE("abs(-15.5)", T_FLOAT(15.5));
     RUN_TEST_CASE("max(10.5, 20.0)", T_INT(20));
     RUN_TEST_CASE("min(10.5, 20.0)", T_FLOAT(10.5));
@@ -182,6 +182,8 @@ int main(void) {
     RUN_TEST_CASE("ceil(4.2)", T_INT(5));
     RUN_TEST_CASE("round(4.5)", T_INT(5));
     RUN_TEST_CASE("round(4.4)", T_INT(4));
+    RUN_TEST_CASE("type(4.4)", T_FLOAT(4.4));
+    RUN_TEST_CASE("type(4)", T_INT(4));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     RUN_TEST_CASE("5 == 5", T_INT(1));
@@ -210,11 +212,11 @@ int main(void) {
 
     TEST_CASE_LABEL("Printing (return last argument)");
     RUN_TEST_CASE("print()", T_INT(0));
-    RUN_TEST_CASE("print(pi())", T_FLOAT(M_PI));
-    RUN_TEST_CASE("print(pi(), e(), 10)", T_INT(10));
+    RUN_TEST_CASE("print(PI())", T_FLOAT(M_PI));
+    RUN_TEST_CASE("print(PI(), E(), 10)", T_INT(10));
     RUN_TEST_CASE("println()", T_INT(0));
-    RUN_TEST_CASE("println(pi())", T_FLOAT(M_PI));
-    RUN_TEST_CASE("println(pi(), e(), 10)", T_INT(10));
+    RUN_TEST_CASE("println(PI())", T_FLOAT(M_PI));
+    RUN_TEST_CASE("println(PI(), E(), 10)", T_INT(10));
 
     TEST_CASE_LABEL("Global variables");
     RUN_TEST_CASE("x = 10", T_INT(10));

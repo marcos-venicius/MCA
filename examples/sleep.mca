@@ -1,0 +1,24 @@
+# It's a "busy-wait", not a really usefull sleep
+# It's just an example of what we already can implement
+
+SLEEP_FOR = 3 # seconds
+
+start = 0
+
+duration = while {
+  if start == 0 {
+    start = time()
+  } else {
+    stop = time()
+
+    delta = stop - start
+
+    if delta >= SLEEP_FOR {
+      break delta;
+    }
+  }
+}
+
+println(duration)
+
+# vim: set syntax=python :

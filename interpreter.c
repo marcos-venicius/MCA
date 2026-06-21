@@ -52,6 +52,8 @@ static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count)
 static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count);
 static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_count);
 static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_count);
+
+static M_Value __builtin_mca_type(M_Expression *arguments[], int arguments_count);
 // BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
@@ -63,8 +65,8 @@ typedef struct {
 
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
-    { "pi",    2, 0, &__builtin_mca_pi }, // TODO: should it become a constant variable?
-    { "e",     1, 0, &__builtin_mca_e },  // TODO: should it become a constant variable?
+    { "PI",    2, 0, &__builtin_mca_pi }, // TODO: should it become a constant variable?
+    { "E",     1, 0, &__builtin_mca_e },  // TODO: should it become a constant variable?
     { "abs",   3, 1, &__builtin_mca_abs },
     { "max",   3, 2, &__builtin_mca_max },
     { "min",   3, 2, &__builtin_mca_min },
@@ -85,6 +87,9 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     { "println", 7, -1, &__builtin_mca_println },
     { "print",   5, -1, &__builtin_mca_print },
     { "exit",    4,  1, &__builtin_mca_exit },
+
+    // language specifics
+    { "type", 4, 1, &__builtin_mca_type },
 
     // datetime related
     { "time",   4, 0, &__builtin_mca_time },
@@ -888,4 +893,21 @@ static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_cou
         .type = M_T_INT,
         .as.integer = time_info->tm_sec
     };
+}
+
+static M_Value __builtin_mca_type(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result result = evaluate_expression(arguments[0]);
+
+    switch (result.value.type) {
+        case M_T_INT:
+            fprintf(interpreter->io_out, "int(%ld)\n", result.value.as.integer);
+            break;
+        case M_T_FLOAT:
+            fprintf(interpreter->io_out, "float(%lf)\n", result.value.as.floating);
+            break;
+    }
+
+    return result.value;
 }
