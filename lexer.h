@@ -8,7 +8,8 @@ typedef struct M_Token M_Token;
 
 typedef enum {
     // all numbers will be handled as C doubles
-    M_NUMBER = 0,
+    M_INT = 0, // always C int64_t
+    M_FLOAT,   // always C double
 
     M_ID,
 

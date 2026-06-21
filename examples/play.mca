@@ -2,25 +2,5 @@
 
 # It's just a playground file so I can test things easily.
 
-a = 10
-b = 0
 
-if 1 == 2.1 - 1.1 {
-  a = 15 + a
-  a = a + a
-  b = 10
-}
-
-println(a, b)
-
-n = 10;
-
-while n > 0 {
-  n = n - 1;
-  println();
-  println(n);
-}
-
-println()
-println(n);
 # vim: set syntax=python :

@@ -3,6 +3,7 @@
 
 #include "./lexer.h"
 #include "./arena.h"
+#include <stdint.h>
 
 // @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
@@ -10,7 +11,8 @@
 typedef struct M_Expression M_Expression;
 
 typedef enum {
-    M_EK_NUMBER = 0,
+    M_EK_INT = 0,
+    M_EK_FLOAT,
     M_EK_ID,
     M_EK_BINARY,
     M_EK_ASSIGN,
@@ -55,8 +57,8 @@ struct M_Expression {
     M_Expression_Kind kind;
 
     union {
-        // when the kind is M_EK_NUMBER
-        double number;
+        int64_t integer;
+        double  floating;
 
         // when the kind is M_EK_BREAK it can be null or filled
         M_Expression *expr;

@@ -45,7 +45,8 @@ bool m_lexer_finished_with_errors() {
 
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
-        case M_NUMBER: return "NUMBER";
+        case M_INT: return "NUMBER";
+        case M_FLOAT: return "FLOAT";
 
         case M_ID: return "ID";
 
@@ -167,7 +168,11 @@ static void tokenize_number(M_Lexer *lexer) {
         digits++;
     }
 
+    M_Token_Kind kind = M_INT;
+
     if (chr(lexer) == '.') {
+        kind = M_FLOAT;
+
         if (digits == 0) {
             invalid_floating_number_error(lexer);
             return;
@@ -183,7 +188,7 @@ static void tokenize_number(M_Lexer *lexer) {
         while (is_digit(chr(lexer))) advance_cursor(lexer);
     }
 
-    save_token(lexer, M_NUMBER);
+    save_token(lexer, kind);
 }
 
 static void tokenize_single(M_Lexer *lexer) {

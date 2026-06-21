@@ -37,6 +37,15 @@ static double convert_to_double(M_Token *token) {
     return strtod(buffer, NULL);
 }
 
+static int64_t convert_to_integer(M_Token *token) {
+    char buffer[token->size + 1];
+
+    memcpy(buffer, token->value, token->size);
+    buffer[token->size] = '\0';
+
+    return strtoll(buffer, NULL, 10);
+}
+
 static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_Token_Kind kind) {
     switch (kind) {
         case M_PLUS:    return M_BINARY_PLUS_OP;
@@ -55,7 +64,8 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
 
         case M_ASSIGN:
         case M_ID:
-        case M_NUMBER:
+        case M_INT:
+        case M_FLOAT:
         case M_FACTORIAL:
         case M_LPAREN:
         case M_RPAREN:
@@ -117,7 +127,8 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_GTE:
         case M_LTE:
         case M_ID:
-        case M_NUMBER:
+        case M_INT:
+        case M_FLOAT:
         case M_LPAREN:
         case M_RPAREN:
         case M_LCURLY:
@@ -521,10 +532,18 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
-    if (token(ast)->kind == M_NUMBER) {
+    if (token(ast)->kind == M_INT) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
-        expr->kind = M_EK_NUMBER;
-        expr->number = convert_to_double(token(ast));
+        expr->kind = M_EK_INT;
+        expr->integer = convert_to_integer(token(ast));
+
+        next_token(ast);
+
+        return expr;
+    } else if (token(ast)->kind == M_FLOAT) {
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+        expr->kind = M_EK_FLOAT;
+        expr->floating = convert_to_double(token(ast));
 
         next_token(ast);
 

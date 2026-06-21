@@ -9,10 +9,7 @@
 #include "./ast.h"
 #include "./ht.h"
 
-#define TRUE 1.0
-#define FALSE 0.0
-
-#define m_value_zero() ((M_Value){ .type = M_T_NUMBER, .as.number = 0 })
+#define m_value_zero() ((M_Value){ .type = M_T_INT, .as.integer = 0 })
 
 //
 // Here is the whole state of the interpreter.
@@ -103,48 +100,102 @@ static M_Fn_Binding builtin_functions_bindings[] = {
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
 
 static M_Eval_Result calculate_factorial(M_Eval_Result r) {
-    if (r.value.as.number < 0 && r.value.as.number == (int)r.value.as.number) {
+    double val = 0.0;
+    bool is_negative_int = false;
+
+    if (r.value.type == M_T_INT) {
+        val = (double)r.value.as.integer;
+        if (r.value.as.integer < 0) {
+            is_negative_int = true;
+        }
+    } else if (r.value.type == M_T_FLOAT) {
+        val = r.value.as.floating;
+        if (val < 0.0 && val == (int)val) {
+            is_negative_int = true;
+        }
+    }
+
+    if (is_negative_int) {
         return (M_Eval_Result){
             .flow = r.flow,
             .value = (M_Value){
-                .type = M_T_NUMBER,
-                .as.number = NAN,
+                .type = M_T_FLOAT,
+                .as.floating = NAN,
             }
         };
     }
     
-    double x = tgamma(r.value.as.number + 1.0);
+    double x = tgamma(val + 1.0);
+
+    M_Value_Union out;
+
+    switch (r.value.type) {
+        case M_T_INT: out.integer = (int64_t)x; break;
+        case M_T_FLOAT: out.floating = x;
+    }
 
     return (M_Eval_Result){
         .flow = r.flow,
         .value = (M_Value){
-            .type = M_T_NUMBER,
-            .as.number = x
+            .type = r.value.type,
+            .as = out
         }
     };
 }
 
 static const char *m_value_type_name(M_Value_Type type) {
     switch (type) {
-        case M_T_NUMBER: return "number";
+        case M_T_INT: return "int";
+        case M_T_FLOAT: return "float";
+        case (M_T_INT | M_T_FLOAT): return "int | float";
+        default: return "unknown";
     }
-
-    return NULL;
 }
 
-static inline M_Eval_Result m_result_expect_type(M_Eval_Result result, M_Value_Type type) {
-    if (result.value.type != type) {
+static inline M_Eval_Result m_result_expect_type(M_Eval_Result result, M_Value_Type expected_type_mask) {
+    if ((result.value.type & expected_type_mask) == 0) {
         // TODO: implement better error reporting at evaluation level
         fprintf(
             stderr,
             "\033[1;31merror:\033[0m unexpected data type. expected a '%s' but got a '%s'\n",
-            m_value_type_name(type),
+            m_value_type_name(expected_type_mask),
             m_value_type_name(result.value.type)
         );
         exit(1);
     }
 
     return result;
+}
+
+static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator op, double left, double right) {
+    switch (op) {
+        case M_BINARY_PLUS_OP: return left + right;
+        case M_BINARY_TIMES_OP: return left * right;
+        case M_BINARY_DIVIDE_OP: return left / right;
+        case M_BINARY_SUBTRACT_OP: return left - right;
+        case M_BINARY_MOD_OP: return fmod(left, right);
+        case M_BINARY_POW_OP: return pow(left, right);
+
+        case M_BINARY_EQUAL_OP: return left == right;
+        case M_BINARY_NOT_EQUAL_OP: return left != right;
+        case M_BINARY_GT_OP: return left > right;
+        case M_BINARY_LT_OP: return left < right;
+        case M_BINARY_GTE_OP: return left >= right;
+        case M_BINARY_LTE_OP: return left <= right;
+    }
+
+    assert(0 && "evaluate_binary_operation_on_doubles: missing implementation");
+}
+
+static int evaluate_m_value_as_internal_boolean(M_Value value) {
+    switch (value.type) {
+        case M_T_INT:
+            return value.as.integer != 0;
+        case M_T_FLOAT:
+            return value.as.floating != 0;
+        default:
+            return -1;
+    }
 }
 
 static M_Value evaluate_function_call_expression(M_Expression *expr) {
@@ -230,8 +281,10 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
 
     switch (expression->kind) {
         case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
-        case M_EK_NUMBER:
-            return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = expression->number }, .flow = M_CTRL_NORMAL };
+        case M_EK_INT:
+            return (M_Eval_Result){ .value = (M_Value){ .type = M_T_INT , .as.integer = expression->integer }, .flow = M_CTRL_NORMAL };
+        case M_EK_FLOAT:
+            return (M_Eval_Result){ .value = (M_Value){ .type = M_T_FLOAT, .as.floating = expression->floating }, .flow = M_CTRL_NORMAL };
         case M_EK_ID: {
             char *key = strndup(expression->id.value, expression->id.value_length);
 
@@ -263,13 +316,31 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_UNARY: {
             switch (expression->unary.op) {
                 case M_UNARY_MINUS_OP: {
-                    M_Eval_Result result = m_result_expect_type(evaluate_expression(expression->unary.operand), M_T_NUMBER);
+                    M_Eval_Result result = evaluate_expression(expression->unary.operand);
+                    M_Value_Union out;
+
+                    switch (result.value.type) {
+                        case M_T_INT:
+                            out.integer = -result.value.as.integer;
+                            break;
+                        case M_T_FLOAT:
+                            out.floating = -result.value.as.floating;
+                            break;
+                        default:
+                            // TODO: implement better error reporting at evaluation level
+                            fprintf(
+                                stderr,
+                                "\033[1;31merror:\033[0m unexpected data type. expected a int or float but got a '%s'\n",
+                                m_value_type_name(result.value.type)
+                            );
+                            exit(1);
+                    }
 
                     return (M_Eval_Result){
                         .flow = result.flow,
                         .value = (M_Value){
-                            .type = M_T_NUMBER,
-                            .as.number = -result.value.as.number
+                            .type = result.value.type,
+                            .as = out
                         }
                     };
                 } 
@@ -281,35 +352,87 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_CALL:
             return (M_Eval_Result){ .value = evaluate_function_call_expression(expression), .flow = M_CTRL_NORMAL };
         case M_EK_BINARY: {
-            // TODO: handle other cases like (string, string), etc
-            double left = m_result_expect_type(evaluate_expression(expression->binary.left), M_T_NUMBER).value.as.number;
-            double right = m_result_expect_type(evaluate_expression(expression->binary.right), M_T_NUMBER).value.as.number;
+            M_Eval_Result left = m_result_expect_type(evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT);
+            M_Eval_Result right = m_result_expect_type(evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT);
 
-            switch (expression->binary.op) {
-                case M_BINARY_PLUS_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left + right }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_TIMES_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left * right }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_DIVIDE_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left / right }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_SUBTRACT_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left - right }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_MOD_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = fmod(left, right) }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_POW_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = pow(left, right) }, .flow = M_CTRL_NORMAL };
+            M_Value_Type l_type = left.value.type;
+            M_Value_Type r_type = right.value.type;
 
-                case M_BINARY_EQUAL_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left == right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_NOT_EQUAL_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left != right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_GT_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left > right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_LT_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left < right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_GTE_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left >= right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
-                case M_BINARY_LTE_OP: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_NUMBER, .as.number = left <= right ? 1 : 0 }, .flow = M_CTRL_NORMAL };
+            if (l_type == M_T_FLOAT || r_type == M_T_FLOAT) {
+                double l_val = (l_type == M_T_FLOAT) ? left.value.as.floating : (double)left.value.as.integer;
+                double r_val = (r_type == M_T_FLOAT) ? right.value.as.floating : (double)right.value.as.integer;
+
+                return (M_Eval_Result){
+                    .value = {
+                        .type = M_T_FLOAT,
+                        .as.floating = evaluate_binary_operation_on_doubles(expression->binary.op,l_val, r_val)
+                    },
+                    .flow = M_CTRL_NORMAL
+                };
             }
 
-            assert(0 && "evaluate_expression_impl: invalid binary expression operator");
+            // From now on, both should be integers
+
+            int64_t l = left.value.as.integer;
+            int64_t r = right.value.as.integer;
+            double result = 0; 
+
+            switch (expression->binary.op) {
+                case M_BINARY_PLUS_OP:       result = l + r; break;
+                case M_BINARY_TIMES_OP:      result = l * r; break;
+                case M_BINARY_DIVIDE_OP:     result = (double)l / (double)r; break;
+                case M_BINARY_SUBTRACT_OP:   result = l - r; break;
+                case M_BINARY_MOD_OP:        result = l % r; break;
+                case M_BINARY_POW_OP:        result = pow(l, r); break;
+                case M_BINARY_EQUAL_OP:      result = l == r; break;
+                case M_BINARY_NOT_EQUAL_OP:  result = l != r; break;
+                case M_BINARY_GT_OP:         result = l > r; break;
+                case M_BINARY_LT_OP:         result = l < r; break;
+                case M_BINARY_GTE_OP:        result = l >= r; break;
+                case M_BINARY_LTE_OP:        result = l <= r; break;
+            }
+
+            // Return integer or float based on whether there's a decimal remainder
+            if (fmod(result, 1.0) != 0.0) {
+                return (M_Eval_Result){
+                    .value = {
+                        .type = M_T_FLOAT,
+                        .as.floating = result
+                    },
+                    .flow = M_CTRL_NORMAL
+                };
+            }
+
+            return (M_Eval_Result){
+                .value = {
+                    .type = M_T_INT,
+                    .as.integer = (int64_t)result
+                },
+                .flow = M_CTRL_NORMAL
+            };
         } break;
         case M_EK_IF: {
-            M_Eval_Result condition_result = evaluate_expression(expression->if_expr.condition);
-            M_Eval_Result last_evaluated_expression = {0};
+            M_Eval_Result condition = evaluate_expression(expression->if_expr.condition);
+            M_Eval_Result last_evaluated_expression = {
+                .flow = M_CTRL_NORMAL,
+                .value = m_value_zero(),
+            };
 
             enter_new_environment();
 
-            if (m_result_expect_type(condition_result, M_T_NUMBER).value.as.number != 0) {
+            int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
+
+            if (evaluated_condition == -1) {
+                // TODO: implement better error reporting at evaluation level
+                fprintf(
+                    stderr,
+                    "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'if'\n",
+                    m_value_type_name(condition.value.type)
+                );
+                exit(1);
+            }
+
+            if (evaluated_condition) {
                 M_Expression_Block *current = expression->if_expr.then_block;
 
                 while (current != NULL) {
@@ -342,13 +465,30 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             return last_evaluated_expression;
         } break;
         case M_EK_LOOP: {
-            M_Eval_Result last_evaluated_expression = {0};
+            M_Eval_Result last_evaluated_expression = {
+                .flow = M_CTRL_NORMAL,
+                .value = m_value_zero()
+            };
 
             enter_new_environment();
 
             while (1) {
                 if (expression->loop.condition != NULL) {
-                    if (m_result_expect_type(evaluate_expression(expression->loop.condition), M_T_NUMBER).value.as.number == 0) break;
+                    M_Eval_Result condition = evaluate_expression(expression->loop.condition);
+
+                    int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
+
+                    if (evaluated_condition == -1) {
+                        // TODO: implement better error reporting at evaluation level
+                        fprintf(
+                            stderr,
+                            "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'loop'\n",
+                            m_value_type_name(condition.value.type)
+                        );
+                        exit(1);
+                    }
+
+                    if (!evaluated_condition) break;
                 }
 
                 M_Expression_Block *current = expression->loop.block;
@@ -452,165 +592,146 @@ static M_Value __builtin_mca_pi(M_Expression *arguments[], int arguments_count) 
     (void)arguments;
     (void)arguments_count;
 
-    return (M_Value){ .type = M_T_NUMBER, .as.number = M_PI };
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_PI };
 }
 
 static M_Value __builtin_mca_e(M_Expression *arguments[], int arguments_count) {
     (void)arguments;
     (void)arguments_count;
 
-    return (M_Value){ .type = M_T_NUMBER, .as.number = M_E };
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_E };
 }
 
 static M_Value __builtin_mca_abs(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
 
-    return (M_Value){ .type = M_T_NUMBER, .as.number = fabs(a0) };
+    M_Eval_Result arg = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
+
+    if (arg.value.type == M_T_INT) {
+        return (M_Value){
+            .type = M_T_INT,
+            .as.integer = llabs(arg.value.as.integer)
+        };
+    } else {
+        return (M_Value){
+            .type = M_T_FLOAT,
+            .as.floating = fabs(arg.value.as.floating)
+        };
+    }
 }
 
 static M_Value __builtin_mca_max(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-    double a1 = m_result_expect_type(evaluate_expression(arguments[1]), M_T_NUMBER).value.as.number;
 
-    double r = a1;
+    M_Eval_Result a0 = evaluate_expression(arguments[0]);
+    M_Eval_Result a1 = evaluate_expression(arguments[1]);
 
-    if (a0 > a1) r = a0;
+    double a;
+    double b;
 
-    return (M_Value){ .type = M_T_NUMBER, .as.number = r };
+    switch (a0.value.type) {
+        case M_T_INT:
+            a = a0.value.as.integer;
+            break;
+        case M_T_FLOAT:
+            a = a0.value.as.floating;
+            break;
+        default:
+            // TODO: implement better error reporting at evaluation level
+            fprintf(
+                stderr,
+                "\033[1;31merror:\033[0m function 'max' does not accept arguments of data type '%s'\n",
+                m_value_type_name(a0.value.type)
+            );
+            exit(1);
+    }
+
+    switch (a1.value.type) {
+        case M_T_INT:
+            b = a1.value.as.integer;
+            break;
+        case M_T_FLOAT:
+            b = a1.value.as.floating;
+            break;
+        default:
+            // TODO: implement better error reporting at evaluation level
+            fprintf(
+                stderr,
+                "\033[1;31merror:\033[0m function 'max' does not accept arguments of data type '%s'\n",
+                m_value_type_name(a1.value.type)
+            );
+            exit(1);
+    }
+
+    double r = b;
+
+    if (a > b) r = a;
+
+    if (fmod(r, 1) != 0) {
+        return (M_Value){ .type = M_T_FLOAT, .as.floating = r };
+    }
+
+    return (M_Value){ .type = M_T_INT, .as.integer = r };
 }
 
 static M_Value __builtin_mca_min(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-    double a1 = m_result_expect_type(evaluate_expression(arguments[1]), M_T_NUMBER).value.as.number;
 
-    double r = a1;
+    M_Eval_Result x = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
+    M_Eval_Result y = m_result_expect_type(evaluate_expression(arguments[1]), M_T_INT | M_T_FLOAT);
 
-    if (a0 < a1) r = a0;
-    return (M_Value){ .type = M_T_NUMBER, .as.number = r };
+    if (x.value.type == M_T_INT && y.value.type == M_T_INT) {
+        int64_t a0 = x.value.as.integer;
+        int64_t a1 = y.value.as.integer;
+
+        return (M_Value){ .type = M_T_INT, .as.integer = (a0 < a1) ? a0 : a1 };
+    }
+
+    double a0 = (x.value.type == M_T_FLOAT) ? x.value.as.floating : (double)x.value.as.integer;
+    double a1 = (y.value.type == M_T_FLOAT) ? y.value.as.floating : (double)y.value.as.integer;
+    
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = (a0 < a1) ? a0 : a1 };
 }
 
-static M_Value __builtin_mca_sin(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+#define DEFINE_MATH_BUILTIN(func_name, c_math_function) \
+    static M_Value __builtin_mca_##func_name(M_Expression *arguments[], int arguments_count) { \
+        (void)arguments_count; \
+        \
+        M_Eval_Result arg = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT); \
+        \
+        double input_val = (arg.value.type == M_T_FLOAT) \
+                         ? arg.value.as.floating \
+                         : (double)arg.value.as.integer; \
+        \
+        double result = c_math_function(input_val); \
+        \
+        if (fmod(result, 1.0) != 0.0) { \
+            return (M_Value){ .type = M_T_FLOAT, .as.floating = result }; \
+        } else { \
+            return (M_Value){ .type = M_T_INT, .as.integer = (int64_t)result }; \
+        } \
+    }
 
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = sin(a0)
-    };
+static inline double calc_rad(double degrees) {
+    return degrees * (M_PI / 180.0);
 }
 
-static M_Value __builtin_mca_cos(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = cos(a0)
-    };
+static inline double calc_deg(double radians) {
+    return radians * (180.0 / M_PI);
 }
 
-static M_Value __builtin_mca_rad(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = a0 * (M_PI / 180.0)
-    };
-}
-
-static M_Value __builtin_mca_deg(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = a0 * (180.0 / M_PI)
-    };
-}
-
-static M_Value __builtin_mca_tan(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = tan(a0)
-    };
-}
-
-static M_Value __builtin_mca_sqrt(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = sqrt(a0)
-    };
-}
-
-static M_Value __builtin_mca_log(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = log(a0)
-    };
-}
-
-static M_Value __builtin_mca_log10(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = log10(a0)
-    };
-}
-
-static M_Value __builtin_mca_exp(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = exp(a0)
-    };
-}
-
-static M_Value __builtin_mca_floor(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = floor(a0)
-    };
-}
-
-static M_Value __builtin_mca_ceil(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = ceil(a0)
-    };
-}
-
-static M_Value __builtin_mca_round(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-    double a0 = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
-
-    return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = round(a0)
-    };
-}
+DEFINE_MATH_BUILTIN(sin, sin)
+DEFINE_MATH_BUILTIN(cos, cos)
+DEFINE_MATH_BUILTIN(tan, tan)
+DEFINE_MATH_BUILTIN(sqrt, sqrt)
+DEFINE_MATH_BUILTIN(log, log)
+DEFINE_MATH_BUILTIN(log10, log10)
+DEFINE_MATH_BUILTIN(exp, exp)
+DEFINE_MATH_BUILTIN(floor, floor)
+DEFINE_MATH_BUILTIN(ceil, ceil)
+DEFINE_MATH_BUILTIN(round, round)
+DEFINE_MATH_BUILTIN(rad, calc_rad)
+DEFINE_MATH_BUILTIN(deg, calc_deg)
 
 static M_Value __builtin_mca_println(M_Expression *arguments[], int arguments_count) {
     M_Value last_value = __builtin_mca_print(arguments, arguments_count);
@@ -628,8 +749,14 @@ static M_Value __builtin_mca_print(M_Expression *arguments[], int arguments_coun
 
         last_value = evaluate_expression(arguments[i]).value;
 
-        // TODO: handle other cases like string, etc
-        fprintf(interpreter->io_out, "%f", last_value.as.number);
+        switch (last_value.type) {
+            case M_T_INT:
+                fprintf(interpreter->io_out, "%ld", last_value.as.integer);
+                break;
+            case M_T_FLOAT:
+                fprintf(interpreter->io_out, "%f", last_value.as.floating);
+                break;
+        }
     }
 
     return last_value;
@@ -638,7 +765,7 @@ static M_Value __builtin_mca_print(M_Expression *arguments[], int arguments_coun
 static M_Value __builtin_mca_exit(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    exit((int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number);
+    exit((int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer);
 }
 
 static M_Value __builtin_mca_time(M_Expression *arguments[], int arguments_count) {
@@ -646,15 +773,15 @@ static M_Value __builtin_mca_time(M_Expression *arguments[], int arguments_count
     (void)arguments_count;
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time(NULL)
+        .type = M_T_INT,
+        .as.integer = time(NULL)
     };
 }
 
 static M_Value __builtin_mca_year(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int64_t offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -662,15 +789,15 @@ static M_Value __builtin_mca_year(M_Expression *arguments[], int arguments_count
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)(time_info->tm_year + 1900)
+        .type = M_T_INT,
+        .as.integer = time_info->tm_year + 1900
     };
 }
 
 static M_Value __builtin_mca_month(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -678,15 +805,15 @@ static M_Value __builtin_mca_month(M_Expression *arguments[], int arguments_coun
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)(time_info->tm_mon + 1)
+        .type = M_T_INT,
+        .as.integer = time_info->tm_mon + 1
     };
 }
 
 static M_Value __builtin_mca_date(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -694,15 +821,15 @@ static M_Value __builtin_mca_date(M_Expression *arguments[], int arguments_count
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time_info->tm_mday
+        .type = M_T_INT,
+        .as.integer = time_info->tm_mday
     };
 }
 
 static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -710,15 +837,15 @@ static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count)
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time_info->tm_wday
+        .type = M_T_INT,
+        .as.integer = time_info->tm_wday
     };
 }
 
 static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -726,15 +853,15 @@ static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time_info->tm_hour
+        .type = M_T_INT,
+        .as.integer = time_info->tm_hour
     };
 }
 
 static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -742,15 +869,15 @@ static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_cou
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time_info->tm_min
+        .type = M_T_INT,
+        .as.integer = time_info->tm_min
     };
 }
 
 static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_NUMBER).value.as.number;
+    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -758,7 +885,7 @@ static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_cou
     struct tm *time_info = gmtime(&adjusted_time);
 
     return (M_Value){
-        .type = M_T_NUMBER,
-        .as.number = (double)time_info->tm_sec
+        .type = M_T_INT,
+        .as.integer = time_info->tm_sec
     };
 }

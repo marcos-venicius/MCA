@@ -42,8 +42,10 @@ bool cmp_arg(const char *a, const char *b) {
 void print_expr(M_Expression *expr) {
     if (expr == NULL) return;
 
-    if (expr->kind == M_EK_NUMBER) {
-        printf("%f", expr->number);
+    if (expr->kind == M_EK_INT) {
+        printf("%ld", expr->integer);
+    } else if (expr->kind == M_EK_FLOAT) {
+        printf("%lf", expr->floating);
     } else if (expr->kind == M_EK_UNARY) {
         if (expr->unary.op == M_UNARY_MINUS_OP) {
             printf("-(");
