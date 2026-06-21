@@ -6,7 +6,7 @@ SLEEP_FOR = 3 # seconds
 start = 0
 
 duration = while {
-  if start == 0 {
+  if !start {
     start = time()
   } else {
     stop = time()

@@ -4,9 +4,7 @@ is_leap_year = (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)
 
 println(is_leap_year)
 
-# we don't have 'not' operator yet
-if is_leap_year {
-} else {
+if !is_leap_year {
   exit(1)
 }
 
