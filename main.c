@@ -75,6 +75,9 @@ void print_expr(M_Expression *expr) {
             case M_BINARY_MOD_OP: printf(" %% "); break;
             case M_BINARY_POW_OP: printf(" ^ "); break;
 
+            case M_BINARY_AND_OP: printf(" and "); break;
+            case M_BINARY_OR_OP: printf(" or "); break;
+
             case M_BINARY_EQUAL_OP: printf(" == "); break;
             case M_BINARY_NOT_EQUAL_OP: printf(" != "); break;
             case M_BINARY_GT_OP: printf(" > "); break;

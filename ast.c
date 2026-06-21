@@ -18,6 +18,14 @@ static inline bool checkahead(M_Ast *ast, M_Token_Kind kind) {
     return ast->current_token != NULL && ast->current_token->next != NULL && ast->current_token->next->kind == kind;
 }
 
+static inline bool is_logical_and(M_Token *token) {
+    return token != NULL && token->kind == M_ID && token->size == 3 && strncmp(token->value, "and", 3) == 0;
+}
+
+static inline bool is_logical_or(M_Token *token) {
+    return token != NULL && token->kind == M_ID && token->size == 2 && strncmp(token->value, "or", 2) == 0;
+}
+
 static inline M_Token *next_token(M_Ast *ast) {
     if (ast->current_token != NULL) {
         ast->current_token = ast->current_token->next;
@@ -88,6 +96,9 @@ static const char *binary_expression_operator_name(M_Binary_Expression_Operator 
         case M_BINARY_DIVIDE_OP:    return "/";
         case M_BINARY_MOD_OP:       return "%";
         case M_BINARY_POW_OP:       return "^";
+
+        case M_BINARY_AND_OP:       return "and";
+        case M_BINARY_OR_OP:        return "or";
 
         case M_BINARY_EQUAL_OP:     return "==";
         case M_BINARY_NOT_EQUAL_OP: return "!=";
@@ -822,6 +833,38 @@ static M_Expression *parse_equality_expression(M_Ast *ast) {
     return left;
 }
 
+static M_Expression *parse_logical_operators(M_Ast *ast) {
+    if (token(ast) == NULL) return NULL;
+
+    M_Expression *left = parse_equality_expression(ast);
+
+    bool and = false;
+
+    while (token(ast) != NULL && ((and = is_logical_and(token(ast))) || is_logical_or(token(ast)))) {
+        M_Token *first_token = token(ast);
+        next_token(ast);
+
+        M_Expression *right = parse_equality_expression(ast);
+
+        if (right == NULL) {
+            ast_error(ast, first_token, "missing right operand for '%s' operator", and ? "and" : "or");
+            synchronize(ast);
+            return NULL;
+        }
+
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+        expr->kind = M_EK_BINARY;
+        expr->binary.op = and ? M_BINARY_AND_OP : M_BINARY_OR_OP;
+        expr->binary.left = left;
+        expr->binary.right = right;
+
+        left = expr;
+    }
+
+    return left;
+}
+
 static M_Expression *parse_assignment_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -852,7 +895,7 @@ static M_Expression *parse_assignment_expression(M_Ast *ast) {
         return assignment_expr;
     }
 
-    return parse_equality_expression(ast);
+    return parse_logical_operators(ast);
 }
 
 static inline M_Expression *parse_expression_impl(M_Ast *ast) {

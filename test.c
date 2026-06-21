@@ -243,6 +243,12 @@ int main(void) {
     RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { 42 }", T_INT(42));
     RUN_TEST_CASE("if 10 == 10.1 { 1337 } else { }", T_INT(0));
 
+    TEST_CASE_LABEL("Logical operators");
+    RUN_TEST_CASE("if 10 == 10 and 20 == 20 { 20 } else { }", T_INT(20));
+    RUN_TEST_CASE("if 10 == 11 and 20 == 20 { 20 } else { 10 }", T_INT(10));
+    RUN_TEST_CASE("if 10 == 11 or 20 == 20 { 20 } else { 10 }", T_INT(20));
+    RUN_TEST_CASE("if 10 == 11 or 20 == 21 { 20 } else { 10 }", T_INT(10));
+
     if (errors == 1) {
         fprintf(stderr, "\n\033[1;31m1\033[0m test case broke\n");
     } else if (errors > 1) {

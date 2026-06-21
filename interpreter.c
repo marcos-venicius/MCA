@@ -181,6 +181,9 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
         case M_BINARY_MOD_OP: return fmod(left, right);
         case M_BINARY_POW_OP: return pow(left, right);
 
+        case M_BINARY_AND_OP: return left != 0 && right != 0;
+        case M_BINARY_OR_OP: return left != 0 || right != 0;
+
         case M_BINARY_EQUAL_OP: return left == right;
         case M_BINARY_NOT_EQUAL_OP: return left != right;
         case M_BINARY_GT_OP: return left > right;
@@ -389,6 +392,8 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                 case M_BINARY_SUBTRACT_OP:   result = l - r; break;
                 case M_BINARY_MOD_OP:        result = l % r; break;
                 case M_BINARY_POW_OP:        result = pow(l, r); break;
+                case M_BINARY_AND_OP:        result = l != 0 && r != 0; break;
+                case M_BINARY_OR_OP:         result = l != 0 || r != 0; break;
                 case M_BINARY_EQUAL_OP:      result = l == r; break;
                 case M_BINARY_NOT_EQUAL_OP:  result = l != r; break;
                 case M_BINARY_GT_OP:         result = l > r; break;
