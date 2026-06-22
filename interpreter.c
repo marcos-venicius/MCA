@@ -855,6 +855,34 @@ static M_Value __builtin_mca_type(M_Expression *arguments[], int arguments_count
     return result.value;
 }
 
+static M_Value __builtin_mca_as_int(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result result = evaluate_expression(arguments[0]);
+
+    switch (result.value.type) {
+        case M_T_INT: return result.value;
+        case M_T_FLOAT: return (M_Value){ .type = M_T_INT, .as.integer = (int64_t)result.value.as.floating };
+        default: m_interpreter_error(arguments[0], "cannot cast '%s' to int", m_value_type_name(result.value.type));
+    }
+
+    return result.value;
+}
+
+static M_Value __builtin_mca_as_float(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result result = evaluate_expression(arguments[0]);
+
+    switch (result.value.type) {
+        case M_T_INT: return (M_Value){ .type = M_T_FLOAT, .as.floating = (double)result.value.as.integer };
+        case M_T_FLOAT: return result.value;
+        default: m_interpreter_error(arguments[0], "cannot cast '%s' to float", m_value_type_name(result.value.type));
+    }
+
+    return result.value;
+}
+
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -881,7 +909,9 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("exit",     1, __builtin_mca_exit),
 
     // language specifics
-    BIND_FN("type", 1, __builtin_mca_type),
+    BIND_FN("type",     1, __builtin_mca_type),
+    BIND_FN("as_int",   1, __builtin_mca_as_int),
+    BIND_FN("as_float", 1, __builtin_mca_as_float),
 
     // datetime related
     BIND_FN("time",   0, __builtin_mca_time),

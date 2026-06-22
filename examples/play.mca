@@ -2,22 +2,4 @@
 
 # It's just a playground file so I can test things easily.
 
-n = 0
-
-while n < 10 {
-  n = n + 1
-
-  if n % 2 == 0 {
-    println(1)
-  } elif n % 3 == 0 {
-    println(2)
-  }
-}
-
-a = 10
-
-
-
-println(a)
-
 # vim: set syntax=python :
