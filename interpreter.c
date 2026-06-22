@@ -1,5 +1,6 @@
 #include <math.h>
 #include <assert.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,7 +10,18 @@
 #include "./ast.h"
 #include "./ht.h"
 
+// [[typedefs]]
+typedef M_Value (*M_Fn_C_Impl)(M_Expression *arguments[], int arguments_count);
+
+// [[forward declarations]]
+static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr);
+static M_Eval_Result evaluate_expression(M_Expression *expression);
+
+// [[macros]]
 #define m_value_zero() ((M_Value){ .type = M_T_INT, .as.integer = 0 })
+#define PUBLIC
+
+// [[global variables]]
 
 //
 // Here is the whole state of the interpreter.
@@ -17,92 +29,6 @@
 // For now, let's focuse in run at least one single program well.
 //
 static M_Interpreter *interpreter = NULL;
-
-typedef M_Value (*M_Fn_C_Impl)(M_Expression *arguments[], int arguments_count);
-
-// BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
-static M_Value __builtin_mca_pi(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_e(M_Expression *arguments[], int arguments_count);
-
-static M_Value __builtin_mca_abs(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_max(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_min(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_sin(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_cos(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_rad(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_deg(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_tan(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_sqrt(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_log(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_log10(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_exp(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_floor(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_ceil(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_round(M_Expression *arguments[], int arguments_count);
-
-static M_Value __builtin_mca_println(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_print(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_exit(M_Expression *arguments[], int arguments_count);
-
-static M_Value __builtin_mca_time(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_year(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_month(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_date(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_count);
-static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_count);
-
-static M_Value __builtin_mca_type(M_Expression *arguments[], int arguments_count);
-// BUILTIN FUNCTION DECLARATIONS ----------------------------------------------------------------------------------------------------
-
-typedef struct {
-    const char *name;
-    int         name_length;
-    int         arguments_count;
-    M_Fn_C_Impl c_impl;
-} M_Fn_Binding;
-
-static M_Fn_Binding builtin_functions_bindings[] = {
-    // Math related
-    { "PI",    2, 0, &__builtin_mca_pi }, // TODO: should it become a constant variable?
-    { "E",     1, 0, &__builtin_mca_e },  // TODO: should it become a constant variable?
-    { "abs",   3, 1, &__builtin_mca_abs },
-    { "max",   3, 2, &__builtin_mca_max },
-    { "min",   3, 2, &__builtin_mca_min },
-    { "sin",   3, 1, &__builtin_mca_sin },
-    { "cos",   3, 1, &__builtin_mca_cos },
-    { "tan",   3, 1, &__builtin_mca_tan },
-    { "rad",   3, 1, &__builtin_mca_rad },
-    { "deg",   3, 1, &__builtin_mca_deg },
-    { "sqrt",  4, 1, &__builtin_mca_sqrt },
-    { "log",   3, 1, &__builtin_mca_log },
-    { "log10", 5, 1, &__builtin_mca_log10 },
-    { "exp",   3, 1, &__builtin_mca_exp },
-    { "floor", 5, 1, &__builtin_mca_floor },
-    { "ceil",  4, 1, &__builtin_mca_ceil },
-    { "round", 5, 1, &__builtin_mca_round },
-
-    // I/O / System related
-    { "println", 7, -1, &__builtin_mca_println },
-    { "print",   5, -1, &__builtin_mca_print },
-    { "exit",    4,  1, &__builtin_mca_exit },
-
-    // language specifics
-    { "type", 4, 1, &__builtin_mca_type },
-
-    // datetime related
-    { "time",   4, 0, &__builtin_mca_time },
-    { "year",   4, 1, &__builtin_mca_year },
-    { "month",  5, 1, &__builtin_mca_month },
-    { "date",   4, 1, &__builtin_mca_date },
-    { "day",    3, 1, &__builtin_mca_day },
-    { "hour",   4, 1, &__builtin_mca_hour },
-    { "minute", 6, 1, &__builtin_mca_minute },
-    { "second", 6, 1, &__builtin_mca_second },
-};
-
-static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
 
 static M_Eval_Result calculate_factorial(M_Eval_Result r) {
     double val = 0.0;
@@ -149,25 +75,40 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
 }
 
 static const char *m_value_type_name(M_Value_Type type) {
-    switch (type) {
+    switch ((int)type) {
         case M_T_INT: return "int";
         case M_T_FLOAT: return "float";
         case (M_T_INT | M_T_FLOAT): return "int | float";
-        default: return "unknown";
+        default: assert(0 && "m_value_type_name: should never happen (programmer's fault)");
     }
 }
 
-static inline M_Eval_Result m_result_expect_type(M_Eval_Result result, M_Value_Type expected_type_mask) {
-    if ((result.value.type & expected_type_mask) == 0) {
-        // TODO: implement better error reporting at evaluation level
-        fprintf(
-            stderr,
-            "\033[1;31merror:\033[0m unexpected data type. expected a '%s' but got a '%s'\n",
+static void m_interpreter_error(M_Expression *expr, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (expr->location.filename) {
+        fprintf(stderr, "%s:%d:%d: \033[1;31merror\033[0m ", expr->location.filename, expr->location.line, expr->location.col);
+    } else {
+        fprintf(stderr, "%d:%d: \033[1;31merror\033[0m ", expr->location.line, expr->location.col);
+    }
+
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
+
+    exit(1);
+}
+
+static inline M_Eval_Result m_result_expect_type(M_Expression *expr, M_Eval_Result result, M_Value_Type expected_type_mask) {
+    if ((result.value.type & expected_type_mask) == 0)
+        m_interpreter_error(
+            expr,
+            "unexpected data type. expected a '%s' but got a '%s'",
             m_value_type_name(expected_type_mask),
             m_value_type_name(result.value.type)
         );
-        exit(1);
-    }
 
     return result;
 }
@@ -207,32 +148,9 @@ static int evaluate_m_value_as_internal_boolean(M_Value value) {
 }
 
 static M_Value evaluate_function_call_expression(M_Expression *expr) {
-    for (int i = 0; i < builtin_functions_bindings_length; i++) {
-        M_Fn_Binding signature = builtin_functions_bindings[i];
+    M_Fn_C_Impl fn = resolve_builtin_function(expr);
 
-        if (signature.name_length != expr->call.fn_name_length) continue;
-
-        if (strncmp(signature.name, expr->call.fn_name, signature.name_length) != 0) continue;
-
-        if (signature.arguments_count == -1)
-            return signature.c_impl(expr->call.arguments, expr->call.arguments_length);
-
-        if (expr->call.arguments_length > signature.arguments_count) {
-            // TODO: implement better error reporting at evaluation level
-            fprintf(stderr, "\033[1;31merror:\033[0m to many arguments %s(...). expected %d but got %d\n", signature.name, signature.arguments_count, expr->call.arguments_length);
-            exit(1);
-        } else if (expr->call.arguments_length < signature.arguments_count) {
-            // TODO: implement better error reporting at evaluation level
-            fprintf(stderr, "\033[1;31merror:\033[0m to few arguments %s(...). expected %d but got %d\n", signature.name, signature.arguments_count, expr->call.arguments_length);
-            exit(1);
-        }
-
-        return signature.c_impl(expr->call.arguments, expr->call.arguments_length);
-    }
-
-    // TODO: implement better error reporting at evaluation level
-    fprintf(stderr, "\033[1;31merror:\033[0m function '%.*s' does not exists\n", expr->call.fn_name_length, expr->call.fn_name);
-    exit(1);
+    return fn(expr->call.arguments, expr->call.arguments_length);
 }
 
 static void enter_new_environment() {
@@ -284,7 +202,7 @@ static void set_variable_on_environment(M_Interpreter_Environment *env, const ch
     set_variable_on_environment(env->parent, key, data);
 }
 
-M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
+static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
     M_Eval_Result last_result = { .value = m_value_zero(), .flow = M_CTRL_NORMAL };
 
     M_Expression_Block *current = block;
@@ -302,7 +220,7 @@ M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
     return last_result;
 }
 
-M_Eval_Result evaluate_expression(M_Expression *expression) {
+static M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
     switch (expression->kind) {
@@ -317,9 +235,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             M_Value *value = get_variable_from_environment(interpreter->current_environment, key);
 
             if (value == NULL) {
-                // TODO: implement better error reporting at evaluation level
-                fprintf(stderr, "\033[1;31merror:\033[0m variable '%s' does not exists\n", key);
-                exit(1);
+                m_interpreter_error(expression, "variable '%s' does not exists", key);
             }
 
             free(key);
@@ -353,13 +269,8 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                             out.floating = -result.value.as.floating;
                             break;
                         default:
-                            // TODO: implement better error reporting at evaluation level
-                            fprintf(
-                                stderr,
-                                "\033[1;31merror:\033[0m unexpected data type. expected a int or float but got a '%s'\n",
-                                m_value_type_name(result.value.type)
-                            );
-                            exit(1);
+                            m_interpreter_error(expression, "unexpected data type. expected a int or float but got a '%s'", m_value_type_name(result.value.type));
+                            break;
                     }
 
                     return (M_Eval_Result){
@@ -371,7 +282,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                     };
                 } 
                 case M_UNARY_NOT_OP: {
-                    M_Eval_Result result = m_result_expect_type(evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT);
+                    M_Eval_Result result = m_result_expect_type(expression, evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT);
 
                     switch (result.value.type) {
                         case M_T_INT:
@@ -400,8 +311,8 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_CALL:
             return (M_Eval_Result){ .value = evaluate_function_call_expression(expression), .flow = M_CTRL_NORMAL };
         case M_EK_BINARY: {
-            M_Eval_Result left = m_result_expect_type(evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT);
-            M_Eval_Result right = m_result_expect_type(evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT);
+            M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT);
+            M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT);
 
             M_Value_Type l_type = left.value.type;
             M_Value_Type r_type = right.value.type;
@@ -473,13 +384,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
             int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
             if (evaluated_condition == -1) {
-                // TODO: implement better error reporting at evaluation level
-                fprintf(
-                    stderr,
-                    "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'if'\n",
-                    m_value_type_name(condition.value.type)
-                );
-                exit(1);
+                m_interpreter_error(expression->if_expr.condition, "failed to check truthiness of '%s' data type on that 'if'", m_value_type_name(condition.value.type));
             }
 
             if (evaluated_condition) {
@@ -494,13 +399,7 @@ M_Eval_Result evaluate_expression(M_Expression *expression) {
                         int evaluated_elif_condition = evaluate_m_value_as_internal_boolean(elif_condition.value);
 
                         if (evaluated_elif_condition == -1) {
-                            // TODO: implement better error reporting at evaluation level
-                            fprintf(
-                                stderr,
-                                "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'elif'\n",
-                                m_value_type_name(condition.value.type)
-                            );
-                            exit(1);
+                            m_interpreter_error(current_elif->condition, "failed to check truthiness of '%s' data type on that 'elif'", m_value_type_name(condition.value.type));
                         }
 
                         if (evaluated_elif_condition) {
@@ -538,13 +437,7 @@ after_else_block:
                     int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
                     if (evaluated_condition == -1) {
-                        // TODO: implement better error reporting at evaluation level
-                        fprintf(
-                            stderr,
-                            "\033[1;31merror:\033[0m failed to check truthiness of '%s' data type on that 'loop'\n",
-                            m_value_type_name(condition.value.type)
-                        );
-                        exit(1);
+                        m_interpreter_error(expression->loop.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
                     }
 
                     if (!evaluated_condition) break;
@@ -583,14 +476,15 @@ after_else_block:
     return (M_Eval_Result){ .value = m_value_zero(), .flow = M_CTRL_NORMAL };
 }
 
-M_Interpreter *m_interpreter_create(M_Ast *program) {
+PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program) {
     interpreter = malloc(sizeof(M_Interpreter));
 
     interpreter->program = program;
-    interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
     interpreter->io_in = stdin;
     interpreter->io_out = stdout;
     interpreter->io_err = stderr;
+
+    interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
     interpreter->global_environment->variables = ht_init(sizeof(M_Value));
     interpreter->global_environment->parent = NULL;
     interpreter->current_environment = interpreter->global_environment;
@@ -598,19 +492,19 @@ M_Interpreter *m_interpreter_create(M_Ast *program) {
     return interpreter;
 }
 
-void m_interpreter_set_stdin(M_Interpreter *interpreter, FILE *stream) {
+PUBLIC void m_interpreter_set_stdin(M_Interpreter *interpreter, FILE *stream) {
     interpreter->io_in = stream;
 }
 
-void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream) {
+PUBLIC void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream) {
     interpreter->io_out = stream;
 }
 
-void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream) {
+PUBLIC void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream) {
     interpreter->io_err = stream;
 }
 
-M_Value m_interpreter_run(M_Interpreter *interpreter) {
+PUBLIC M_Value m_interpreter_run(M_Interpreter *interpreter) {
     if (interpreter->program == NULL) return m_value_zero();
 
     M_Value last_evaluated_expression = m_value_zero();
@@ -622,9 +516,7 @@ M_Value m_interpreter_run(M_Interpreter *interpreter) {
             M_Eval_Result r = evaluate_expression(expr);
 
             if (r.flow == M_CTRL_BREAK) {
-                // TODO: implement better error reporting at evaluation level
-                fprintf(stderr, "\033[1;31merror:\033[0m cannot use 'break' outside of a loop\n");
-                exit(1);
+                m_interpreter_error(expr, "cannot use 'break' outside of a loop");
             }
 
             last_evaluated_expression = r.value;
@@ -634,7 +526,7 @@ M_Value m_interpreter_run(M_Interpreter *interpreter) {
     return last_evaluated_expression;
 }
 
-void m_interpreter_free(M_Interpreter *interpreter) {
+PUBLIC void m_interpreter_free(M_Interpreter *interpreter) {
     ht_free(interpreter->global_environment->variables);
     free(interpreter->global_environment);
     ast_free(interpreter->program);
@@ -644,116 +536,21 @@ void m_interpreter_free(M_Interpreter *interpreter) {
 }
 
 // BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
-static M_Value __builtin_mca_pi(M_Expression *arguments[], int arguments_count) {
-    (void)arguments;
-    (void)arguments_count;
 
-    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_PI };
-}
+typedef struct {
+    const char *name;
+    int         name_length;
+    int         arguments_count;
+    M_Fn_C_Impl c_impl;
+} M_Fn_Binding;
 
-static M_Value __builtin_mca_e(M_Expression *arguments[], int arguments_count) {
-    (void)arguments;
-    (void)arguments_count;
-
-    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_E };
-}
-
-static M_Value __builtin_mca_abs(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-
-    M_Eval_Result arg = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
-
-    if (arg.value.type == M_T_INT) {
-        return (M_Value){
-            .type = M_T_INT,
-            .as.integer = llabs(arg.value.as.integer)
-        };
-    } else {
-        return (M_Value){
-            .type = M_T_FLOAT,
-            .as.floating = fabs(arg.value.as.floating)
-        };
-    }
-}
-
-static M_Value __builtin_mca_max(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-
-    M_Eval_Result a0 = evaluate_expression(arguments[0]);
-    M_Eval_Result a1 = evaluate_expression(arguments[1]);
-
-    double a;
-    double b;
-
-    switch (a0.value.type) {
-        case M_T_INT:
-            a = a0.value.as.integer;
-            break;
-        case M_T_FLOAT:
-            a = a0.value.as.floating;
-            break;
-        default:
-            // TODO: implement better error reporting at evaluation level
-            fprintf(
-                stderr,
-                "\033[1;31merror:\033[0m function 'max' does not accept arguments of data type '%s'\n",
-                m_value_type_name(a0.value.type)
-            );
-            exit(1);
-    }
-
-    switch (a1.value.type) {
-        case M_T_INT:
-            b = a1.value.as.integer;
-            break;
-        case M_T_FLOAT:
-            b = a1.value.as.floating;
-            break;
-        default:
-            // TODO: implement better error reporting at evaluation level
-            fprintf(
-                stderr,
-                "\033[1;31merror:\033[0m function 'max' does not accept arguments of data type '%s'\n",
-                m_value_type_name(a1.value.type)
-            );
-            exit(1);
-    }
-
-    double r = b;
-
-    if (a > b) r = a;
-
-    if (fmod(r, 1) != 0) {
-        return (M_Value){ .type = M_T_FLOAT, .as.floating = r };
-    }
-
-    return (M_Value){ .type = M_T_INT, .as.integer = r };
-}
-
-static M_Value __builtin_mca_min(M_Expression *arguments[], int arguments_count) {
-    (void)arguments_count;
-
-    M_Eval_Result x = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
-    M_Eval_Result y = m_result_expect_type(evaluate_expression(arguments[1]), M_T_INT | M_T_FLOAT);
-
-    if (x.value.type == M_T_INT && y.value.type == M_T_INT) {
-        int64_t a0 = x.value.as.integer;
-        int64_t a1 = y.value.as.integer;
-
-        return (M_Value){ .type = M_T_INT, .as.integer = (a0 < a1) ? a0 : a1 };
-    }
-
-    double a0 = (x.value.type == M_T_FLOAT) ? x.value.as.floating : (double)x.value.as.integer;
-    double a1 = (y.value.type == M_T_FLOAT) ? y.value.as.floating : (double)y.value.as.integer;
-    
-    return (M_Value){ .type = M_T_FLOAT, .as.floating = (a0 < a1) ? a0 : a1 };
-}
+#define BIND_FN(fn_name, args, impl) { .name = fn_name, .name_length = sizeof(fn_name) - 1, .arguments_count = args, .c_impl = &impl }
 
 #define DEFINE_MATH_BUILTIN(func_name, c_math_function) \
     static M_Value __builtin_mca_##func_name(M_Expression *arguments[], int arguments_count) { \
         (void)arguments_count; \
         \
-        M_Eval_Result arg = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT); \
+        M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT); \
         \
         double input_val = (arg.value.type == M_T_FLOAT) \
                          ? arg.value.as.floating \
@@ -789,12 +586,99 @@ DEFINE_MATH_BUILTIN(round, round)
 DEFINE_MATH_BUILTIN(rad, calc_rad)
 DEFINE_MATH_BUILTIN(deg, calc_deg)
 
-static M_Value __builtin_mca_println(M_Expression *arguments[], int arguments_count) {
-    M_Value last_value = __builtin_mca_print(arguments, arguments_count);
+static M_Value __builtin_mca_pi(M_Expression *arguments[], int arguments_count) {
+    (void)arguments;
+    (void)arguments_count;
 
-    fprintf(interpreter->io_out, "\n");
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_PI };
+}
 
-    return last_value;
+static M_Value __builtin_mca_e(M_Expression *arguments[], int arguments_count) {
+    (void)arguments;
+    (void)arguments_count;
+
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = M_E };
+}
+
+static M_Value __builtin_mca_abs(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
+
+    if (arg.value.type == M_T_INT) {
+        return (M_Value){
+            .type = M_T_INT,
+            .as.integer = llabs(arg.value.as.integer)
+        };
+    } else {
+        return (M_Value){
+            .type = M_T_FLOAT,
+            .as.floating = fabs(arg.value.as.floating)
+        };
+    }
+}
+
+static M_Value __builtin_mca_max(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result a0 = evaluate_expression(arguments[0]);
+    M_Eval_Result a1 = evaluate_expression(arguments[1]);
+
+    double a;
+    double b;
+
+    switch (a0.value.type) {
+        case M_T_INT:
+            a = a0.value.as.integer;
+            break;
+        case M_T_FLOAT:
+            a = a0.value.as.floating;
+            break;
+        default:
+            m_interpreter_error(arguments[0], "function 'max' does not accept arguments of data type '%s'", m_value_type_name(a0.value.type));
+            break;
+    }
+
+    switch (a1.value.type) {
+        case M_T_INT:
+            b = a1.value.as.integer;
+            break;
+        case M_T_FLOAT:
+            b = a1.value.as.floating;
+            break;
+        default:
+            m_interpreter_error(arguments[1], "function 'max' does not accept arguments of data type '%s'", m_value_type_name(a1.value.type));
+            break;
+    }
+
+    double r = b;
+
+    if (a > b) r = a;
+
+    if (fmod(r, 1) != 0) {
+        return (M_Value){ .type = M_T_FLOAT, .as.floating = r };
+    }
+
+    return (M_Value){ .type = M_T_INT, .as.integer = r };
+}
+
+static M_Value __builtin_mca_min(M_Expression *arguments[], int arguments_count) {
+    (void)arguments_count;
+
+    M_Eval_Result x = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT);
+    M_Eval_Result y = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_FLOAT);
+
+    if (x.value.type == M_T_INT && y.value.type == M_T_INT) {
+        int64_t a0 = x.value.as.integer;
+        int64_t a1 = y.value.as.integer;
+
+        return (M_Value){ .type = M_T_INT, .as.integer = (a0 < a1) ? a0 : a1 };
+    }
+
+    double a0 = (x.value.type == M_T_FLOAT) ? x.value.as.floating : (double)x.value.as.integer;
+    double a1 = (y.value.type == M_T_FLOAT) ? y.value.as.floating : (double)y.value.as.integer;
+    
+    return (M_Value){ .type = M_T_FLOAT, .as.floating = (a0 < a1) ? a0 : a1 };
 }
 
 static M_Value __builtin_mca_print(M_Expression *arguments[], int arguments_count) {
@@ -818,10 +702,18 @@ static M_Value __builtin_mca_print(M_Expression *arguments[], int arguments_coun
     return last_value;
 }
 
+static M_Value __builtin_mca_println(M_Expression *arguments[], int arguments_count) {
+    M_Value last_value = __builtin_mca_print(arguments, arguments_count);
+
+    fprintf(interpreter->io_out, "\n");
+
+    return last_value;
+}
+
 static M_Value __builtin_mca_exit(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    exit((int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer);
+    exit((int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer);
 }
 
 static M_Value __builtin_mca_time(M_Expression *arguments[], int arguments_count) {
@@ -837,7 +729,7 @@ static M_Value __builtin_mca_time(M_Expression *arguments[], int arguments_count
 static M_Value __builtin_mca_year(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int64_t offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int64_t offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -853,7 +745,7 @@ static M_Value __builtin_mca_year(M_Expression *arguments[], int arguments_count
 static M_Value __builtin_mca_month(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -869,7 +761,7 @@ static M_Value __builtin_mca_month(M_Expression *arguments[], int arguments_coun
 static M_Value __builtin_mca_date(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -885,7 +777,7 @@ static M_Value __builtin_mca_date(M_Expression *arguments[], int arguments_count
 static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -901,7 +793,7 @@ static M_Value __builtin_mca_day(M_Expression *arguments[], int arguments_count)
 static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -917,7 +809,7 @@ static M_Value __builtin_mca_hour(M_Expression *arguments[], int arguments_count
 static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -933,7 +825,7 @@ static M_Value __builtin_mca_minute(M_Expression *arguments[], int arguments_cou
 static M_Value __builtin_mca_second(M_Expression *arguments[], int arguments_count) {
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -961,4 +853,77 @@ static M_Value __builtin_mca_type(M_Expression *arguments[], int arguments_count
     }
 
     return result.value;
+}
+
+static M_Fn_Binding builtin_functions_bindings[] = {
+    // Math related
+    BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
+    BIND_FN("E",     0, __builtin_mca_e),   // TODO: should it become a constant variable (we don't have constant values yet)?
+    BIND_FN("abs",   1, __builtin_mca_abs),
+    BIND_FN("max",   2, __builtin_mca_max),
+    BIND_FN("min",   2, __builtin_mca_min),
+    BIND_FN("sin",   1, __builtin_mca_sin),
+    BIND_FN("cos",   1, __builtin_mca_cos),
+    BIND_FN("tan",   1, __builtin_mca_tan),
+    BIND_FN("rad",   1, __builtin_mca_rad),
+    BIND_FN("deg",   1, __builtin_mca_deg),
+    BIND_FN("sqrt",  1, __builtin_mca_sqrt),
+    BIND_FN("log",   1, __builtin_mca_log),
+    BIND_FN("log10", 1, __builtin_mca_log10),
+    BIND_FN("exp",   1, __builtin_mca_exp),
+    BIND_FN("floor", 1, __builtin_mca_floor),
+    BIND_FN("ceil",  1, __builtin_mca_ceil),
+    BIND_FN("round", 1, __builtin_mca_round),
+
+    // I/O / System related
+    BIND_FN("println", -1, __builtin_mca_println),
+    BIND_FN("print",   -1, __builtin_mca_print),
+    BIND_FN("exit",     1, __builtin_mca_exit),
+
+    // language specifics
+    BIND_FN("type", 1, __builtin_mca_type),
+
+    // datetime related
+    BIND_FN("time",   0, __builtin_mca_time),
+    BIND_FN("year",   1, __builtin_mca_year),
+    BIND_FN("month",  1, __builtin_mca_month),
+    BIND_FN("date",   1, __builtin_mca_date),
+    BIND_FN("day",    1, __builtin_mca_day),
+    BIND_FN("hour",   1, __builtin_mca_hour),
+    BIND_FN("minute", 1, __builtin_mca_minute),
+    BIND_FN("second", 1, __builtin_mca_second),
+};
+
+static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);
+
+static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr) {
+    // TODO: doing a linear search here doesn't seems to be a big problem (for a toy language)
+    //       due to the fact we have just a few builtin functions.
+    //       later on, we may improve this and use a proper hashmap pro max Iphone 15 Ultra pro Plus...
+    for (int i = 0; i < builtin_functions_bindings_length; i++) {
+        M_Fn_Binding signature = builtin_functions_bindings[i];
+
+        if (signature.name_length != expr->call.fn_name_length) continue;
+
+        if (strncmp(signature.name, expr->call.fn_name, signature.name_length) != 0) continue;
+
+        // found a function that accepts N arguments
+        if (signature.arguments_count == -1)
+            return signature.c_impl;
+
+        if (expr->call.arguments_length > signature.arguments_count) {
+            m_interpreter_error(expr, "too many arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->call.arguments_length);
+        } else if (expr->call.arguments_length < signature.arguments_count) {
+            m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->call.arguments_length);
+        }
+
+        // found a function that accepts this exact amount of arguments.
+        // Note: data type will be checked later (lazy-checked-ish)
+        return signature.c_impl;
+    }
+
+    m_interpreter_error(expr, "function '%.*s' does not exists", expr->call.fn_name_length, expr->call.fn_name);
+
+    // didn't found a function (unreachable, just so the compiler doesn't yells at me)
+    return NULL;
 }

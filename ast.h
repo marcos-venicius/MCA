@@ -3,6 +3,7 @@
 
 #include "./lexer.h"
 #include "./arena.h"
+#include "./location.h"
 #include <stdint.h>
 
 // @Note: completely arbitrary number. May study what's the best value for this later
@@ -68,6 +69,7 @@ struct M_Expression_Elif_Block {
 
 struct M_Expression {
     M_Expression_Kind kind;
+    M_Location location;
 
     union {
         int64_t integer;

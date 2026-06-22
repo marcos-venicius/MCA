@@ -35,4 +35,4 @@ test.o: test.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c
 	$(CC) $(CC_FLAGS) -c test.c $(CC_LIBS)
 
 clean:
-	rm -rf *.o bin/mca
+	rm -rf *.o bin/mca bin/test

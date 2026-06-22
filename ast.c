@@ -213,6 +213,11 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
     M_Expression *fn = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
     fn->kind = M_EK_CALL;
+    fn->location = (M_Location){
+        .line = fn_name->loc.line,
+        .col = fn_name->loc.col,
+        .filename = ast->filename
+    };
     fn->call.fn_name = fn_name->value;
     fn->call.fn_name_length = fn_name->size;
     fn->call.arguments_length = 0;
@@ -267,6 +272,11 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
 static M_Expression *parse_variable_expression(M_Ast *ast) {
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
     expr->kind = M_EK_ID;
+    expr->location = (M_Location){
+        .line = token(ast)->loc.line,
+        .col = token(ast)->loc.col,
+        .filename = ast->filename
+    };
     expr->id.value = token(ast)->value;
     expr->id.value_length = token(ast)->size;
 
@@ -295,6 +305,11 @@ static M_Expression *parse_break_expression(M_Ast *ast) {
 
     M_Expression *loop_break = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
+    loop_break->location = (M_Location){
+        .line = first_token->loc.line,
+        .col = first_token->loc.col,
+        .filename = ast->filename
+    };
     loop_break->kind = M_EK_BREAK;
     loop_break->expr = break_value;
 
@@ -383,6 +398,11 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
 
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
     expr->kind = M_EK_LOOP;
+    expr->location = (M_Location){
+        .line = first_token->loc.line,
+        .col = first_token->loc.col,
+        .filename = ast->filename
+    };
     expr->loop.condition = condition; // means infinite
     expr->loop.block = block_head;
 
@@ -622,6 +642,11 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
 
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
     expr->kind = M_EK_IF;
+    expr->location = (M_Location){
+        .line = first_token->loc.line,
+        .col = first_token->loc.col,
+        .filename = ast->filename
+    };
     expr->if_expr.condition = condition;
     expr->if_expr.then_block = then_head;
     expr->if_expr.elif_blocks = elif_head;
@@ -635,6 +660,11 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
     if (token(ast)->kind == M_INT) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+        expr->location = (M_Location){
+            .line = token(ast)->loc.line,
+            .col = token(ast)->loc.col,
+            .filename = ast->filename
+        };
         expr->kind = M_EK_INT;
         expr->integer = convert_to_integer(token(ast));
 
@@ -643,6 +673,11 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         return expr;
     } else if (token(ast)->kind == M_FLOAT) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+        expr->location = (M_Location){
+            .line = token(ast)->loc.line,
+            .col = token(ast)->loc.col,
+            .filename = ast->filename
+        };
         expr->kind = M_EK_FLOAT;
         expr->floating = convert_to_double(token(ast));
 
@@ -704,6 +739,8 @@ static M_Expression *parse_factorial_expression(M_Ast *ast) {
     if (left == NULL) return NULL;
 
     while (token(ast) != NULL && token(ast)->kind == M_EXCLAMATION) {
+        M_Token *op_token = token(ast);
+
         M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
         next_token(ast);
@@ -711,6 +748,11 @@ static M_Expression *parse_factorial_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_UNARY;
+        expr->location = (M_Location){
+            .line = op_token->loc.line,
+            .col = op_token->loc.col,
+            .filename = ast->filename
+        };
         expr->unary.op = op;
         expr->unary.operand = left;
 
@@ -726,6 +768,7 @@ static M_Expression *parse_unary_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
     if (token(ast)->kind == M_MINUS || token(ast)->kind == M_EXCLAMATION) {
+        M_Token *op_token = token(ast);
         M_Unary_Expression_Operator op = token_kind_as_unary_expression_operator(token(ast)->kind);
 
         next_token(ast);
@@ -741,6 +784,11 @@ static M_Expression *parse_unary_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_UNARY;
+        expr->location = (M_Location){
+            .line = op_token->loc.line,
+            .col = op_token->loc.col,
+            .filename = ast->filename
+        };
         expr->unary.op = op == M_UNARY_FACTORIAL_OP ? M_UNARY_NOT_OP : op;
         expr->unary.operand = operand;
 
@@ -775,6 +823,11 @@ static M_Expression *parse_power_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = op;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -809,6 +862,12 @@ static M_Expression *parse_term_expression(M_Ast *ast) {
 
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
         expr->kind = M_EK_BINARY;
+        // TODO: should this be the location's operator or the first token of the expression?
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = op;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -844,6 +903,12 @@ static M_Expression *parse_additive_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
+        // TODO: should it be the location of the operator or the start of the expression?
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = op;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -880,6 +945,12 @@ static M_Expression *parse_relational_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
+        // TODO: should it be the location of the operator or the first token of expression
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = op;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -913,6 +984,12 @@ static M_Expression *parse_equality_expression(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
+        // TODO: should this be the operator location or the start of the expression?
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = op;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -945,6 +1022,12 @@ static M_Expression *parse_logical_operators(M_Ast *ast) {
         M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         expr->kind = M_EK_BINARY;
+        // TODO: should be the location of the operator or the location of the start of the binary expression?
+        expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         expr->binary.op = and ? M_BINARY_AND_OP : M_BINARY_OR_OP;
         expr->binary.left = left;
         expr->binary.right = right;
@@ -978,6 +1061,11 @@ static M_Expression *parse_assignment_expression(M_Ast *ast) {
         M_Expression *assignment_expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
 
         assignment_expr->kind = M_EK_ASSIGN;
+        assignment_expr->location = (M_Location){
+            .line = first_token->loc.line,
+            .col = first_token->loc.col,
+            .filename = ast->filename
+        };
         assignment_expr->assign.name.value = name;
         assignment_expr->assign.name.length = name_length;
         assignment_expr->assign.right = right;

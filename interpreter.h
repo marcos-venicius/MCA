@@ -59,9 +59,4 @@ void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream);
 M_Value m_interpreter_run(M_Interpreter *interpreter);
 void m_interpreter_free(M_Interpreter *interpreter);
 
-// TODO: just for testing purposes. I should think of a better
-// way to do this
-// @deprecated
-M_Eval_Result evaluate_expression(M_Expression *expression);
-
 #endif // EVALUATOR_H_
