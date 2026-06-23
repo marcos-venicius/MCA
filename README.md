@@ -36,6 +36,10 @@ loop_result = while x < 10 {
     x = x + 1
     if x == 5 { 
         break 42; # Break early and return 42
+        # since break accepts an expression as value
+        # it's commonly needed to specify a ';' at the end
+        # just to ensure that the next expression on the next line
+        # will not be the value of the 'break' if you don't want to.
     }
 }
 ```
@@ -63,7 +67,7 @@ println(LAST_FIB_VALUE)
 **Checking Leap Years**
 ```python
 n    = 0
-year = year(0) # Get year from timestamp 0
+year = year(-3) # Get year from timestamp (using -3 timezone offset)
 
 while n < 15 {
   if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0) {
