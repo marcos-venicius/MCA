@@ -24,6 +24,9 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
             case M_T_FLOAT:
                 fprintf(stderr, "       expected: float(%lf)\n", expected.as.floating);
                 break;
+            case M_T_BOOL:
+                fprintf(stderr, "       expected: bool(%s)\n", expected.as.boolean ? "true" : "false");
+                break;
             default:
                 fprintf(stderr, "       expected: broken(%d)\n", expected.type);
                 break;
@@ -36,6 +39,9 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
             case M_T_FLOAT:
                 fprintf(stderr, "       expected: float(%lf)", expected.as.floating);
                 break;
+            case M_T_BOOL:
+                fprintf(stderr, "       expected: bool(%s)", expected.as.boolean ? "true" : "false");
+                break;
             default:
                 fprintf(stderr, "       expected: broken(%d)\n", expected.type);
                 break;
@@ -47,6 +53,9 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
                 break;
             case M_T_FLOAT:
                 fprintf(stderr, ", actual: float(%lf)\n", actual->as.floating);
+                break;
+            case M_T_BOOL:
+                fprintf(stderr, ", actual: bool(%s)\n", actual->as.boolean ? "true" : "false");
                 break;
             default:
                 fprintf(stderr, ", actual: broken(%d)\n", actual->type);
@@ -62,6 +71,9 @@ static inline void LOG_SUCCESS(const char *expression, M_Value result) {
             break;
         case M_T_FLOAT:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mfloat(%lf)\033[0m\n", expression, result.as.floating);
+            break;
+        case M_T_BOOL:
+            fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mbool(%s)\033[0m\n", expression, result.as.boolean ? "true" : "false");
             break;
     }
 }
@@ -112,6 +124,12 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected) {
                     goto clear_test_case;
                 }
                 break;
+            case M_T_BOOL:
+                if (expected.as.boolean == evaluated_expression.as.boolean) {
+                    LOG_SUCCESS(expression, expected);
+                    goto clear_test_case;
+                }
+                break;
         }
     }
 
@@ -128,6 +146,7 @@ static inline void TEST_CASE_LABEL(const char *label) {
 
 #define T_INT(v) (M_Value){ .type = M_T_INT, .as.integer = v }
 #define T_FLOAT(v) (M_Value){ .type = M_T_FLOAT, .as.floating = v }
+#define T_BOOL(v) (M_Value){ .type = M_T_BOOL, .as.boolean = v }
 
 int main(void) {
     TEST_CASE_LABEL("Basic arithmetic");
@@ -167,7 +186,7 @@ int main(void) {
     RUN_TEST_CASE("PI()", T_FLOAT(M_PI));
     RUN_TEST_CASE("E()", T_FLOAT(M_E));
     RUN_TEST_CASE("abs(-15.5)", T_FLOAT(15.5));
-    RUN_TEST_CASE("max(10.5, 20.0)", T_INT(20));
+    RUN_TEST_CASE("max(10.5, 20.0)", T_FLOAT(20.0));
     RUN_TEST_CASE("min(10.5, 20.0)", T_FLOAT(10.5));
     RUN_TEST_CASE("sin(0)", T_INT(0));
     RUN_TEST_CASE("cos(0)", T_INT(1));
@@ -186,29 +205,29 @@ int main(void) {
     RUN_TEST_CASE("type(4)", T_INT(4));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
-    RUN_TEST_CASE("5 == 5", T_INT(1));
-    RUN_TEST_CASE("10 == 5", T_INT(0));
-    RUN_TEST_CASE("0 == 0", T_INT(1));
-    RUN_TEST_CASE("10 != 5", T_INT(1));
-    RUN_TEST_CASE("5 != 5", T_INT(0));
-    RUN_TEST_CASE("0 != 0", T_INT(0));
-    RUN_TEST_CASE("10 > 5", T_INT(1));
-    RUN_TEST_CASE("5 > 10", T_INT(0));
-    RUN_TEST_CASE("5 > 5", T_INT(0));
-    RUN_TEST_CASE("5 < 10", T_INT(1));
-    RUN_TEST_CASE("10 < 5", T_INT(0));
-    RUN_TEST_CASE("5 < 5", T_INT(0));
-    RUN_TEST_CASE("10 >= 5", T_INT(1));
-    RUN_TEST_CASE("5 >= 5", T_INT(1));
-    RUN_TEST_CASE("5 >= 10", T_INT(0));
-    RUN_TEST_CASE("5 <= 10", T_INT(1));
-    RUN_TEST_CASE("5 <= 5", T_INT(1));
-    RUN_TEST_CASE("10 <= 5", T_INT(0));
-    RUN_TEST_CASE("1 + 2 == 3", T_INT(1));
-    RUN_TEST_CASE("10 - 5 > 2 * 2", T_INT(1));
-    RUN_TEST_CASE("5 < 3 + 4", T_INT(1));
-    RUN_TEST_CASE("10 == 5 * 2 != 0", T_INT(1));
-    RUN_TEST_CASE("0 == 1 < 2", T_INT(0));
+    RUN_TEST_CASE("5 == 5", T_BOOL(true));
+    RUN_TEST_CASE("10 == 5", T_BOOL(false));
+    RUN_TEST_CASE("0 == 0", T_BOOL(true));
+    RUN_TEST_CASE("10 != 5", T_BOOL(true));
+    RUN_TEST_CASE("5 != 5", T_BOOL(false));
+    RUN_TEST_CASE("0 != 0", T_BOOL(false));
+    RUN_TEST_CASE("10 > 5", T_BOOL(true));
+    RUN_TEST_CASE("5 > 10", T_BOOL(false));
+    RUN_TEST_CASE("5 > 5", T_BOOL(false));
+    RUN_TEST_CASE("5 < 10", T_BOOL(true));
+    RUN_TEST_CASE("10 < 5", T_BOOL(false));
+    RUN_TEST_CASE("5 < 5", T_BOOL(false));
+    RUN_TEST_CASE("10 >= 5", T_BOOL(true));
+    RUN_TEST_CASE("5 >= 5", T_BOOL(true));
+    RUN_TEST_CASE("5 >= 10", T_BOOL(false));
+    RUN_TEST_CASE("5 <= 10", T_BOOL(true));
+    RUN_TEST_CASE("5 <= 5", T_BOOL(true));
+    RUN_TEST_CASE("10 <= 5", T_BOOL(false));
+    RUN_TEST_CASE("1 + 2 == 3", T_BOOL(true));
+    RUN_TEST_CASE("10 - 5 > 2 * 2", T_BOOL(true));
+    RUN_TEST_CASE("5 < 3 + 4", T_BOOL(true));
+    RUN_TEST_CASE("10 == 5 * 2 != 0", T_BOOL(true));
+    RUN_TEST_CASE("0 == 1 < 2", T_BOOL(false));
 
     TEST_CASE_LABEL("Printing (return last argument)");
     RUN_TEST_CASE("print()", T_INT(0));
@@ -257,8 +276,14 @@ int main(void) {
 
     TEST_CASE_LABEL("Not operator");
     RUN_TEST_CASE("if !(10 == 11 or 20 == 21) { 20 } else { 10 }", T_INT(20));
-    RUN_TEST_CASE("!(1 == 0)", T_INT(1));
-    RUN_TEST_CASE("!1.4", T_INT(0));
+    RUN_TEST_CASE("!(1 == 0)", T_BOOL(true));
+    RUN_TEST_CASE("!1.4", T_BOOL(false));
+
+    TEST_CASE_LABEL("Booleans");
+    RUN_TEST_CASE("true", T_BOOL(true));
+    RUN_TEST_CASE("false", T_BOOL(false));
+    RUN_TEST_CASE("!true", T_BOOL(false));
+    RUN_TEST_CASE("!false", T_BOOL(true));
 
     if (errors == 1) {
         fprintf(stderr, "\n\033[1;31m1\033[0m test case broke\n");

@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 A = 1 and 2
 B = 10 or 0
 C = 0 or 0

@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 # It's a "busy-wait", not a really usefull sleep
 # It's just an example of what we already can implement
 

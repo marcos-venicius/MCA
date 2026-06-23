@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 # This program is capable of getting the current date and time
 # using timezone -3
 

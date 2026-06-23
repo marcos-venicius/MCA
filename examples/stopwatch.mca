@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 # This program is a simple and CPU-blocking
 # stopwatch implementation with the current
 # powers of the language

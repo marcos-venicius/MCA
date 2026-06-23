@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 # will work soon
 
 a = 0;

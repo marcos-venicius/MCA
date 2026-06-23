@@ -1,3 +1,5 @@
+#!/usr/local/bin/mca -i
+
 # You can inspect data type by using 'type(x)' function
 # This function will print to default stdout the data type like 'type(value)'
 
@@ -17,5 +19,11 @@ type(c)
 type(d)
 
 type(X)
+
+type(true)
+
+type(false)
+
+type(1 == 1)
 
 # vim: set syntax=python :

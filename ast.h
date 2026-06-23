@@ -14,6 +14,7 @@ typedef struct M_Expression M_Expression;
 typedef enum {
     M_EK_INT = 0,
     M_EK_FLOAT,
+    M_EK_BOOL,
     M_EK_ID,
     M_EK_BINARY,
     M_EK_ASSIGN,
@@ -74,6 +75,7 @@ struct M_Expression {
     union {
         int64_t integer;
         double  floating;
+        bool    boolean;
 
         // when the kind is M_EK_BREAK it can be null or filled
         M_Expression *expr;

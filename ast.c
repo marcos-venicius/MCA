@@ -655,6 +655,21 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
     return expr;
 }
 
+static M_Expression *parse_boolean_expression(M_Ast *ast, bool value) {
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->location = (M_Location){
+        .line = token(ast)->loc.line,
+        .col = token(ast)->loc.col,
+        .filename = ast->filename
+    };
+    expr->kind = M_EK_BOOL;
+    expr->boolean = value;
+
+    next_token(ast);
+
+    return expr;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -688,13 +703,16 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         // TODO: extract this to a list of keyword bindings where a name binds to a pointer
         // and this pointer is a function that parses this keyword semantics
 
-        // WHILE
         if (token(ast)->size == 5 && strncmp(token(ast)->value, "while", 5) == 0) {
             return parse_loop_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
         } else if (token(ast)->size == 2 && strncmp(token(ast)->value, "if", 2) == 0) {
             return parse_if_expression(ast);
+        } else if (token(ast)->size == 4 && strncmp(token(ast)->value, "true", 4) == 0) {
+            return parse_boolean_expression(ast, true);
+        } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "false", 5) == 0) {
+            return parse_boolean_expression(ast, false);
         }
 
         if (checkahead(ast, M_LPAREN)) return parse_function_call_expression(ast);

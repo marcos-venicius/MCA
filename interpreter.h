@@ -29,11 +29,13 @@ typedef struct {
 typedef enum {
     M_T_INT   = 1 << 0,
     M_T_FLOAT = 1 << 1,
+    M_T_BOOL  = 1 << 2,
 } M_Value_Type;
 
 typedef union {
     double floating;
     int64_t integer;
+    bool boolean;
 } M_Value_Union;
 
 typedef struct {
