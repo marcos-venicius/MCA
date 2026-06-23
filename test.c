@@ -293,6 +293,16 @@ int main(void) {
     RUN_TEST_CASE("!true", T_BOOL(false));
     RUN_TEST_CASE("!false", T_BOOL(true));
 
+    TEST_CASE_LABEL("Type casting");
+    RUN_TEST_CASE("as_int(10.5)", T_INT(10));
+    RUN_TEST_CASE("as_int(true)", T_INT(1));
+    RUN_TEST_CASE("as_float(10)", T_FLOAT(10.0));
+    RUN_TEST_CASE("as_float(false)", T_FLOAT(0.0));
+    RUN_TEST_CASE("as_bool(10)", T_BOOL(true));
+    RUN_TEST_CASE("as_bool(0)", T_BOOL(false));
+    RUN_TEST_CASE("as_bool(false)", T_BOOL(false));
+    RUN_TEST_CASE("as_bool(true)", T_BOOL(true));
+
     if (errors == 1) {
         fprintf(stderr, "\n\033[1;31m1\033[0m test case broke\n");
     } else if (errors > 1) {
