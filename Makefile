@@ -1,10 +1,12 @@
 CC = gcc
-CC_FLAGS = -Wall -Wextra -pedantic -ggdb
+CC_FLAGS = -Wall -Wextra -pedantic
 CC_LIBS = -lm
 OPTIMIZATION_FLAGS = 
 
 ifdef MCA_OPTIMIZE
 	OPTIMIZATION_FLAGS = -O3
+else
+	CC_FLAGS += -ggdb
 endif
 
 bin/mca: main.o lexer.o log.o ast.o io.o interpreter.o

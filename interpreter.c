@@ -10,6 +10,15 @@
 #include "./ast.h"
 #include "./ht.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#ifndef M_E
+#define M_E 2.7182818284590452354
+#endif
+
+
 // [[typedefs]]
 typedef M_Value (*M_Fn_C_Impl)(M_Expression *caller, M_Expression *arguments[], int arguments_count);
 
@@ -60,7 +69,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
     
     double x = tgamma(val + 1.0);
 
-    M_Value_Union out;
+    M_Value_Union out = {0};
 
     switch (r.value.type) {
         case M_T_INT: out.integer = (int64_t)x; break;
@@ -390,7 +399,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             switch (expression->unary.op) {
                 case M_UNARY_MINUS_OP: {
                     M_Eval_Result result = evaluate_expression(expression->unary.operand);
-                    M_Value_Union out;
+                    M_Value_Union out = {0};
 
                     switch (result.value.type) {
                         case M_T_INT:
