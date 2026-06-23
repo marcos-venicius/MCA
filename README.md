@@ -37,7 +37,7 @@ loop_result = while x < 10 {
     if x == 5 { 
         break 42; # Break early and return 42
         # since break accepts an expression as value
-        # it's commonly needed to specify a ';' at the end
+        # it's commonly needed to specify a ';' at the end,
         # just to ensure that the next expression on the next line
         # will not be the value of the 'break' if you don't want to.
     }

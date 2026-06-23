@@ -27,6 +27,7 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
 
     fprintf(stderr, "  \033[1;31mFAIL\033[0m '%s' \033[0;33m(%s:%d)\033[0m\n", expression, file, line);
     if (actual == NULL) {
+        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
         switch (expected.type) {
             case M_T_INT:
                 fprintf(stderr, "       expected: int(%ld)\n", expected.as.integer);
@@ -37,11 +38,15 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
             case M_T_BOOL:
                 fprintf(stderr, "       expected: bool(%s)\n", expected.as.boolean ? "true" : "false");
                 break;
+            case M_T_UNIT:
+                fprintf(stderr, "       expected: unit\n");
+                break;
             default:
                 fprintf(stderr, "       expected: broken(%d)\n", expected.type);
                 break;
         }
     } else {
+        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
         switch (expected.type) {
             case M_T_INT:
                 fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
@@ -52,11 +57,15 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
             case M_T_BOOL:
                 fprintf(stderr, "       expected: bool(%s)", expected.as.boolean ? "true" : "false");
                 break;
+            case M_T_UNIT:
+                fprintf(stderr, "       expected: unit");
+                break;
             default:
                 fprintf(stderr, "       expected: broken(%d)\n", expected.type);
                 break;
         }
 
+        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
         switch (actual->type) {
             case M_T_INT:
                 fprintf(stderr, ", actual: int(%ld)\n", actual->as.integer);
@@ -66,6 +75,9 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
                 break;
             case M_T_BOOL:
                 fprintf(stderr, ", actual: bool(%s)\n", actual->as.boolean ? "true" : "false");
+                break;
+            case M_T_UNIT:
+                fprintf(stderr, ", actual: unit\n");
                 break;
             default:
                 fprintf(stderr, ", actual: broken(%d)\n", actual->type);
@@ -86,6 +98,12 @@ static inline void LOG_SUCCESS(const char *expression, M_Value result) {
             break;
         case M_T_BOOL:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mbool(%s)\033[0m\n", expression, result.as.boolean ? "true" : "false");
+            break;
+        case M_T_UNIT:
+            fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37munit\033[0m\n", expression);
+            break;
+        case M_T_COUNT:
+            assert(0 && "LOG_SUCCESS: unreachable M_T_COUNT");
             break;
     }
 }
@@ -144,6 +162,12 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
                     goto clear_test_case;
                 }
                 break;
+            case M_T_UNIT:
+                LOG_SUCCESS(expression, expected);
+                goto clear_test_case;
+            case M_T_COUNT:
+                assert(0 && "RUN_TEST_CASE: unreachable M_T_COUNT");
+                break;
         }
     }
 
@@ -158,6 +182,7 @@ static inline void TEST_CASE_LABEL(const char *label) {
     fprintf(stderr, "%s:\n", label);
 }
 
+#define T_UNIT() (M_Value){ .type = M_T_UNIT }
 #define T_INT(v) (M_Value){ .type = M_T_INT, .as.integer = v }
 #define T_FLOAT(v) (M_Value){ .type = M_T_FLOAT, .as.floating = v }
 #define T_BOOL(v) (M_Value){ .type = M_T_BOOL, .as.boolean = v }
@@ -245,10 +270,10 @@ int main(void) {
     TEST_CASE("0 == 1 < 2", T_BOOL(false));
 
     TEST_CASE_LABEL("Printing (return last argument)");
-    TEST_CASE("print()", T_INT(0));
+    TEST_CASE("print()", T_UNIT());
     TEST_CASE("print(PI())", T_FLOAT(M_PI));
     TEST_CASE("print(PI(), E(), 10)", T_INT(10));
-    TEST_CASE("println()", T_INT(0));
+    TEST_CASE("println()", T_UNIT());
     TEST_CASE("println(PI())", T_FLOAT(M_PI));
     TEST_CASE("println(PI(), E(), 10)", T_INT(10));
 

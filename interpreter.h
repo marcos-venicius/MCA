@@ -27,9 +27,11 @@ typedef struct {
 } M_Interpreter;
 
 typedef enum {
-    M_T_INT   = 1 << 0,
-    M_T_FLOAT = 1 << 1,
-    M_T_BOOL  = 1 << 2,
+    M_T_UNIT  = 1 << 0,
+    M_T_INT   = 1 << 1,
+    M_T_FLOAT = 1 << 2,
+    M_T_BOOL  = 1 << 3,
+    M_T_COUNT
 } M_Value_Type;
 
 typedef union {

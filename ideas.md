@@ -8,8 +8,39 @@ This document outlines a roadmap of features to implement next to deepen my unde
 
 ### 2. User-Defined Functions and Closures
 
+**In progress**
+
 **Feature:** Allow defining custom math functions: `def area(r) = 3.14 * r ^ 2; area(5);`
 **Goals / Concepts to learn:** I will learn about local scoping. When evaluating `area(5)`, the evaluator needs to push a new "local environment" where `r = 5`, evaluate the AST of the function body, and then pop the environment. This is the first step toward building a Turing-complete language!
+
+We are going to have some limitations for now.
+
+That is going to be the syntax of a function definition:
+
+```python
+# inline definitions
+def fib(n, a, b) = if n <= 0 { a } else { fib(n - 1, b, a + b) };
+
+println(fib(10, 0, 1));
+
+# multi-line definitions
+def fib(n) = {
+    a = 0
+    b = 1
+
+    while n > 0 {
+        t = a
+        a = b
+        b = t + b
+
+        n = n - 1
+    }
+
+    a
+}
+
+println(fib(10));
+```
 
 ~### 3. Built-in Functions (Call Expressions)~
 ~**Feature:** Add support for math functions like `sin(x)`, `cos(x)`, `max(a, b)`, etc.~

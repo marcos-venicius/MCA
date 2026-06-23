@@ -27,6 +27,7 @@ static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr);
 static M_Eval_Result evaluate_expression(M_Expression *expression);
 
 // [[macros]]
+#define m_value_unit() ((M_Value){ .type = M_T_UNIT })
 #define m_value_zero() ((M_Value){ .type = M_T_INT, .as.integer = 0 })
 #define m_value_true() ((M_Value){ .type = M_T_BOOL, .as.boolean = true })
 #define m_value_false() ((M_Value){ .type = M_T_BOOL, .as.boolean = false })
@@ -86,34 +87,33 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
     };
 }
 
+#define HANDLE_M_VALUE_TYPE_NAME(T, name) \
+    if (t & T) { \
+        size += snprintf(buffer + size, 256 - size, "%s"name, (size > 0) ? " | " : ""); \
+        t &= ~T; \
+    }
+
 static const char *m_value_type_name(M_Value_Type type) {
+    static_assert(M_T_COUNT == 9, "m_value_type_name: missing M_Value_Type handling");
+
     int t = type;
 
     // @Leak TODO: this is never gonna be freed but
     // when this piece of code is called, normally the program is gonna exit
     // so, do we really care?
     char *buffer = malloc(256);
+    if (!buffer) return NULL; 
+    
+    buffer[0] = '\0';
     int size = 0;
 
-    while (t) {
-        if (size > 0) {
-            strcat(buffer, " | ");
-            size += 3;
-        }
+    HANDLE_M_VALUE_TYPE_NAME(M_T_INT, "int")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_FLOAT, "float")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_BOOL, "bool")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_UNIT, "unit")
 
-        if (t & M_T_INT) {
-            strcat(buffer, "int");
-            size += 3;
-        }
-        if (t & M_T_FLOAT) {
-            strcat(buffer, "float");
-            size += 5;
-        }
-        if (t & M_T_BOOL) {
-            strcat(buffer, "bool");
-            size += 4;
-        }
-        buffer[size] = '\0';
+    if (t != 0) {
+        snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
     }
 
     return buffer;
@@ -449,6 +449,10 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                                     .as.boolean = !result.value.as.floating
                                 }
                             };
+                        case M_T_UNIT:
+                        case M_T_COUNT:
+                            assert(0 && "case M_UNARY_NOT_OP: unreachable");
+                            break;
                     }
                 } break;
                 case M_UNARY_FACTORIAL_OP: return calculate_factorial(m_result_expect_type(expression, evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT));
@@ -765,7 +769,7 @@ static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[]
 
 static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
-    M_Value last_value = m_value_zero();
+    M_Value last_value = m_value_unit();
 
     for (int i = 0; i < arguments_count; i++) {
         if (i > 0) fprintf(interpreter->io_out, " ");
@@ -781,6 +785,12 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 break;
             case M_T_BOOL:
                 fprintf(interpreter->io_out, "%s", last_value.as.boolean ? "true" : "false");
+                break;
+            case M_T_UNIT:
+                fprintf(interpreter->io_out, "unit");
+                break;
+            case M_T_COUNT:
+                assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
                 break;
         }
     }
@@ -949,6 +959,12 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
             break;
         case M_T_BOOL:
             fprintf(interpreter->io_out, "bool(%s)\n", result.value.as.boolean ? "true" : "false");
+            break;
+        case M_T_UNIT:
+            fprintf(interpreter->io_out, "unit\n");
+            break;
+        case M_T_COUNT:
+            assert(0 && "__builtin_mca_type: unreachable M_T_COUNT");
             break;
     }
 

@@ -15,6 +15,8 @@ bin/mca: main.o lexer.o log.o ast.o io.o interpreter.o
 bin/test: test.o lexer.o log.o ast.o io.o interpreter.o
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)
 
+all: bin/mca bin/test
+
 log.o: log.c log.h
 	$(CC) $(CC_FLAGS) -c log.c $(CC_LIBS)
 
@@ -38,3 +40,5 @@ test.o: test.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c
 
 clean:
 	rm -rf *.o bin/mca bin/test
+
+.PHONY: all clean
