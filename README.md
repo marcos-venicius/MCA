@@ -2,6 +2,8 @@
 
 MCA is an advanced, expression-oriented mathematical calculator and programming language. It is designed to evaluate complex mathematical expressions, with almost everything in the language evaluating to a value.
 
+https://github.com/user-attachments/assets/d7a7ae56-7963-4d62-8066-676eb96ce89b
+
 ## 1. Introduction and Syntax Overview
 
 MCA looks similar to C or Rust but acts as an expression evaluator. It features variables, control flow (`if`, `elif`, `else`, `while`), and robust math builtins.
