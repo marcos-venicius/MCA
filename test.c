@@ -10,6 +10,14 @@
 #define CLIBS_ARENA_IMPLEMENTATION
 #include "./arena.h"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
+#ifndef M_E
+#define M_E 2.7182818284590452354
+#endif
+
 static long errors = 0;
 
 static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual) {
