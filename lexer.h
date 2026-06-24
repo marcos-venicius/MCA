@@ -35,6 +35,9 @@ typedef enum {
     M_GTE,
     M_LTE,
 
+    // used for denote empty type (unit)
+    M_QUESTION_MARK,
+
     // symbols
     M_LPAREN,
     M_RPAREN,

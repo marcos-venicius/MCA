@@ -124,9 +124,9 @@ static void m_interpreter_error(M_Expression *expr, const char *fmt, ...) {
     va_start(args, fmt);
 
     if (expr->location.filename) {
-        fprintf(stderr, "%s:%d:%d: \033[1;31merror\033[0m ", expr->location.filename, expr->location.line, expr->location.col);
+        fprintf(stderr, "%s:%d:%d: \033[1;31merror\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
     } else {
-        fprintf(stderr, "%d:%d: \033[1;31merror\033[0m ", expr->location.line, expr->location.col);
+        fprintf(stderr, "%d:%d: \033[1;31merror\033[0m: ", expr->location.line, expr->location.col);
     }
 
     vfprintf(stderr, fmt, args);
@@ -259,11 +259,33 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
-    M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL);
-    M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL);
+    M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT);
+    M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT);
 
     M_Value_Type l_type = left.value.type;
     M_Value_Type r_type = right.value.type;
+
+    if (l_type == M_T_UNIT || r_type == M_T_UNIT) {
+        switch (expression->binary.op) {
+            case M_BINARY_EQUAL_OP:
+                return (M_Eval_Result){
+                    .value = (M_Value){ .type = M_T_BOOL, .as.boolean = l_type == r_type },
+                    .flow = M_CTRL_NORMAL
+                };
+            case M_BINARY_NOT_EQUAL_OP:
+                return (M_Eval_Result){
+                    .value = (M_Value){ .type = M_T_BOOL, .as.boolean = l_type != r_type },
+                    .flow = M_CTRL_NORMAL
+                };
+            default:
+                m_interpreter_error(
+                    l_type == M_T_UNIT ? expression->binary.left : expression->binary.right,
+                    "invalid operation. cannot perform binary operation '%s' with unit type",
+                    binary_expression_operator_name(expression->binary.op)
+                );
+                break;
+        }
+    }
 
     bool returns_bool = false;
 
@@ -363,6 +385,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
     switch (expression->kind) {
         case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
+        case M_EK_UNIT: return (M_Eval_Result){ .value = m_value_unit(), .flow = M_CTRL_NORMAL };
         case M_EK_BOOL:
             return (M_Eval_Result){ .value = (M_Value){ .type = M_T_BOOL, .as.boolean = expression->boolean }, .flow = M_CTRL_NORMAL };
         case M_EK_INT:
@@ -667,6 +690,8 @@ static inline double calc_deg(double radians) {
     return radians * (180.0 / M_PI);
 }
 
+DEFINE_MATH_BUILTIN(acos, acos)
+DEFINE_MATH_BUILTIN(asin, asin)
 DEFINE_MATH_BUILTIN(sin, sin)
 DEFINE_MATH_BUILTIN(cos, cos)
 DEFINE_MATH_BUILTIN(tan, tan)
@@ -772,8 +797,6 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
     M_Value last_value = m_value_unit();
 
     for (int i = 0; i < arguments_count; i++) {
-        if (i > 0) fprintf(interpreter->io_out, " ");
-
         last_value = evaluate_expression(arguments[i]).value;
 
         switch (last_value.type) {
@@ -787,7 +810,7 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 fprintf(interpreter->io_out, "%s", last_value.as.boolean ? "true" : "false");
                 break;
             case M_T_UNIT:
-                fprintf(interpreter->io_out, "unit");
+                fprintf(interpreter->io_out, " ");
                 break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
@@ -944,6 +967,25 @@ static M_Value __builtin_mca_second(M_Expression *caller, M_Expression *argument
     };
 }
 
+static M_Value __builtin_mca_millisecond(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments;
+    (void)arguments_count;
+
+    struct timespec ts;
+
+    if (timespec_get(&ts, TIME_UTC) == -1) {
+        m_interpreter_error(caller, "failed to get current time in milliseconds");
+    }
+
+    int64_t milliseconds = (int64_t)ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+
+    return (M_Value){
+        .type = M_T_INT,
+        .as.integer = milliseconds
+    };
+}
+
 static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -1019,6 +1061,35 @@ static M_Value __builtin_mca_as_bool(M_Expression *caller, M_Expression *argumen
     return result.value;
 }
 
+static M_Value __builtin_mca_as_srand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result seed = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
+
+    srand((unsigned int)seed.value.as.integer);
+
+    return m_value_unit();
+}
+
+static M_Value __builtin_mca_as_rand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result min_r = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
+    M_Eval_Result max_r = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
+
+    int64_t min = min_r.value.as.integer;
+    int64_t max = max_r.value.as.integer;
+
+    if (min > max)
+        m_interpreter_error(arguments[0], "invalid range for rand(). min (%ld) cannot be greater than max (%ld)", min, max);
+
+    int64_t random = (rand() % (max - min + 1)) + min;
+
+    return (M_Value){ .type = M_T_INT, .as.integer = random };
+}
+
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -1028,6 +1099,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("min",  -1, __builtin_mca_min),
     BIND_FN("sin",   1, __builtin_mca_sin),
     BIND_FN("cos",   1, __builtin_mca_cos),
+    BIND_FN("asin",   1, __builtin_mca_asin),
+    BIND_FN("acos",   1, __builtin_mca_acos),
     BIND_FN("tan",   1, __builtin_mca_tan),
     BIND_FN("rad",   1, __builtin_mca_rad),
     BIND_FN("deg",   1, __builtin_mca_deg),
@@ -1050,15 +1123,20 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("as_float", 1, __builtin_mca_as_float),
     BIND_FN("as_bool",  1, __builtin_mca_as_bool),
 
+    // random
+    BIND_FN("srand", 1, __builtin_mca_as_srand),
+    BIND_FN("rand",  2, __builtin_mca_as_rand),
+
     // datetime related
-    BIND_FN("time",   0, __builtin_mca_time),
-    BIND_FN("year",   1, __builtin_mca_year),
-    BIND_FN("month",  1, __builtin_mca_month),
-    BIND_FN("date",   1, __builtin_mca_date),
-    BIND_FN("day",    1, __builtin_mca_day),
-    BIND_FN("hour",   1, __builtin_mca_hour),
-    BIND_FN("minute", 1, __builtin_mca_minute),
-    BIND_FN("second", 1, __builtin_mca_second),
+    BIND_FN("time",        0, __builtin_mca_time),
+    BIND_FN("year",        1, __builtin_mca_year),
+    BIND_FN("month",       1, __builtin_mca_month),
+    BIND_FN("date",        1, __builtin_mca_date),
+    BIND_FN("day",         1, __builtin_mca_day),
+    BIND_FN("hour",        1, __builtin_mca_hour),
+    BIND_FN("minute",      1, __builtin_mca_minute),
+    BIND_FN("second",      1, __builtin_mca_second),
+    BIND_FN("millisecond", 0, __builtin_mca_millisecond),
 };
 
 static int builtin_functions_bindings_length = sizeof(builtin_functions_bindings) / sizeof(M_Fn_Binding);

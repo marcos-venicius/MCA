@@ -70,6 +70,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_GTE:         return M_BINARY_GTE_OP;
         case M_LTE:         return M_BINARY_LTE_OP;
 
+        case M_QUESTION_MARK:
         case M_ASSIGN:
         case M_ID:
         case M_INT:
@@ -88,7 +89,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
     assert(0 && "token_kind_as_binary_expression_operator: unreacheable");
 }
 
-static const char *binary_expression_operator_name(M_Binary_Expression_Operator op) {
+const char *binary_expression_operator_name(M_Binary_Expression_Operator op) {
     switch (op) {
         case M_BINARY_PLUS_OP:      return "+";
         case M_BINARY_TIMES_OP:     return "*";
@@ -126,6 +127,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_MINUS:       return M_UNARY_MINUS_OP;
         case M_EXCLAMATION: return M_UNARY_FACTORIAL_OP;
 
+        case M_QUESTION_MARK:
         case M_ASSIGN:
         case M_PLUS:
         case M_TIMES:
@@ -238,6 +240,12 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
         if (expr == NULL) return NULL;
 
         fn->call.arguments[fn->call.arguments_length++] = expr;
+
+        if (token(ast) == NULL) {
+            ast_error(ast, lparen, "expected ',' or ')' but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
 
         if (token(ast)->kind == M_RPAREN) break;
 
@@ -682,6 +690,18 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         };
         expr->kind = M_EK_INT;
         expr->integer = convert_to_integer(token(ast));
+
+        next_token(ast);
+
+        return expr;
+    } else if (token(ast)->kind == M_QUESTION_MARK) {
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+        expr->location = (M_Location){
+            .line = token(ast)->loc.line,
+            .col = token(ast)->loc.col,
+            .filename = ast->filename
+        };
+        expr->kind = M_EK_UNIT;
 
         next_token(ast);
 

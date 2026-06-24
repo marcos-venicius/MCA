@@ -229,6 +229,8 @@ int main(void) {
     TEST_CASE("max(10.5, 20.0)", T_FLOAT(20.0));
     TEST_CASE("min(10.5, 20.0)", T_FLOAT(10.5));
     TEST_CASE("sin(0)", T_INT(0));
+    TEST_CASE("deg(asin(1))", T_INT(90));
+    TEST_CASE("deg(acos(0))", T_INT(90));
     TEST_CASE("cos(0)", T_INT(1));
     TEST_CASE("tan(0)", T_INT(0));
     TEST_CASE("rad(180)", T_FLOAT(M_PI));
@@ -243,6 +245,8 @@ int main(void) {
     TEST_CASE("round(4.4)", T_INT(4));
     TEST_CASE("type(4.4)", T_FLOAT(4.4));
     TEST_CASE("type(4)", T_INT(4));
+    TEST_CASE("srand(4)", T_UNIT());
+    TEST_CASE("rand(1, 10)", T_INT(2));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     TEST_CASE("5 == 5", T_BOOL(true));
@@ -334,6 +338,10 @@ int main(void) {
     TEST_CASE("as_bool(0)", T_BOOL(false));
     TEST_CASE("as_bool(false)", T_BOOL(false));
     TEST_CASE("as_bool(true)", T_BOOL(true));
+
+    TEST_CASE_LABEL("Unit type");
+    TEST_CASE("?", T_UNIT());
+    TEST_CASE("a = ?", T_UNIT());
 
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);

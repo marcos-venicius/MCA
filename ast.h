@@ -12,7 +12,8 @@
 typedef struct M_Expression M_Expression;
 
 typedef enum {
-    M_EK_INT = 0,
+    M_EK_UNIT = 0,
+    M_EK_INT,
     M_EK_FLOAT,
     M_EK_BOOL,
     M_EK_ID,
@@ -150,6 +151,7 @@ typedef struct {
 } M_Ast;
 
 M_Ast *parse_expression(const char *filename, M_Token *head);
+const char *binary_expression_operator_name(M_Binary_Expression_Operator op);
 void ast_free(M_Ast *ast);
 
 #endif // AST_H_

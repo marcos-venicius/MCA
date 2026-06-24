@@ -1,0 +1,40 @@
+# This program gets all three angles of a triangle
+
+# insert your values here
+a = 3
+b = 5
+c = 4
+
+# some constants
+SUM      = a + b + c
+MAX      = max(a, b, c)
+MIN      = min(a, b, c)
+SIDE_ONE = SUM - MAX - MIN
+SIDE_TWO = MIN
+
+# validations
+
+# is it a valid triangle?
+if !(SUM - MAX > MAX) {
+  exit(as_int(!println(1, ?, false)))
+}
+
+# does this triangle have a hypotenuse? (90-degree angle)
+# Pythagoras Theorem
+if !(SIDE_ONE ^ 2 + SIDE_TWO ^ 2 == MAX ^ 2) {
+  exit(as_int(!println(2, ?, false)))
+}
+
+sin_angle_one = SIDE_ONE / MAX
+sin_angle_two = SIDE_TWO / MAX
+
+# extracting the angles of the triangle
+println(
+  deg(asin(sin_angle_one)), # angle opposite the first cateto
+  ?,
+  deg(asin(sin_angle_two)), # angle opposite the second cateto
+  ?,
+  deg(asin(MAX / MAX)) # angle opposite to the hypotenuse
+)
+
+# vim: set syntax=python :

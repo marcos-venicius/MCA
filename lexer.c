@@ -59,6 +59,8 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
 
         case M_EXCLAMATION: return "EXCLAMATION";
 
+        case M_QUESTION_MARK: return "QUESTION_MARK";
+
         case M_ASSIGN: return "ASSIGN";
 
         case M_EQUAL: return "EQUAL";
@@ -206,6 +208,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case '!': { advance_cursor(lexer); save_token(lexer, M_EXCLAMATION); } break;
         case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
         case ',': { advance_cursor(lexer); save_token(lexer, M_COMMA); } break;
+        case '?': { advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); } break;
         default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
     }
 }
@@ -261,6 +264,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '-':
             case ';':
             case ',':
+            case '?':
                 tokenize_single(lexer);
                 break;
             case '!':

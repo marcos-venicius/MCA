@@ -1,0 +1,46 @@
+#!/usr/local/bin/mca -i
+
+
+# you can use '?' (unit) to declare a variable with no initial value
+max_value = ?
+min_value = ?
+cicles = 0
+
+# If you uncomment this block bellow you will get an error:
+# ./examples/unit.mca:12:4: error: invalid operation. cannot perform binary operation '>' with unit type
+# Because you cannot do this kind of operation with unit types
+# if max_value > 0 {
+#     max_value = ?
+# }
+
+diff = while {
+    cicles = cicles + 1
+
+    srand_return = srand(millisecond())
+
+    # srand returns a unit value
+    if srand_return != ? {
+        exit(33)
+    }
+
+    if min_value == ? {
+        min_value = rand(0, 100)
+    } else {
+        min_value = min(min_value, rand(0, 100))
+    }
+
+    if max_value == ? {
+        max_value = rand(0, 100)
+    } else {
+        max_value = max(max_value, rand(0, 100))
+    }
+
+    diff = abs(max_value - min_value)
+
+    if diff > 50 {
+        break diff;
+    }
+}
+
+# '?' unit here just prints a whitespace to stdout
+println(diff, ?, cicles)
