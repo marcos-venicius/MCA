@@ -1,9 +1,9 @@
 # This program gets all three angles of a triangle
 
 # insert your values here
-a = 3
-b = 5
-c = 4
+a = ?
+b = ?
+c = ?
 
 # some constants
 SUM      = a + b + c
