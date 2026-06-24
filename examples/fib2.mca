@@ -31,4 +31,4 @@ if break_value == CONSTANT {
     println(1337)
 };
 
-# vim: set syntax=python :
+# vim: set syntax=r :

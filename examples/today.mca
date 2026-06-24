@@ -41,4 +41,4 @@ month = if m == 1 {
 
 println(d, ' de ', month, ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET)
 
-# vim: set syntax=python :
+# vim: set syntax=r :

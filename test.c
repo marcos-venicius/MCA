@@ -252,6 +252,7 @@ int main(void) {
     TEST_CASE("type(4)", T_INT(4));
     TEST_CASE("srand(4)", T_UNIT());
     TEST_CASE("rand(1, 10)", T_INT(2));
+    TEST_CASE("len('Hello World')", T_INT(11));
     TEST_CASE("argc()", T_INT(0));
     m_argc = 1;
     TEST_CASE("argc()", T_INT(1));
@@ -259,6 +260,18 @@ int main(void) {
     TEST_CASE("argv(0)", T_STRING("fakename.mca"));
     m_argc = 2;
     TEST_CASE("argv(1)", T_STRING("fakearg"));
+    TEST_CASE("is_int(1)", T_BOOL(true));
+    TEST_CASE("is_int(1.3)", T_BOOL(false));
+    TEST_CASE("is_float(1)", T_BOOL(false));
+    TEST_CASE("is_float(1.3)", T_BOOL(true));
+    TEST_CASE("is_string(1)", T_BOOL(false));
+    TEST_CASE("is_string('1.3')", T_BOOL(true));
+    TEST_CASE("is_bool(1)", T_BOOL(false));
+    TEST_CASE("is_bool(false)", T_BOOL(true));
+    TEST_CASE("is_unit(1)", T_BOOL(false));
+    TEST_CASE("is_unit(?)", T_BOOL(true));
+    TEST_CASE("at('Hello, World', 7)", T_STRING("W"));
+    TEST_CASE("read_entire_file('./test/file.txt')", T_STRING("Hello World\n"));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     TEST_CASE("5 == 5", T_BOOL(true));
@@ -284,6 +297,11 @@ int main(void) {
     TEST_CASE("5 < 3 + 4", T_BOOL(true));
     TEST_CASE("10 == 5 * 2 != 0", T_BOOL(true));
     TEST_CASE("0 == 1 < 2", T_BOOL(false));
+    TEST_CASE("'Hello' == 'hello'", T_BOOL(false));
+    TEST_CASE("'Hello' == 'Hello'", T_BOOL(true));
+    TEST_CASE("'Hello World' == 'Hello'", T_BOOL(false));
+    TEST_CASE("'Hello World' != 'Hello'", T_BOOL(true));
+    TEST_CASE("'Hello' != 'Hello'", T_BOOL(false));
 
     TEST_CASE_LABEL("Printing (return last argument)");
     TEST_CASE("print()", T_UNIT());
@@ -354,6 +372,12 @@ int main(void) {
     TEST_CASE("as_bool(0)", T_BOOL(false));
     TEST_CASE("as_bool(false)", T_BOOL(false));
     TEST_CASE("as_bool(true)", T_BOOL(true));
+    TEST_CASE("as_string(10234)", T_STRING("10234"));
+    TEST_CASE("as_string(true)", T_STRING("true"));
+    TEST_CASE("as_string(false)", T_STRING("false"));
+    TEST_CASE("as_string(-120)", T_STRING("-120"));
+    TEST_CASE("as_string(120.234)", T_STRING("120.234000"));
+    TEST_CASE("as_string(-120.234)", T_STRING("-120.234000"));
 
     TEST_CASE_LABEL("Unit type");
     TEST_CASE("?", T_UNIT());

@@ -10,4 +10,4 @@ if !is_leap_year {
   exit(1)
 }
 
-# vim: set syntax=python :
+# vim: set syntax=r :

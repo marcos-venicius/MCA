@@ -20,4 +20,4 @@ println();
 println();
 println('iterations: ', n, '. last fib value: ', LAST_FIB_VALUE)
 
-# vim: set syntax=python :
+# vim: set syntax=r :

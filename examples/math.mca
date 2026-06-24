@@ -18,4 +18,4 @@ println();
 
 println(capture_println_last_value);
 
-# vim: set syntax=python :
+# vim: set syntax=r :

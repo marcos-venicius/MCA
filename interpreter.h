@@ -46,6 +46,9 @@ typedef union {
 } M_Value_Union;
 
 typedef struct {
+    // if the value is just a view or actually allocated
+    bool allocated;
+
     M_Value_Type type;
 
     M_Value_Union as;

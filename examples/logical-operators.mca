@@ -21,4 +21,4 @@ while n < 15 {
   n = n + 1
 }
 
-# vim: set syntax=python :
+# vim: set syntax=r :

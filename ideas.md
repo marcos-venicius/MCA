@@ -17,7 +17,7 @@ We are going to have some limitations for now.
 
 That is going to be the syntax of a function definition:
 
-```python
+```r
 # inline definitions
 def fib(n, a, b) = if n <= 0 { a } else { fib(n - 1, b, a + b) };
 

@@ -11,6 +11,7 @@
 #include "./interpreter.h"
 #include "./ast.h"
 #include "./ht.h"
+#include "./io.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -262,8 +263,8 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
-    M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT);
-    M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT);
+    M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
+    M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
 
     M_Value_Type l_type = left.value.type;
     M_Value_Type r_type = right.value.type;
@@ -284,6 +285,61 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
                 m_interpreter_error(
                     l_type == M_T_UNIT ? expression->binary.left : expression->binary.right,
                     "invalid operation. cannot perform binary operation '%s' with unit type",
+                    binary_expression_operator_name(expression->binary.op)
+                );
+                break;
+        }
+    }
+
+    if (l_type == M_T_STRING || l_type == M_T_STRING) {
+        if (l_type != r_type) {
+            m_interpreter_error(
+                l_type != M_T_STRING ? expression->binary.left : expression->binary.right,
+                "you cannot do binary operations between this types '%s %s %s'",
+                m_value_type_name(l_type),
+                binary_expression_operator_name(expression->binary.op),
+                m_value_type_name(r_type)
+            );
+        }
+
+        switch (expression->binary.op) {
+            case M_BINARY_EQUAL_OP: {
+                bool are_equal = left.value.as.string.value_length == right.value.as.string.value_length &&
+                    strncmp(left.value.as.string.value, right.value.as.string.value, right.value.as.string.value_length) == 0;
+                return (M_Eval_Result){
+                    .value = (M_Value){
+                        .type = M_T_BOOL,
+                        .as.boolean = are_equal
+                    },
+                    .flow = M_CTRL_NORMAL
+                };
+            };
+            case M_BINARY_NOT_EQUAL_OP: {
+                bool arent_equal = left.value.as.string.value_length != right.value.as.string.value_length ||
+                    strncmp(left.value.as.string.value, right.value.as.string.value, right.value.as.string.value_length) != 0;
+                return (M_Eval_Result){
+                    .value = (M_Value){
+                        .type = M_T_BOOL,
+                        .as.boolean = arent_equal
+                    },
+                    .flow = M_CTRL_NORMAL
+                };
+            };
+            case M_BINARY_PLUS_OP:
+            case M_BINARY_TIMES_OP:
+            case M_BINARY_DIVIDE_OP:
+            case M_BINARY_SUBTRACT_OP:
+            case M_BINARY_MOD_OP:
+            case M_BINARY_POW_OP:
+            case M_BINARY_AND_OP:
+            case M_BINARY_OR_OP:
+            case M_BINARY_GT_OP:
+            case M_BINARY_LT_OP:
+            case M_BINARY_GTE_OP:
+            case M_BINARY_LTE_OP:
+                m_interpreter_error(
+                    l_type != M_T_STRING ? expression->binary.left : expression->binary.right,
+                    "you cannot do binary operation '%s' between strings",
                     binary_expression_operator_name(expression->binary.op)
                 );
                 break;
@@ -697,6 +753,14 @@ typedef struct {
         } \
     }
 
+#define DEFINE_IS_TYPE_BUILTIN(name, dtype) \
+static M_Value __builtin_mca_is_##name(M_Expression *caller, M_Expression *arguments[], int arguments_count) { \
+    (void)caller; \
+    (void)arguments_count; \
+    M_Eval_Result result = evaluate_expression(arguments[0]); \
+    return (M_Value){ .type = M_T_BOOL, .as.boolean = result.value.type == dtype }; \
+}
+
 static inline double calc_rad(double degrees) {
     return degrees * (M_PI / 180.0);
 }
@@ -719,6 +783,12 @@ DEFINE_MATH_BUILTIN(ceil, ceil)
 DEFINE_MATH_BUILTIN(round, round)
 DEFINE_MATH_BUILTIN(rad, calc_rad)
 DEFINE_MATH_BUILTIN(deg, calc_deg)
+
+DEFINE_IS_TYPE_BUILTIN(unit, M_T_UNIT)
+DEFINE_IS_TYPE_BUILTIN(int, M_T_INT)
+DEFINE_IS_TYPE_BUILTIN(float, M_T_FLOAT)
+DEFINE_IS_TYPE_BUILTIN(string, M_T_STRING)
+DEFINE_IS_TYPE_BUILTIN(bool, M_T_BOOL)
 
 static M_Value __builtin_mca_pi(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
@@ -853,6 +923,41 @@ static M_Value __builtin_mca_exit(M_Expression *caller, M_Expression *arguments[
     (void)arguments_count;
 
     exit((int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer);
+}
+
+static M_Value __builtin_mca_read_entire_file(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+
+    const char *filename = a0.value.as.string.value;
+
+    char *output; // null-terminated
+
+    int size = read_entire_file_builtin(filename, &output);
+
+    // TODO: how are going to deal with error handling?
+    switch (size) {
+        case -1:
+            m_interpreter_error(caller, "coult not open file '%s' due to: '%s'", filename, strerror(errno));
+            break;
+        case -2:
+            m_interpreter_error(caller, "could not allocate memory enough to read file %s due to: %s", filename, strerror(errno));
+            break;
+        case -3:
+            m_interpreter_error(caller, "could not read data from file '%s' due to: %s", filename, strerror(errno));
+            break;
+        default:
+            break;
+    }
+
+    return (M_Value){
+        .type = M_T_STRING,
+        .allocated = true,
+        .as.string.value = output,
+        .as.string.value_length = size
+    };
 }
 
 static M_Value __builtin_mca_time(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1120,6 +1225,62 @@ static M_Value __builtin_mca_as_bool(M_Expression *caller, M_Expression *argumen
     return result.value;
 }
 
+static M_Value __builtin_mca_as_string(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result result = evaluate_expression(arguments[0]);
+
+    switch (result.value.type) {
+        case M_T_INT: {
+            int len = snprintf(NULL, 0, "%"PRId64, result.value.as.integer);
+
+            // @Leak
+            char *str = malloc(len + 1);
+
+            snprintf(str, len + 1, "%"PRId64, result.value.as.integer);
+
+            return (M_Value){ .type = M_T_STRING, .as.string.value = str, .as.string.value_length = len };
+        }
+
+        case M_T_FLOAT: {
+            int len = snprintf(NULL, 0, "%f", result.value.as.floating);
+
+            // @Leak
+            char *str = malloc(len + 1);
+            snprintf(str, len + 1, "%f", result.value.as.floating);
+
+            return (M_Value){ .type = M_T_STRING, .as.string.value = str, .as.string.value_length = len };
+        }
+
+        case M_T_BOOL: {
+            const char *bool_str = result.value.as.boolean ? "true" : "false";
+            int len = strlen(bool_str);
+            // @Leak
+            char *str = malloc(len + 1);
+            strcpy(str, bool_str);
+
+            return (M_Value){ .type = M_T_STRING, .as.string.value = str, .as.string.value_length = len };
+        }
+
+        case M_T_STRING:
+            return result.value;
+        default:
+            m_interpreter_error(arguments[0], "cannot cast '%s' to string", m_value_type_name(result.value.type));
+    }
+
+    return result.value;
+}
+
+static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+
+    return (M_Value){ .type = M_T_INT, .as.integer = result.value.as.string.value_length };
+}
+
 static M_Value __builtin_mca_as_srand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -1173,6 +1334,24 @@ static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[
     return (M_Value){ .type = M_T_STRING, .as.string.value = strndup(interpreter->argv[index], length), .as.string.value_length = length };
 }
 
+static M_Value __builtin_mca_at(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+    M_Eval_Result index = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
+
+    if (index.value.as.integer < 0 || index.value.as.integer >= data.value.as.string.value_length)
+        m_interpreter_error(arguments[1], "index %d is out of range. The size of the string is %d", data.value.as.string.value_length);
+
+    return (M_Value){
+        .type = M_T_STRING,
+        .allocated = false,
+        .as.string.value_length = 1,
+        .as.string.value = data.value.as.string.value + index.value.as.integer,
+    };
+}
+
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -1196,17 +1375,26 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("round", 1, __builtin_mca_round),
 
     // I/O / System related
-    BIND_FN("println", -1, __builtin_mca_println),
-    BIND_FN("print",   -1, __builtin_mca_print),
-    BIND_FN("exit",     1, __builtin_mca_exit),
+    BIND_FN("println",          -1, __builtin_mca_println),
+    BIND_FN("print",            -1, __builtin_mca_print),
+    BIND_FN("read_entire_file",  1, __builtin_mca_read_entire_file),
+    BIND_FN("exit",              1, __builtin_mca_exit),
 
     // language specifics
-    BIND_FN("type",     1, __builtin_mca_type),
-    BIND_FN("argc",     0, __builtin_mca_argc),
-    BIND_FN("argv",     1, __builtin_mca_argv),
-    BIND_FN("as_int",   1, __builtin_mca_as_int),
-    BIND_FN("as_float", 1, __builtin_mca_as_float),
-    BIND_FN("as_bool",  1, __builtin_mca_as_bool),
+    BIND_FN("type",      1, __builtin_mca_type),
+    BIND_FN("argc",      0, __builtin_mca_argc),
+    BIND_FN("argv",      1, __builtin_mca_argv),
+    BIND_FN("as_int",    1, __builtin_mca_as_int),
+    BIND_FN("as_float",  1, __builtin_mca_as_float),
+    BIND_FN("as_bool",   1, __builtin_mca_as_bool),
+    BIND_FN("as_string", 1, __builtin_mca_as_string),
+    BIND_FN("is_int",    1, __builtin_mca_is_int),
+    BIND_FN("is_float",  1, __builtin_mca_is_float),
+    BIND_FN("is_bool",   1, __builtin_mca_is_bool),
+    BIND_FN("is_string", 1, __builtin_mca_is_string),
+    BIND_FN("is_unit",   1, __builtin_mca_is_unit),
+    BIND_FN("len",       1, __builtin_mca_len),
+    BIND_FN("at",        2, __builtin_mca_at),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),

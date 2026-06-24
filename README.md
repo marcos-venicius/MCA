@@ -28,7 +28,7 @@ Variables dynamically hold any of these types. When performing arithmetic operat
 
 Because MCA is expression-oriented, blocks and loops evaluate to a value (the last executed expression).
 
-```python
+```r
 # If-else evaluates to a value
 result = if 10 == 10 { 1337 } else { 42 } # result is 1337
 
@@ -48,8 +48,86 @@ loop_result = while x < 10 {
 
 ## 2. Examples
 
+**Pascal's Triangle rendering**
+
+This program is actually part of the examples [here](./examples/pascals-triangle.mca). It has some complex syntax and a lot of the language features. **Try run it!**.
+
+```r
+PROGRAM_NAME = argv(0)
+
+if argc() != 2 {
+    println('usage: ', PROGRAM_NAME, ' <triangle-height>')
+    println()
+    println('    triangle height must be greater than 0 and a valid integer\n')
+    println()
+    println('    Just try the number 5, for example.')
+    exit(1)
+}
+
+NUM_ROWS = as_int(argv(1))
+
+# PASCAL'S TRIANGLE RENDERING
+
+if NUM_ROWS <= 0 {
+    println('error: invalid triangle height: ', NUM_ROWS)
+    exit(1)
+}
+
+if !is_int(NUM_ROWS) {
+    println('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.')
+    exit(1)
+}
+
+n = NUM_ROWS - 1
+k = if n % 2 == 0 { n / 2 } else { (n - 1) / 2 }
+
+biggest_value     = n! / (k! * (n - k)!)
+biggest_value_len = len(as_string(as_int(biggest_value))) + 1
+padding           = as_int(NUM_ROWS * biggest_value_len / 2)
+
+println()
+
+row_index = 0; while row_index < NUM_ROWS {
+    padding_index = 0; while padding_index < padding {
+        print(' ')
+        padding_index = padding_index + 1
+    }
+
+    padding = padding - (biggest_value_len / 2)
+
+    # padding the number
+    z = 0; while z < biggest_value_len - 1 {
+        print(' ')
+
+        z = z + 1
+    }
+    print(1)
+
+    p = 1
+
+    x = 1; while x < row_index + 1 {
+        p = p * (row_index - x + 1) / x
+
+        # padding the number
+        z = 0; while z < biggest_value_len - len(as_string(p)) {
+            print(' ')
+            z = z + 1
+        }
+        print(p)
+
+        x = x + 1
+    }
+
+    row_index = row_index + 1
+
+    println()
+}
+
+println()
+```
+
 **Fibonacci Sequence**
-```python
+```r
 target = 15
 a = 0
 b = 1
@@ -67,7 +145,7 @@ println(LAST_FIB_VALUE)
 ```
 
 **Checking Leap Years**
-```python
+```r
 n    = 0
 year = year(-3) # Get year from timestamp (using -3 timezone offset)
 

@@ -10,4 +10,4 @@ if args_count != 2 {
 
 println('Hello, ', argv(1), ' from ', argv(0))
 
-# vim: set syntax=python :
+# vim: set syntax=r :

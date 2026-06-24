@@ -8,4 +8,4 @@ def f(x, y) = x^2 + y^2;
 # get the distance between two coordinates
 def d(x1, y1, x2, y2) = sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
 
-# vim: set syntax=python :
+# vim: set syntax=r :
