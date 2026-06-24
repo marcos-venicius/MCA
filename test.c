@@ -21,69 +21,61 @@
 static long success = 0;
 static long errors = 0;
 static long tests_count = 0;
+static int m_argc;
+static const char *m_argv[] = {"fakename.mca", "fakearg"};
 
 static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual, const char *file, int line) {
     errors++;
 
     fprintf(stderr, "  \033[1;31mFAIL\033[0m '%s' \033[0;33m(%s:%d)\033[0m\n", expression, file, line);
-    if (actual == NULL) {
-        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
-        switch (expected.type) {
-            case M_T_INT:
-                fprintf(stderr, "       expected: int(%ld)\n", expected.as.integer);
-                break;
-            case M_T_FLOAT:
-                fprintf(stderr, "       expected: float(%lf)\n", expected.as.floating);
-                break;
-            case M_T_BOOL:
-                fprintf(stderr, "       expected: bool(%s)\n", expected.as.boolean ? "true" : "false");
-                break;
-            case M_T_UNIT:
-                fprintf(stderr, "       expected: unit\n");
-                break;
-            default:
-                fprintf(stderr, "       expected: broken(%d)\n", expected.type);
-                break;
-        }
-    } else {
-        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
-        switch (expected.type) {
-            case M_T_INT:
-                fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
-                break;
-            case M_T_FLOAT:
-                fprintf(stderr, "       expected: float(%lf)", expected.as.floating);
-                break;
-            case M_T_BOOL:
-                fprintf(stderr, "       expected: bool(%s)", expected.as.boolean ? "true" : "false");
-                break;
-            case M_T_UNIT:
-                fprintf(stderr, "       expected: unit");
-                break;
-            default:
-                fprintf(stderr, "       expected: broken(%d)\n", expected.type);
-                break;
-        }
 
-        static_assert(M_T_COUNT == 9, "LOG_ERROR: missing M_Value_Type handler");
+    static_assert(M_T_COUNT == 17, "LOG_ERROR: missing M_Value_Type handler");
+    switch (expected.type) {
+        case M_T_INT:
+            fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
+            break;
+        case M_T_FLOAT:
+            fprintf(stderr, "       expected: float(%lf)", expected.as.floating);
+            break;
+        case M_T_BOOL:
+            fprintf(stderr, "       expected: bool(%s)", expected.as.boolean ? "true" : "false");
+            break;
+        case M_T_UNIT:
+            fprintf(stderr, "       expected: unit");
+            break;
+        case M_T_STRING:
+            fprintf(stderr, "       expected: string(\"%.*s\")", expected.as.string.value_length, expected.as.string.value);
+            break;
+        default:
+            fprintf(stderr, "       expected: broken(%d)", expected.type);
+            break;
+    }
+
+    if (actual != NULL) {
+        static_assert(M_T_COUNT == 17, "LOG_ERROR: missing M_Value_Type handler");
         switch (actual->type) {
             case M_T_INT:
-                fprintf(stderr, ", actual: int(%ld)\n", actual->as.integer);
+                fprintf(stderr, ", actual: int(%ld)", actual->as.integer);
                 break;
             case M_T_FLOAT:
-                fprintf(stderr, ", actual: float(%lf)\n", actual->as.floating);
+                fprintf(stderr, ", actual: float(%lf)", actual->as.floating);
                 break;
             case M_T_BOOL:
-                fprintf(stderr, ", actual: bool(%s)\n", actual->as.boolean ? "true" : "false");
+                fprintf(stderr, ", actual: bool(%s)", actual->as.boolean ? "true" : "false");
                 break;
             case M_T_UNIT:
-                fprintf(stderr, ", actual: unit\n");
+                fprintf(stderr, ", actual: unit");
+                break;
+            case M_T_STRING:
+                fprintf(stderr, ", actual: string(\"%.*s\")", actual->as.string.value_length, actual->as.string.value);
                 break;
             default:
-                fprintf(stderr, ", actual: broken(%d)\n", actual->type);
+                fprintf(stderr, ", actual: broken(%d)", actual->type);
                 break;
         }
     }
+
+    fprintf(stderr, "\n");
 }
 
 static inline void LOG_SUCCESS(const char *expression, M_Value result) {
@@ -102,6 +94,9 @@ static inline void LOG_SUCCESS(const char *expression, M_Value result) {
         case M_T_UNIT:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37munit\033[0m\n", expression);
             break;
+        case M_T_STRING:
+            fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mstring(\"%.*s\")\033[0m\n", expression, result.as.string.value_length, result.as.string.value);
+            break;
         case M_T_COUNT:
             assert(0 && "LOG_SUCCESS: unreachable M_T_COUNT");
             break;
@@ -117,12 +112,13 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
     if (m_lexer_finished_with_errors()) {
         LOG_ERROR(expression, expected, NULL, file, line);
 
+        m_argc = 0;
         return;
     }
 
     M_Ast *ast = parse_expression(NULL, tokens);
 
-    M_Interpreter *interpreter = m_interpreter_create(ast);
+    M_Interpreter *interpreter = m_interpreter_create(ast, m_argc, m_argv);
 
     FILE *dev_null;
 
@@ -165,6 +161,13 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
             case M_T_UNIT:
                 LOG_SUCCESS(expression, expected);
                 goto clear_test_case;
+            case M_T_STRING:
+                if (expected.as.string.value_length == evaluated_expression.as.string.value_length &&
+                    strncmp(expected.as.string.value, evaluated_expression.as.string.value, evaluated_expression.as.string.value_length) == 0) {
+                    LOG_SUCCESS(expression, expected);
+                    goto clear_test_case;
+                }
+                break;
             case M_T_COUNT:
                 assert(0 && "RUN_TEST_CASE: unreachable M_T_COUNT");
                 break;
@@ -176,6 +179,7 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
 clear_test_case:
     m_lexer_free(&lexer);
     m_interpreter_free(interpreter);
+    m_argc = 0;
 }
 
 static inline void TEST_CASE_LABEL(const char *label) {
@@ -186,6 +190,7 @@ static inline void TEST_CASE_LABEL(const char *label) {
 #define T_INT(v) (M_Value){ .type = M_T_INT, .as.integer = v }
 #define T_FLOAT(v) (M_Value){ .type = M_T_FLOAT, .as.floating = v }
 #define T_BOOL(v) (M_Value){ .type = M_T_BOOL, .as.boolean = v }
+#define T_STRING(v) (M_Value){ .type = M_T_STRING, .as.string.value = v, .as.string.value_length = strlen(v) }
 #define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__)
 
 int main(void) {
@@ -247,6 +252,13 @@ int main(void) {
     TEST_CASE("type(4)", T_INT(4));
     TEST_CASE("srand(4)", T_UNIT());
     TEST_CASE("rand(1, 10)", T_INT(2));
+    TEST_CASE("argc()", T_INT(0));
+    m_argc = 1;
+    TEST_CASE("argc()", T_INT(1));
+    m_argc = 1;
+    TEST_CASE("argv(0)", T_STRING("fakename.mca"));
+    m_argc = 2;
+    TEST_CASE("argv(1)", T_STRING("fakearg"));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     TEST_CASE("5 == 5", T_BOOL(true));
@@ -332,8 +344,12 @@ int main(void) {
     TEST_CASE_LABEL("Type casting");
     TEST_CASE("as_int(10.5)", T_INT(10));
     TEST_CASE("as_int(true)", T_INT(1));
+    TEST_CASE("as_int('-103956')", T_INT(-103956));
+    TEST_CASE("as_int('103956')", T_INT(103956));
     TEST_CASE("as_float(10)", T_FLOAT(10.0));
     TEST_CASE("as_float(false)", T_FLOAT(0.0));
+    TEST_CASE("as_float('-23.2356')", T_FLOAT(-23.2356));
+    TEST_CASE("as_float('23.56')", T_FLOAT(23.56));
     TEST_CASE("as_bool(10)", T_BOOL(true));
     TEST_CASE("as_bool(0)", T_BOOL(false));
     TEST_CASE("as_bool(false)", T_BOOL(false));
@@ -342,6 +358,12 @@ int main(void) {
     TEST_CASE_LABEL("Unit type");
     TEST_CASE("?", T_UNIT());
     TEST_CASE("a = ?", T_UNIT());
+
+    TEST_CASE_LABEL("String type");
+    TEST_CASE("'Hello, World'", T_STRING("Hello, World"));
+    TEST_CASE("a = 'Hello, World'", T_STRING("Hello, World"));
+    TEST_CASE("println('Hello, World')", T_STRING("Hello, World"));
+    TEST_CASE("print('Hello, World\\n')", T_STRING("Hello, World\n"));
 
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);

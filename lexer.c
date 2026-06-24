@@ -1,7 +1,9 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
+#include <stdarg.h>
 
 #include "./lexer.h"
 #include "./log.h"
@@ -11,30 +13,34 @@ static inline void advance_cursor(M_Lexer *lexer);
 
 static size_t errors = 0;
 
-static void unrecognized_symbol_error(M_Lexer *lexer) {
+static void m_lexer_error(M_Lexer *lexer, const char *fmt, ...) {
     errors++;
 
+    va_list args;
+    va_start(args, fmt);
+
     if (lexer->filename) {
-        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
-                lexer->filename, lexer->line, lexer->col, chr(lexer));
+        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m ", lexer->filename, lexer->line, lexer->col);
     } else {
-        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m unrecognized symbol \033[1;35m%c\033[0m\n",
-                lexer->line, lexer->col, chr(lexer));
+        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m ", lexer->line, lexer->col);
     }
+
+    vfprintf(stderr, fmt, args);
+
+    fprintf(stderr, "\n");
+
+    advance_cursor(lexer);
+    va_end(args);
+}
+
+static void unrecognized_symbol_error(M_Lexer *lexer) {
+    m_lexer_error(lexer, "unrecognized symbol \033[1;35m%c\033[0m", lexer->col, chr(lexer));
 
     advance_cursor(lexer);
 }
 
 static void invalid_floating_number_error(M_Lexer *lexer) {
-    errors++;
-
-    if (lexer->filename) {
-        fprintf(stderr, "%s:%ld:%ld: \033[1;31merror\033[0m invalid floating number \033[1;35m%.*s\033[0m\n",
-                lexer->filename, lexer->line, lexer->col, (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
-    } else {
-        fprintf(stderr, "%ld:%ld: \033[1;31merror\033[0m invalid floating number \033[1;35m%.*s\033[0m\n",
-                lexer->line, lexer->col, (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
-    }
+    m_lexer_error(lexer, "invalid floating number \033[1;35m%.*s\033[0m", (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
 
     advance_cursor(lexer);
 }
@@ -47,6 +53,7 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
         case M_INT: return "NUMBER";
         case M_FLOAT: return "FLOAT";
+        case M_STRING: return "STRING";
 
         case M_ID: return "ID";
 
@@ -137,6 +144,16 @@ static inline bool is_digit(char c) {
     return c >= '0' && c <= '9';
 }
 
+static void append_token(M_Lexer *lexer, M_Token *token) {
+    if (lexer->head == NULL) {
+        lexer->head = token;
+        lexer->tail = token;
+    } else {
+        lexer->tail->next = token;
+        lexer->tail = lexer->tail->next;
+    }
+}
+
 static void save_token(M_Lexer *lexer, M_Token_Kind kind) {
     M_Token *token = malloc(sizeof(M_Token));
 
@@ -153,13 +170,26 @@ static void save_token(M_Lexer *lexer, M_Token_Kind kind) {
     token->loc.line = lexer->tok_line;
     token->loc.col = lexer->tok_col;
 
-    if (lexer->head == NULL) {
-        lexer->head = token;
-        lexer->tail = token;
-    } else {
-        lexer->tail->next = token;
-        lexer->tail = lexer->tail->next;
+    append_token(lexer, token);
+}
+
+static void save_token_parametrized(M_Lexer *lexer, M_Token_Kind kind, int bot, int cursor) {
+    M_Token *token = malloc(sizeof(M_Token));
+
+    if (token == NULL) {
+        fprintf(stderr, "could not allocate memory for the token [%.*s]: %s\n",
+                (int)(lexer->cursor - lexer->bot), lexer->content + lexer->bot, strerror(errno));
+        exit(1);
     }
+
+    token->kind = kind;
+    token->value = lexer->content + bot;
+    token->size = cursor - bot;
+    token->next = NULL;
+    token->loc.line = lexer->tok_line;
+    token->loc.col = lexer->tok_col;
+
+    append_token(lexer, token);
 }
 
 static void tokenize_number(M_Lexer *lexer) {
@@ -191,6 +221,43 @@ static void tokenize_number(M_Lexer *lexer) {
     }
 
     save_token(lexer, kind);
+}
+
+static void tokenize_string(M_Lexer *lexer) {
+    advance_cursor(lexer); // skip "'"
+
+    while (chr(lexer) != '\0' && chr(lexer) != '\'') {
+        if (chr(lexer) == '\n') {
+            m_lexer_error(lexer, "you cannot have line breaks inside literal strings");
+        }
+
+        if (chr(lexer) == '\\') {
+            switch (nchr(lexer)) {
+                case '\\':
+                    advance_cursor(lexer);
+                    break;
+                case '\'':
+                    advance_cursor(lexer);
+                    break;
+                case 'n':
+                    advance_cursor(lexer);
+                    break;
+                default:
+                    m_lexer_error(lexer, "invalid scaping sequence '\\%c'", nchr(lexer));
+                    break;
+            }
+        }
+
+        advance_cursor(lexer);
+    }
+
+    if (chr(lexer) != '\'')
+        m_lexer_error(lexer, "unterminated string literal"); // we have errors, just don't tokenize this
+    else {
+        advance_cursor(lexer); // skip "'"
+
+        save_token_parametrized(lexer, M_STRING, lexer->bot + 1, lexer->cursor - 1);
+    }
 }
 
 static void tokenize_single(M_Lexer *lexer) {
@@ -251,6 +318,9 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '8':
             case '9':
                 tokenize_number(lexer);
+                break;
+            case '\'':
+                tokenize_string(lexer);
                 break;
             case '*':
             case '/':

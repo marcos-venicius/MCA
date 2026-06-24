@@ -43,4 +43,4 @@ diff = while {
 }
 
 # '?' unit here just prints a whitespace to stdout
-println(diff, ?, cicles)
+println('diff: ', diff, '. cicles: ', cicles)

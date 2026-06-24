@@ -5,13 +5,40 @@
 
 TIMEZONE_OFFSET = -3
 
-println(
-  year(TIMEZONE_OFFSET),
-  month(TIMEZONE_OFFSET),
-  date(TIMEZONE_OFFSET),
-  hour(TIMEZONE_OFFSET),
-  minute(TIMEZONE_OFFSET),
-  second(TIMEZONE_OFFSET)
-)
+y = year(TIMEZONE_OFFSET)
+m = month(TIMEZONE_OFFSET)
+d = date(TIMEZONE_OFFSET)
+H = hour(TIMEZONE_OFFSET)
+M = minute(TIMEZONE_OFFSET)
+S = second(TIMEZONE_OFFSET)
+
+# we don't have switchs nor maps yet
+month = if m == 1 {
+  'janeiro'
+} elif m == 2 {
+  'fevereiro'
+} elif m == 3 {
+  'março'
+} elif m == 4 {
+  'abril'
+} elif m == 5 {
+  'maio'
+} elif m == 6 {
+  'junho'
+} elif m == 7 {
+  'julho'
+} elif m == 8 {
+  'agosto'
+} elif m == 9 {
+  'setembro'
+} elif m == 10 {
+  'outubro'
+} elif m == 11 {
+  'novembro'
+} elif m == 12 {
+  'dezembro'
+}
+
+println(d, ' de ', month, ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET)
 
 # vim: set syntax=python :

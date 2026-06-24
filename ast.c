@@ -75,6 +75,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_ID:
         case M_INT:
         case M_FLOAT:
+        case M_STRING:
         case M_EXCLAMATION:
         case M_LPAREN:
         case M_RPAREN:
@@ -127,6 +128,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_MINUS:       return M_UNARY_MINUS_OP;
         case M_EXCLAMATION: return M_UNARY_FACTORIAL_OP;
 
+        case M_STRING:
         case M_QUESTION_MARK:
         case M_ASSIGN:
         case M_PLUS:
@@ -678,6 +680,54 @@ static M_Expression *parse_boolean_expression(M_Ast *ast, bool value) {
     return expr;
 }
 
+static M_Expression *parse_string_literal_expression(M_Ast *ast) {
+    M_Token *tk = token(ast);
+
+    // @Leak TODO: this think is going to be leaked
+    // later, I need to do this in a way that this doesn't happen
+    char *string_literal = calloc(tk->size + 1, sizeof(char));
+
+    int tk_str_index = 0;
+    int str_literal_index = 0;
+
+    while (tk_str_index < tk->size) {
+        if (tk->value[tk_str_index] == '\\') {
+            switch (tk->value[tk_str_index + 1]) {
+                case '\'':
+                    strcat(string_literal + str_literal_index, "'");
+                    break;
+                case 'n':
+                    strcat(string_literal + str_literal_index, "\n");
+                    break;
+                case '\\':
+                    strcat(string_literal + str_literal_index, "\\");
+                    break;
+            }
+
+            tk_str_index++;
+        } else {
+            memcpy(string_literal + str_literal_index, tk->value + tk_str_index, 1);
+        }
+
+        str_literal_index++;
+        tk_str_index++;
+    }
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->location = (M_Location){
+        .line = tk->loc.line,
+        .col = tk->loc.col,
+        .filename = ast->filename
+    };
+    expr->kind = M_EK_STRING;
+    expr->string.value = string_literal;
+    expr->string.value_length = str_literal_index;
+
+    next_token(ast); // jump string
+
+    return expr;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -738,6 +788,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         if (checkahead(ast, M_LPAREN)) return parse_function_call_expression(ast);
 
         return parse_variable_expression(ast);
+    } else if (token(ast)->kind == M_STRING) {
+        return parse_string_literal_expression(ast);
     } else if (token(ast)->kind == M_LPAREN) {
         M_Token *first_token = token(ast);
 

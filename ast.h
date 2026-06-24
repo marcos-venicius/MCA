@@ -9,6 +9,11 @@
 // @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
 
+typedef struct {
+    char *value;
+    int   value_length;
+} M_String;
+
 typedef struct M_Expression M_Expression;
 
 typedef enum {
@@ -16,6 +21,7 @@ typedef enum {
     M_EK_INT,
     M_EK_FLOAT,
     M_EK_BOOL,
+    M_EK_STRING,
     M_EK_ID,
     M_EK_BINARY,
     M_EK_ASSIGN,
@@ -103,14 +109,15 @@ struct M_Expression {
             int           arguments_length;
         } call;
 
-        // I'm separating this way because in the future I plan
-        // to add metadata to the expressions like location of the token
-        // in the file, raw representation, datatype etc, so it will be easier
-        // to display error reporting to the user
+        // @Note: when it's a string, this will be heap-allocated
+        // when it's and ID it'll be a sized string using just
+        // a pointer to the original string during lexing
+        // TODO: should I own everything?
         struct {
             const char *value;
             int         value_length;
         } id;
+        M_String string;
 
         struct {
             struct {

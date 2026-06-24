@@ -1,0 +1,13 @@
+#!/usr/local/bin/mca -i
+
+args_count = argc()
+
+if args_count != 2 {
+  println('usage: ', argv(0), ' <message>')
+  println('error: please, inform a message')
+  exit(1)
+}
+
+println('Hello, ', argv(1), ' from ', argv(0))
+
+# vim: set syntax=python :

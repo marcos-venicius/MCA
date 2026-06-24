@@ -18,6 +18,8 @@
 typedef struct {
     const char *input_file_name;
     const char *math;
+    const char *argv[256];
+    int argc;
 } ProgramArguments;
 
 void usage(FILE *stream, const char *program_name) {
@@ -176,6 +178,9 @@ int main(int argc, char **argv) {
             }
 
             p_arguments.input_file_name = value;
+            p_arguments.argv[p_arguments.argc++] = value;
+        } else if (p_arguments.input_file_name != NULL) {
+            p_arguments.argv[p_arguments.argc++] = arg;
         } else {
             p_arguments.math = arg;
         }
@@ -211,7 +216,7 @@ int main(int argc, char **argv) {
 
     if (ast == NULL) return 0;
 
-    M_Interpreter *interpreter = m_interpreter_create(ast);
+    M_Interpreter *interpreter = m_interpreter_create(ast, p_arguments.argc, p_arguments.argv);
 
     m_interpreter_run(interpreter);
     m_interpreter_free(interpreter);

@@ -1,5 +1,8 @@
 #!/usr/local/bin/mca -i
 
+# it should not work at this moment
+# we do not have this feature yet
+
 def f(x, y) = x^2 + y^2;
 
 # get the distance between two coordinates

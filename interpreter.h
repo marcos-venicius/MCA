@@ -21,16 +21,20 @@ typedef struct {
 
     M_Ast *program;
 
+    int          argc;
+    const char **argv;
+
     FILE *io_out; // default is 'C stdout'
     FILE *io_err; // default is 'C stderr'
     FILE *io_in;  // default is 'C stdin'
 } M_Interpreter;
 
 typedef enum {
-    M_T_UNIT  = 1 << 0,
-    M_T_INT   = 1 << 1,
-    M_T_FLOAT = 1 << 2,
-    M_T_BOOL  = 1 << 3,
+    M_T_UNIT   = 1 << 0,
+    M_T_INT    = 1 << 1,
+    M_T_FLOAT  = 1 << 2,
+    M_T_BOOL   = 1 << 3,
+    M_T_STRING = 1 << 4,
     M_T_COUNT
 } M_Value_Type;
 
@@ -38,6 +42,7 @@ typedef union {
     double floating;
     int64_t integer;
     bool boolean;
+    M_String string;
 } M_Value_Union;
 
 typedef struct {
@@ -56,7 +61,7 @@ typedef struct {
     M_Control_Flow flow;
 } M_Eval_Result;
 
-M_Interpreter *m_interpreter_create(M_Ast *program);
+M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char **argv);
 void m_interpreter_set_stdin(M_Interpreter *interpreter, FILE *stream);
 void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream);
 void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream);

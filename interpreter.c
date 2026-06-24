@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <errno.h>
+#include <inttypes.h>
 
 #include "./interpreter.h"
 #include "./ast.h"
@@ -94,7 +96,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
     }
 
 static const char *m_value_type_name(M_Value_Type type) {
-    static_assert(M_T_COUNT == 9, "m_value_type_name: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 17, "m_value_type_name: missing M_Value_Type handling");
 
     int t = type;
 
@@ -111,6 +113,7 @@ static const char *m_value_type_name(M_Value_Type type) {
     HANDLE_M_VALUE_TYPE_NAME(M_T_FLOAT, "float")
     HANDLE_M_VALUE_TYPE_NAME(M_T_BOOL, "bool")
     HANDLE_M_VALUE_TYPE_NAME(M_T_UNIT, "unit")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_STRING, "string")
 
     if (t != 0) {
         snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
@@ -385,6 +388,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
     switch (expression->kind) {
         case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
+        case M_EK_STRING: return (M_Eval_Result){ .value = (M_Value){ .type = M_T_STRING, .as.string = expression->string }, .flow = M_CTRL_NORMAL };
         case M_EK_UNIT: return (M_Eval_Result){ .value = m_value_unit(), .flow = M_CTRL_NORMAL };
         case M_EK_BOOL:
             return (M_Eval_Result){ .value = (M_Value){ .type = M_T_BOOL, .as.boolean = expression->boolean }, .flow = M_CTRL_NORMAL };
@@ -472,6 +476,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                                     .as.boolean = !result.value.as.floating
                                 }
                             };
+                        case M_T_STRING:
                         case M_T_UNIT:
                         case M_T_COUNT:
                             assert(0 && "case M_UNARY_NOT_OP: unreachable");
@@ -493,8 +498,6 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 .value = m_value_zero(),
             };
 
-            enter_new_environment();
-
             int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
             if (evaluated_condition == -1) {
@@ -502,7 +505,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             }
 
             if (evaluated_condition) {
+                enter_new_environment(); // enter 'if' block
                 last_evaluated_expression = evaluate_block_expression(expression->if_expr.then_block);
+                destroy_current_environment(); // quit 'if' block
             } else {
                 if (expression->if_expr.elif_blocks != NULL) {
                     M_Expression_Elif_Block *current_elif = expression->if_expr.elif_blocks;
@@ -517,8 +522,11 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                         }
 
                         if (evaluated_elif_condition) {
-                            if (current_elif->block != NULL)
+                            if (current_elif->block != NULL) {
+                                enter_new_environment(); // enter 'elif' block
                                 last_evaluated_expression = evaluate_block_expression(current_elif->block);
+                                destroy_current_environment(); // quit 'elif' block
+                            }
 
                             goto after_else_block; // we reached a valid elif so we avoid going to the else block
                         }
@@ -527,13 +535,14 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     }
                 }
 
-                if (expression->if_expr.else_block != NULL)
+                if (expression->if_expr.else_block != NULL) {
+                    enter_new_environment(); // enter 'else' block
                     last_evaluated_expression = evaluate_block_expression(expression->if_expr.else_block);
+                    destroy_current_environment(); // quit 'else' block
+                }
             }
 
 after_else_block:
-            destroy_current_environment();
-
             return last_evaluated_expression;
         } break;
         case M_EK_LOOP: {
@@ -541,8 +550,6 @@ after_else_block:
                 .flow = M_CTRL_NORMAL,
                 .value = m_value_zero()
             };
-
-            enter_new_environment();
 
             while (1) {
                 if (expression->loop.condition != NULL) {
@@ -557,8 +564,15 @@ after_else_block:
                     if (!evaluated_condition) break;
                 }
 
+
                 if (expression->loop.block != NULL) {
+                    // entering the loop block
+                    enter_new_environment();
+
                     last_evaluated_expression = evaluate_block_expression(expression->loop.block);
+
+                    // quiting the loop block
+                    destroy_current_environment();
 
                     if (last_evaluated_expression.flow == M_CTRL_BREAK) {
                         last_evaluated_expression = (M_Eval_Result){
@@ -570,8 +584,6 @@ after_else_block:
                     }
                 }
             }
-
-            destroy_current_environment();
 
             return last_evaluated_expression;
         } break;
@@ -590,13 +602,16 @@ after_else_block:
     return (M_Eval_Result){ .value = m_value_zero(), .flow = M_CTRL_NORMAL };
 }
 
-PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program) {
+PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char **argv) {
     interpreter = malloc(sizeof(M_Interpreter));
 
     interpreter->program = program;
     interpreter->io_in = stdin;
     interpreter->io_out = stdout;
     interpreter->io_err = stderr;
+
+    interpreter->argc = argc;
+    interpreter->argv = argv;
 
     interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
     interpreter->global_environment->variables = ht_init(sizeof(M_Value));
@@ -810,7 +825,10 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 fprintf(interpreter->io_out, "%s", last_value.as.boolean ? "true" : "false");
                 break;
             case M_T_UNIT:
-                fprintf(interpreter->io_out, " ");
+                fprintf(interpreter->io_out, "(uint)");
+                break;
+            case M_T_STRING:
+                fprintf(interpreter->io_out, "%.*s", last_value.as.string.value_length, last_value.as.string.value);
                 break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
@@ -1005,6 +1023,9 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
         case M_T_UNIT:
             fprintf(interpreter->io_out, "unit\n");
             break;
+        case M_T_STRING:
+            fprintf(interpreter->io_out, "string(\"%.*s\")\n", result.value.as.string.value_length, result.value.as.string.value);
+            break;
         case M_T_COUNT:
             assert(0 && "__builtin_mca_type: unreachable M_T_COUNT");
             break;
@@ -1023,6 +1044,25 @@ static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *argument
         case M_T_INT: return result.value;
         case M_T_FLOAT: return (M_Value){ .type = M_T_INT, .as.integer = (int64_t)result.value.as.floating };
         case M_T_BOOL: return (M_Value){ .type = M_T_INT, .as.integer = result.value.as.boolean ? 1 : 0 };
+        case M_T_STRING: {
+            char *endptr;
+            int size = result.value.as.string.value_length;
+            char *str = result.value.as.string.value;
+
+            errno = 0;
+
+            int64_t v = strtoll(str, &endptr, 10);
+
+            if (errno == ERANGE) {
+                m_interpreter_error(arguments[0], "the number is too large or too small to fit in an integer type");
+            } else if (endptr == str) {
+                m_interpreter_error(arguments[0], "'%.*s' is not a valid number", size, str);
+            } else if (*endptr != '\0') {
+                m_interpreter_error(arguments[0], "'%.*s' is not a valid integer literal", size, str);
+            }
+
+            return (M_Value){ .type = M_T_INT, .as.integer = v };
+        };
         default: m_interpreter_error(arguments[0], "cannot cast '%s' to int", m_value_type_name(result.value.type));
     }
 
@@ -1039,6 +1079,25 @@ static M_Value __builtin_mca_as_float(M_Expression *caller, M_Expression *argume
         case M_T_INT: return (M_Value){ .type = M_T_FLOAT, .as.floating = (double)result.value.as.integer };
         case M_T_FLOAT: return result.value;
         case M_T_BOOL: return (M_Value){ .type = M_T_FLOAT, .as.floating = result.value.as.boolean ? 1.0 : 0.0 };
+        case M_T_STRING: {
+            char *endptr;
+            int size = result.value.as.string.value_length;
+            char *str = result.value.as.string.value;
+
+            errno = 0;
+
+            double v = strtod(str, &endptr);
+
+            if (errno == ERANGE) {
+                m_interpreter_error(arguments[0], "the number is too large or too small to fit in a float type");
+            } else if (endptr == str) {
+                m_interpreter_error(arguments[0], "'%.*s' is not a valid number", size, str);
+            } else if (*endptr != '\0') {
+                m_interpreter_error(arguments[0], "'%.*s' is not a valid float literal", size, str);
+            }
+
+            return (M_Value){ .type = M_T_FLOAT, .as.floating = v };
+        };
         default: m_interpreter_error(arguments[0], "cannot cast '%s' to float", m_value_type_name(result.value.type));
     }
 
@@ -1090,6 +1149,30 @@ static M_Value __builtin_mca_as_rand(M_Expression *caller, M_Expression *argumen
     return (M_Value){ .type = M_T_INT, .as.integer = random };
 }
 
+static M_Value __builtin_mca_argc(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments;
+    (void)arguments_count;
+
+    return (M_Value){ .type = M_T_INT, .as.integer = interpreter->argc };
+}
+
+static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result r = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
+
+    int64_t index = r.value.as.integer;
+
+    if (index < 0 || index >= interpreter->argc)
+        m_interpreter_error(caller, "index %d is out of range. You have %d arguments.", index, interpreter->argc);
+
+    int length = strlen(interpreter->argv[index]);
+
+    return (M_Value){ .type = M_T_STRING, .as.string.value = strndup(interpreter->argv[index], length), .as.string.value_length = length };
+}
+
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -1099,8 +1182,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("min",  -1, __builtin_mca_min),
     BIND_FN("sin",   1, __builtin_mca_sin),
     BIND_FN("cos",   1, __builtin_mca_cos),
-    BIND_FN("asin",   1, __builtin_mca_asin),
-    BIND_FN("acos",   1, __builtin_mca_acos),
+    BIND_FN("asin",  1, __builtin_mca_asin),
+    BIND_FN("acos",  1, __builtin_mca_acos),
     BIND_FN("tan",   1, __builtin_mca_tan),
     BIND_FN("rad",   1, __builtin_mca_rad),
     BIND_FN("deg",   1, __builtin_mca_deg),
@@ -1119,6 +1202,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
 
     // language specifics
     BIND_FN("type",     1, __builtin_mca_type),
+    BIND_FN("argc",     0, __builtin_mca_argc),
+    BIND_FN("argv",     1, __builtin_mca_argv),
     BIND_FN("as_int",   1, __builtin_mca_as_int),
     BIND_FN("as_float", 1, __builtin_mca_as_float),
     BIND_FN("as_bool",  1, __builtin_mca_as_bool),

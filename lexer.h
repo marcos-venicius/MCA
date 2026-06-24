@@ -10,6 +10,7 @@ typedef enum {
     // all numbers will be handled as C doubles
     M_INT = 0, // always C int64_t
     M_FLOAT,   // always C double
+    M_STRING,
 
     M_ID,
 
@@ -50,7 +51,7 @@ typedef enum {
 struct M_Token {
     M_Token_Kind kind;
     const char *value;
-    size_t size;
+    int size;
 
     M_Token *next;
 

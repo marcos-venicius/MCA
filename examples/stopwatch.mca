@@ -16,6 +16,9 @@ seconds = 0
 minutes = 0
 hours   = 0
 
+println('starting stopwatch...')
+println('it will count to ', GAP, ' one by one, then, will start displaying you the current time every ', GAP, ' seconds...\n')
+
 while {
   # 'sleep'
 
@@ -46,11 +49,11 @@ while {
   # display
 
   if hours > 0 {
-    println(hours, minutes, seconds)
+    println(hours, 'h ', minutes, 'm ', seconds, 's')
   } elif minutes > 0 {
-    println(minutes, seconds)
+    println(minutes, 'm ', seconds, 's')
   } else {
-    println(seconds)
+    println(seconds, 's')
   }
 }
 

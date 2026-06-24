@@ -1,0 +1,9 @@
+#!/usr/local/bin/mca -i
+
+type(as_int('-234230'))
+type(as_int('234230'))
+type(as_float('32'))
+type(as_float('32.235'))
+type(as_float('-32.235'))
+
+# vim: set syntax=python :

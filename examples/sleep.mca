@@ -21,6 +21,6 @@ duration = while {
   }
 }
 
-println(duration)
+println('duration: ', duration)
 
 # vim: set syntax=python :

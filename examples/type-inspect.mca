@@ -25,5 +25,7 @@ type(true)
 type(false)
 
 type(1 == 1)
+type(?)
+type('Hello \'World\' \\\\//')
 
 # vim: set syntax=python :
