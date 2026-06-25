@@ -58,11 +58,13 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_ID: return "ID";
 
         case M_PLUS: return "PLUS";
+        case M_PLUS_EQUAL: return "PLUS_EQUAL";
         case M_DIVIDE: return "DIVIDE";
         case M_TIMES: return "TIMES";
         case M_MOD: return "MOD";
         case M_POW: return "POW";
         case M_MINUS: return "MINUS";
+        case M_MINUS_EQUAL: return "MINUS_EQUAL";
 
         case M_EXCLAMATION: return "EXCLAMATION";
 
@@ -328,20 +330,32 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case ')':
             case '{':
             case '}':
-            case '+':
             case '%':
             case '^':
-            case '-':
             case ';':
             case ',':
             case '?':
                 tokenize_single(lexer);
                 break;
+            case '-':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_MINUS_EQUAL);
+                } else {
+                    tokenize_single(lexer);
+                }
+                break;
+            case '+':
+                if (nchr(lexer) == '=') {
+                    tokenize_n(lexer, 2, M_PLUS_EQUAL);
+                } else {
+                    tokenize_single(lexer);
+                }
+                break;
             case '!':
                 if (nchr(lexer) == '=') {
                     tokenize_n(lexer, 2, M_NOT_EQUAL);
                 } else {
-                    tokenize_n(lexer, 1, M_EXCLAMATION);
+                    tokenize_single(lexer);
                 }
                 break;
             case '=':

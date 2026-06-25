@@ -16,9 +16,11 @@ typedef enum {
 
     // binary operators
     M_PLUS,
+    M_PLUS_EQUAL,
     M_DIVIDE,
     M_TIMES,
     M_MINUS, // may be unary too when describing negative numbers
+    M_MINUS_EQUAL,
     M_MOD,
     M_POW,
 

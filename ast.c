@@ -13,6 +13,9 @@ static M_Expression *parse_expression_impl(M_Ast *ast);
 static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
 }
+static inline M_Token *ntoken(M_Ast *ast) {
+    return ast->current_token->next;
+}
 
 static inline bool checkahead(M_Ast *ast, M_Token_Kind kind) {
     return ast->current_token != NULL && ast->current_token->next != NULL && ast->current_token->next->kind == kind;
@@ -56,12 +59,12 @@ static int64_t convert_to_integer(M_Token *token) {
 
 static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_Token_Kind kind) {
     switch (kind) {
-        case M_PLUS:    return M_BINARY_PLUS_OP;
-        case M_TIMES:   return M_BINARY_TIMES_OP;
-        case M_MINUS:   return M_BINARY_SUBTRACT_OP;
-        case M_DIVIDE:  return M_BINARY_DIVIDE_OP;
-        case M_MOD:     return M_BINARY_MOD_OP;
-        case M_POW:     return M_BINARY_POW_OP;
+        case M_PLUS:        return M_BINARY_PLUS_OP;
+        case M_TIMES:       return M_BINARY_TIMES_OP;
+        case M_MINUS:       return M_BINARY_SUBTRACT_OP;
+        case M_DIVIDE:      return M_BINARY_DIVIDE_OP;
+        case M_MOD:         return M_BINARY_MOD_OP;
+        case M_POW:         return M_BINARY_POW_OP;
 
         case M_EQUAL:       return M_BINARY_EQUAL_OP;
         case M_NOT_EQUAL:   return M_BINARY_NOT_EQUAL_OP;
@@ -70,6 +73,8 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_GTE:         return M_BINARY_GTE_OP;
         case M_LTE:         return M_BINARY_LTE_OP;
 
+        case M_PLUS_EQUAL:
+        case M_MINUS_EQUAL:
         case M_QUESTION_MARK:
         case M_ASSIGN:
         case M_ID:
@@ -92,22 +97,22 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
 
 const char *binary_expression_operator_name(M_Binary_Expression_Operator op) {
     switch (op) {
-        case M_BINARY_PLUS_OP:      return "+";
-        case M_BINARY_TIMES_OP:     return "*";
-        case M_BINARY_SUBTRACT_OP:  return "-";
-        case M_BINARY_DIVIDE_OP:    return "/";
-        case M_BINARY_MOD_OP:       return "%";
-        case M_BINARY_POW_OP:       return "^";
+        case M_BINARY_PLUS_OP:           return "+";
+        case M_BINARY_TIMES_OP:          return "*";
+        case M_BINARY_SUBTRACT_OP:       return "-";
+        case M_BINARY_DIVIDE_OP:         return "/";
+        case M_BINARY_MOD_OP:            return "%";
+        case M_BINARY_POW_OP:            return "^";
 
-        case M_BINARY_AND_OP:       return "and";
-        case M_BINARY_OR_OP:        return "or";
+        case M_BINARY_AND_OP:            return "and";
+        case M_BINARY_OR_OP:             return "or";
 
-        case M_BINARY_EQUAL_OP:     return "==";
-        case M_BINARY_NOT_EQUAL_OP: return "!=";
-        case M_BINARY_GT_OP:        return ">";
-        case M_BINARY_LT_OP:        return "<";
-        case M_BINARY_GTE_OP:       return ">=";
-        case M_BINARY_LTE_OP:       return "<=";
+        case M_BINARY_EQUAL_OP:          return "==";
+        case M_BINARY_NOT_EQUAL_OP:      return "!=";
+        case M_BINARY_GT_OP:             return ">";
+        case M_BINARY_LT_OP:             return "<";
+        case M_BINARY_GTE_OP:            return ">=";
+        case M_BINARY_LTE_OP:            return "<=";
     }
 
     assert(0 && "binary_expression_operator_name: unreacheable");
@@ -132,6 +137,8 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_QUESTION_MARK:
         case M_ASSIGN:
         case M_PLUS:
+        case M_PLUS_EQUAL:
+        case M_MINUS_EQUAL:
         case M_TIMES:
         case M_DIVIDE:
         case M_MOD:
@@ -1128,39 +1135,62 @@ static M_Expression *parse_logical_operators(M_Ast *ast) {
     return left;
 }
 
+static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_Kind kind) {
+    M_Token *first_token = token(ast);
+
+    const char *name = token(ast)->value;
+    int name_length = token(ast)->size;
+
+    next_token(ast); // <kind>
+    next_token(ast); // jumped <kind>
+
+    M_Expression *right = parse_expression_impl(ast);
+
+    if (right == NULL) return NULL;
+
+    M_Expression *assignment_expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+    assignment_expr->kind = kind;
+    assignment_expr->location = (M_Location){
+        .line = first_token->loc.line,
+        .col = first_token->loc.col,
+        .filename = ast->filename
+    };
+    assignment_expr->assign.name.value = name;
+    assignment_expr->assign.name.length = name_length;
+    assignment_expr->assign.right = right;
+
+    return assignment_expr;
+}
+
 static M_Expression *parse_assignment_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
-    if (token(ast)->kind == M_ID && checkahead(ast, M_ASSIGN)) {
+    if (token(ast)->kind == M_ID && (checkahead(ast, M_ASSIGN) || checkahead(ast, M_PLUS_EQUAL) || checkahead(ast, M_MINUS_EQUAL))) {
         M_Token *first_token = token(ast);
+        M_Token *second_token = ntoken(ast);
 
-        const char *name = token(ast)->value;
-        int name_length = token(ast)->size;
+        static M_Expression_Kind op[M_ASSIGN + M_MINUS_EQUAL + M_PLUS_EQUAL + 1] = {
+            [M_ASSIGN]      = M_EK_ASSIGN,
+            [M_PLUS_EQUAL]  = M_EK_ADD_ASSIGN,
+            [M_MINUS_EQUAL] = M_EK_SUB_ASSIGN
+        };
 
-        next_token(ast); // '='
-        next_token(ast); // jumped '='
+        static const char *messages[M_ASSIGN + M_MINUS_EQUAL + M_PLUS_EQUAL + 1] = {
+            [M_ASSIGN]      = "missing right operand for assignment '%.*s = ...'",
+            [M_PLUS_EQUAL]  = "missing right operand for addition assignment '%.*s += ...'",
+            [M_MINUS_EQUAL] = "missing right operand for subtraction assignment '%.*s -= ...'"
+        };
 
-        M_Expression *right = parse_expression_impl(ast);
+        M_Expression *expr = parse_assignment_expression_impl(ast, op[second_token->kind]);
 
-        if (right == NULL) {
-            ast_error(ast, first_token, "missing right operand for assignment '%.*s = ...'", first_token->size, first_token->value);
+        if (expr == NULL) {
+            ast_error(ast, first_token, messages[second_token->kind], first_token->size, first_token->value);
             synchronize(ast);
             return NULL;
         }
 
-        M_Expression *assignment_expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
-
-        assignment_expr->kind = M_EK_ASSIGN;
-        assignment_expr->location = (M_Location){
-            .line = first_token->loc.line,
-            .col = first_token->loc.col,
-            .filename = ast->filename
-        };
-        assignment_expr->assign.name.value = name;
-        assignment_expr->assign.name.length = name_length;
-        assignment_expr->assign.right = right;
-
-        return assignment_expr;
+        return expr;
     }
 
     return parse_logical_operators(ast);

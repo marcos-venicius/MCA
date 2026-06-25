@@ -32,6 +32,8 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 // [[macros]]
 #define m_value_unit() ((M_Value){ .type = M_T_UNIT })
 #define m_value_zero() ((M_Value){ .type = M_T_INT, .as.integer = 0 })
+#define m_value_int(v) ((M_Value){ .type = M_T_INT, .as.integer = (v) })
+#define m_value_float(v) ((M_Value){ .type = M_T_FLOAT, .as.floating = (v) })
 #define m_value_true() ((M_Value){ .type = M_T_BOOL, .as.boolean = true })
 #define m_value_false() ((M_Value){ .type = M_T_BOOL, .as.boolean = false })
 #define PUBLIC
@@ -151,6 +153,18 @@ static inline M_Eval_Result m_result_expect_type(M_Expression *expr, M_Eval_Resu
         );
 
     return result;
+}
+
+static inline M_Value m_value_expect_type(M_Expression *expr, M_Value value, M_Value_Type expected_type_mask) {
+    if ((value.type & expected_type_mask) == 0)
+        m_interpreter_error(
+            expr,
+            "unexpected data type. expected a '%s' but got a '%s'",
+            m_value_type_name(expected_type_mask),
+            m_value_type_name(value.type)
+        );
+
+    return value;
 }
 
 static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator op, double left, double right) {
@@ -477,6 +491,72 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             free(key);
 
             return result;
+        };
+        case M_EK_ADD_ASSIGN: {
+            // TODO: @Refactor
+            char *key = strndup(expression->assign.name.value, expression->assign.name.length);
+
+            M_Value *current_value = get_variable_from_environment(interpreter->current_environment, key);
+
+            if (current_value == NULL)
+                m_interpreter_error(expression, "the variable '%s' does not exists", key);
+
+            M_Value left = m_value_expect_type(expression, *current_value, M_T_INT | M_T_FLOAT);
+            M_Eval_Result right = m_result_expect_type(expression->assign.right, evaluate_expression(expression->assign.right), M_T_INT | M_T_FLOAT);
+
+            M_Value_Type l_type = left.type;
+            M_Value_Type r_type = right.value.type;
+            M_Value new_value;
+
+            if (l_type == M_T_FLOAT || r_type == M_T_FLOAT) {
+                double l_value = l_type == M_T_FLOAT ? left.as.floating : (double)left.as.integer;
+                double r_value = r_type == M_T_FLOAT ? right.value.as.floating : (double)right.value.as.integer;
+
+                new_value = m_value_float(l_value + r_value);
+            } else {
+                new_value = m_value_int(left.as.integer + right.value.as.integer);
+            }
+
+            right.value = new_value;
+
+            set_variable_on_environment(interpreter->current_environment, key, new_value);
+
+            free(key);
+
+            return right;
+        };
+        case M_EK_SUB_ASSIGN: {
+            // TODO: @Refactor
+            char *key = strndup(expression->assign.name.value, expression->assign.name.length);
+
+            M_Value *current_value = get_variable_from_environment(interpreter->current_environment, key);
+
+            if (current_value == NULL)
+                m_interpreter_error(expression, "the variable '%s' does not exists", key);
+
+            M_Value left = m_value_expect_type(expression, *current_value, M_T_INT | M_T_FLOAT);
+            M_Eval_Result right = m_result_expect_type(expression->assign.right, evaluate_expression(expression->assign.right), M_T_INT | M_T_FLOAT);
+
+            M_Value_Type l_type = left.type;
+            M_Value_Type r_type = right.value.type;
+            M_Value new_value;
+
+            if (l_type == M_T_FLOAT || r_type == M_T_FLOAT) {
+                double l_value = l_type == M_T_FLOAT ? left.as.floating : (double)left.as.integer;
+                double r_value = r_type == M_T_FLOAT ? right.value.as.floating : (double)right.value.as.integer;
+
+                new_value = m_value_float(l_value - r_value);
+            } else {
+                new_value = m_value_int(left.as.integer - right.value.as.integer);
+            }
+
+            right.value = new_value;
+
+            set_variable_on_environment(interpreter->current_environment, key, new_value);
+
+            free(key);
+
+            return right;
         };
         case M_EK_UNARY: {
             switch (expression->unary.op) {

@@ -317,6 +317,15 @@ int main(void) {
     TEST_CASE("y = x = 10;y", T_INT(10));
     TEST_CASE("x = 10; y = -5.5; z = abs(x * y); println(x, y, z, x + y + z)", T_FLOAT(59.5));
 
+    TEST_CASE_LABEL("Assignment");
+    TEST_CASE("y = x = 10; x + y", T_INT(20));
+    TEST_CASE("i = 0; while i < 10 { i += 1 }", T_INT(10));
+    TEST_CASE("i = 10; while i > 10 { i -= 1 }", T_INT(0));
+    TEST_CASE("i = 10; i += 2", T_INT(12));
+    TEST_CASE("i = 10; i += 2; i", T_INT(12));
+    TEST_CASE("i = 10; i -= 2", T_INT(8));
+    TEST_CASE("i = 10; i -= 2; i", T_INT(8));
+
     TEST_CASE_LABEL("Loops");
     TEST_CASE("n = 10; while n < 20 { n = n + 1 }", T_INT(20));
     TEST_CASE("a = 0; b = 1; n = 0; while n < 15 { n = n + 1; t = a; a = b; b = t + b; a }", T_INT(610)); // fib

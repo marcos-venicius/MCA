@@ -25,6 +25,8 @@ typedef enum {
     M_EK_ID,
     M_EK_BINARY,
     M_EK_ASSIGN,
+    M_EK_ADD_ASSIGN,
+    M_EK_SUB_ASSIGN,
     M_EK_UNARY,
     M_EK_EXPRESSION_LIST,
     M_EK_CALL,
@@ -119,6 +121,7 @@ struct M_Expression {
         } id;
         M_String string;
 
+        // used for M_EK_ASSIGN, M_EK_ADD_ASSIGN and M_EK_SUB_ASSIGN
         struct {
             struct {
                 const char *value;
