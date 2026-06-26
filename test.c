@@ -363,6 +363,8 @@ int main(void) {
     TEST_CASE("if 10 == 11 and 20 == 20 { 20 } else { 10 }", T_INT(10));
     TEST_CASE("if 10 == 11 or 20 == 20 { 20 } else { 10 }", T_INT(20));
     TEST_CASE("if 10 == 11 or 20 == 21 { 20 } else { 10 }", T_INT(10));
+    TEST_CASE("if 10 == 10 or n == x { 20 } else { 0 }", T_INT(20)); // should work because the right side is lazy-evaluated
+    TEST_CASE("if 10 == 11 and n == x { 0 } else { 20 }", T_INT(20)); // should work because the right side is lazy-evaluated
 
     TEST_CASE_LABEL("Not operator");
     TEST_CASE("if !(10 == 11 or 20 == 21) { 20 } else { 10 }", T_INT(20));

@@ -279,6 +279,95 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
+    switch (expression->binary.op) {
+        case M_BINARY_AND_OP:
+            {
+                M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+
+                switch (left.value.type) {
+                    case M_T_BOOL:
+                        if (!left.value.as.boolean)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    case M_T_INT:
+                        if (left.value.as.integer == 0)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    case M_T_FLOAT:
+                        if (left.value.as.floating == 0.0)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    default:
+                        break;
+                }
+
+                M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+
+                switch (right.value.type) {
+                    case M_T_BOOL:
+                        if (!right.value.as.boolean)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    case M_T_INT:
+                        if (right.value.as.integer == 0)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    case M_T_FLOAT:
+                        if (right.value.as.floating == 0.0)
+                            return m_result_normal(m_value_bool(false));
+                        break;
+                    default:
+                        break;
+                }
+
+                return m_result_normal(m_value_bool(true));
+            }
+        case M_BINARY_OR_OP:
+            {
+                M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+
+                switch (left.value.type) {
+                    case M_T_BOOL:
+                        if (left.value.as.boolean)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    case M_T_INT:
+                        if (left.value.as.integer != 0)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    case M_T_FLOAT:
+                        if (left.value.as.floating != 0.0)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    default:
+                        break;
+                }
+
+                M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+
+                switch (right.value.type) {
+                    case M_T_BOOL:
+                        if (right.value.as.boolean)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    case M_T_INT:
+                        if (right.value.as.integer != 0)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    case M_T_FLOAT:
+                        if (right.value.as.floating != 0.0)
+                            return m_result_normal(m_value_bool(true));
+                        break;
+                    default:
+                        break;
+                }
+
+                return m_result_normal(m_value_bool(false));
+            }
+        default:
+            break;
+    }
+
     M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
     M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
 
