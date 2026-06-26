@@ -490,8 +490,6 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
         case M_BINARY_SUBTRACT_OP:  result = l - r; break;
         case M_BINARY_MOD_OP:       result = l % r; break;
         case M_BINARY_POW_OP:       result = pow(l, r); break;
-        case M_BINARY_AND_OP:       result = l != 0 && r != 0; break; // @Urgent TODO: in case of and we should lazy evaluate, because if the first expression does not match we cannot proceed
-        case M_BINARY_OR_OP:        result = l != 0 || r != 0; break; // @Urgent TODO: similar to and we should lazy evaluate, but in this case if the first expression matches we don't need to evaluate the second one
         case M_BINARY_EQUAL_OP:     result = l == r; break;
         case M_BINARY_NOT_EQUAL_OP: result = l != r; break;
         case M_BINARY_GT_OP:        result = l > r; break;
@@ -499,6 +497,8 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
         case M_BINARY_GTE_OP:       result = l >= r; break;
         case M_BINARY_LTE_OP:       result = l <= r; break;
 
+        case M_BINARY_AND_OP: assert(0 && "evaluate_binary_expression: should never happen"); break; // it's being handled at the beginning of the function
+        case M_BINARY_OR_OP: assert(0 && "evaluate_binary_expression: should never happen"); break;
         case M_BINARY_OP_COUNT: break;
     }
 
