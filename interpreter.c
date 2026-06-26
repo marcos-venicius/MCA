@@ -176,9 +176,6 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
         case M_BINARY_MOD_OP:       return fmod(left, right);
         case M_BINARY_POW_OP:       return pow(left, right);
 
-        case M_BINARY_AND_OP:       return left != 0 && right != 0;
-        case M_BINARY_OR_OP:        return left != 0 || right != 0;
-
         case M_BINARY_EQUAL_OP:     return left == right;
         case M_BINARY_NOT_EQUAL_OP: return left != right;
         case M_BINARY_GT_OP:        return left > right;
@@ -186,6 +183,9 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
         case M_BINARY_GTE_OP:       return left >= right;
         case M_BINARY_LTE_OP:       return left <= right;
 
+        // these operations are handled inside `evaluate_binary_expression`
+        case M_BINARY_AND_OP:       assert(0 && "evaluate_binary_operation_on_doubles: should never happen"); break;
+        case M_BINARY_OR_OP:        assert(0 && "evaluate_binary_operation_on_doubles: should never happen"); break;
         case M_BINARY_OP_COUNT:     break;
     }
 
