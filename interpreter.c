@@ -401,8 +401,8 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
         case M_BINARY_SUBTRACT_OP:  result = l - r; break;
         case M_BINARY_MOD_OP:       result = l % r; break;
         case M_BINARY_POW_OP:       result = pow(l, r); break;
-        case M_BINARY_AND_OP:       result = l != 0 && r != 0; break;
-        case M_BINARY_OR_OP:        result = l != 0 || r != 0; break;
+        case M_BINARY_AND_OP:       result = l != 0 && r != 0; break; // @Urgent TODO: in case of and we should lazy evaluate, because if the first expression does not match we cannot proceed
+        case M_BINARY_OR_OP:        result = l != 0 || r != 0; break; // @Urgent TODO: similar to and we should lazy evaluate, but in this case if the first expression matches we don't need to evaluate the second one
         case M_BINARY_EQUAL_OP:     result = l == r; break;
         case M_BINARY_NOT_EQUAL_OP: result = l != r; break;
         case M_BINARY_GT_OP:        result = l > r; break;
@@ -1304,13 +1304,57 @@ static M_Value __builtin_mca_at(M_Expression *caller, M_Expression *arguments[],
     M_Eval_Result index = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
 
     if (index.value.as.integer < 0 || index.value.as.integer >= data.value.as.string.value_length)
-        m_interpreter_error(arguments[1], "index %d is out of range. The size of the string is %d", data.value.as.string.value_length);
+        m_interpreter_error(arguments[1], "index %d is out of range. The size of the string is %d", index.value.as.integer, data.value.as.string.value_length);
 
     return (M_Value){
         .type = M_T_STRING,
         .allocated = false,
         .as.string.value_length = 1,
         .as.string.value = data.value.as.string.value + index.value.as.integer,
+    };
+}
+
+static M_Value __builtin_mca_select(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+    M_Eval_Result from = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
+    M_Eval_Result to = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT);
+
+    if (from.value.as.integer < 0 || from.value.as.integer >= data.value.as.string.value_length)
+        m_interpreter_error(arguments[1], "from '%d' is out of range. The size of the string is %d", from.value.as.integer, data.value.as.string.value_length);
+    if (to.value.as.integer < 0 || to.value.as.integer >= data.value.as.string.value_length + 1)
+        m_interpreter_error(arguments[2], "to '%d' is out of range. The size of the string is %d", to.value.as.integer, data.value.as.string.value_length);
+    if (from.value.as.integer > to.value.as.integer)
+        m_interpreter_error(arguments[1], "from '%d' cannot be greater than to '%d'", from.value.as.integer, to.value.as.integer);
+
+    int64_t diff = to.value.as.integer - from.value.as.integer;
+
+    // @Leak TODO: The chunk is leaked, we need to deallocate it in the garbage collector (when we eventually have one)
+    char *chunk = strndup(data.value.as.string.value + from.value.as.integer, diff);
+
+    return (M_Value){
+        .type = M_T_STRING,
+        .allocated = true,
+        .as.string.value_length = diff,
+        .as.string.value = chunk
+    };
+}
+
+static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+
+    if (data.value.as.string.value_length != 1)
+        m_interpreter_error(arguments[0], "ord() expects a string of length 1, got a string of length %d", data.value.as.string.value_length);
+
+    return (M_Value){
+        .type = M_T_INT,
+        .allocated = false,
+        .as.integer = (int64_t)data.value.as.string.value[0],
     };
 }
 
@@ -1357,6 +1401,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("is_unit",   1, __builtin_mca_is_unit),
     BIND_FN("len",       1, __builtin_mca_len),
     BIND_FN("at",        2, __builtin_mca_at),
+    BIND_FN("select",    3, __builtin_mca_select),
+    BIND_FN("ord",       1, __builtin_mca_ord),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),

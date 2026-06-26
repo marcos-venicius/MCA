@@ -272,6 +272,13 @@ int main(void) {
     TEST_CASE("is_unit(?)", T_BOOL(true));
     TEST_CASE("at('Hello, World', 7)", T_STRING("W"));
     TEST_CASE("read_entire_file('./test/file.txt')", T_STRING("Hello World\n"));
+    TEST_CASE("select('Hello, World', 7, 12)", T_STRING("World"));
+    TEST_CASE("select('heyhey', 0, 6)", T_STRING("heyhey"));
+    TEST_CASE("select('heyhey', 2, 3)", T_STRING("y"));
+    TEST_CASE("select('heyhey', 3, 6)", T_STRING("hey"));
+    TEST_CASE("ord('a')", T_INT('a'));
+    TEST_CASE("ord('b')", T_INT('b'));
+    TEST_CASE("ord('z')", T_INT('z'));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     TEST_CASE("5 == 5", T_BOOL(true));
