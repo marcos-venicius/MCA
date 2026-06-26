@@ -113,9 +113,12 @@ const char *binary_expression_operator_name(M_Binary_Expression_Operator op) {
         case M_BINARY_LT_OP:             return "<";
         case M_BINARY_GTE_OP:            return ">=";
         case M_BINARY_LTE_OP:            return "<=";
+
+        case M_BINARY_OP_COUNT: break;
     }
 
-    assert(0 && "binary_expression_operator_name: unreacheable");
+    static_assert(M_BINARY_OP_COUNT == 14, "binary_expression_operator_name: unhandled binary operator");
+    return NULL; // unreacheable
 }
 
 static const char *unary_expression_operator_name(M_Unary_Expression_Operator op) {

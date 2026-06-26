@@ -72,6 +72,8 @@ void print_expr(M_Expression *expr) {
     } else if (expr->kind == M_EK_BINARY) {
         printf("(");
         print_expr(expr->binary.left);
+
+        static_assert(M_BINARY_OP_COUNT == 14, "print_expr: unhandled binary operator");
         switch (expr->binary.op) {
             case M_BINARY_PLUS_OP: printf(" + "); break;
             case M_BINARY_TIMES_OP: printf(" * "); break;
@@ -89,6 +91,8 @@ void print_expr(M_Expression *expr) {
             case M_BINARY_LT_OP: printf(" < "); break;
             case M_BINARY_GTE_OP: printf(" >= "); break;
             case M_BINARY_LTE_OP: printf(" <= "); break;
+
+            case M_BINARY_OP_COUNT: break;
         }
         print_expr(expr->binary.right);
         printf(")");

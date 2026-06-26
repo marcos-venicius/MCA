@@ -52,6 +52,7 @@ typedef enum {
     M_BINARY_LT_OP,
     M_BINARY_GTE_OP,
     M_BINARY_LTE_OP,
+    M_BINARY_OP_COUNT
 } M_Binary_Expression_Operator;
 
 typedef enum {
