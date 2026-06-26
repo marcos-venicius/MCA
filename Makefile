@@ -15,6 +15,26 @@ bin/mca: main.o lexer.o log.o ast.o io.o interpreter.o
 bin/test: test.o lexer.o log.o ast.o io.o interpreter.o
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)
 
+exec_examples:
+	./examples/exiting-the-program.mca || :
+	./examples/fib.mca
+	./examples/fib2.mca
+	./examples/hello.mca World
+	./examples/is-leap-year-utc.mca || :
+	./examples/logical-operators.mca
+	./examples/math.mca
+	./examples/pascals-triangle.mca 5
+	./examples/play.mca
+	./examples/sleep.mca
+	./examples/stopwatch.mca 2
+	./examples/today.mca
+	./examples/touring-complete.mca
+	./examples/triangle-angle.mca 3 4 5
+	./examples/type-casting.mca
+	./examples/type-inspect.mca
+	./examples/unit.mca
+	./examples/user-defined-functions.mca
+
 all: bin/mca bin/test
 
 log.o: log.c log.h

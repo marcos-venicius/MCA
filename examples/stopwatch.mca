@@ -9,9 +9,15 @@
 
 GAP         = 7 # gap between display
 CURRENT_GAP = 0
+STOP_AT     = ?
+
+if argc() == 2 {
+  STOP_AT = as_int(argv(1))
+}
 
 BIG_BANG = time()
 
+elapsed = 0
 seconds = 0
 minutes = 0
 hours   = 0
@@ -41,6 +47,7 @@ while {
 
   now      = time()
   duration = now - BIG_BANG
+  elapsed  = duration
 
   hours   = floor(duration / 3600)
   minutes = floor(duration / 60) % 60
@@ -54,6 +61,10 @@ while {
     println(minutes, 'm ', seconds, 's')
   } else {
     println(seconds, 's')
+  }
+
+  if STOP_AT != ? and elapsed >= STOP_AT {
+    break;
   }
 }
 
