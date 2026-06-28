@@ -349,6 +349,10 @@ int main(void) {
     TEST_CASE("x = 10; if x == 10 { x = 11.3 }", T_FLOAT(11.3));
     TEST_CASE("x = if 10 != 10.1 { 1337 }", T_INT(1337));
     TEST_CASE("x = if 10 != 10.1 {}", T_INT(0));
+    TEST_CASE("if false 0 elif false 1 else true 2", T_INT(2));
+    TEST_CASE("if false { 0 } elif false { 1 } else true 2", T_INT(2));
+    TEST_CASE("if false { 0 } elif false { 1 } else { 2; 3; 4; }", T_INT(4));
+    TEST_CASE("srand(4); a = if rand(0, 10) % 2 == 0 'Ok' else 'Fail'; println(a)", T_STRING("Ok"));
 
     TEST_CASE_LABEL("Elif's");
     TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 20 { 56 } elif 1 == 1 { } else { 42 }", T_INT(56));
