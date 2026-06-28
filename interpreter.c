@@ -12,6 +12,7 @@
 #include "./ast.h"
 #include "./ht.h"
 #include "./io.h"
+#include "./builtins/map.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -100,7 +101,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
 
 #define HANDLE_M_VALUE_TYPE_NAME(T, name) if (t & T) { size += snprintf(buffer + size, 256 - size, "%s"name, (size > 0) ? " | " : ""); t &= ~T; }
 static const char *m_value_type_name(M_Value_Type type) {
-    static_assert(M_T_COUNT == 17, "m_value_type_name: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 33, "m_value_type_name: missing M_Value_Type handling");
 
     int t = type;
 
@@ -118,6 +119,7 @@ static const char *m_value_type_name(M_Value_Type type) {
     HANDLE_M_VALUE_TYPE_NAME(M_T_BOOL, "bool")
     HANDLE_M_VALUE_TYPE_NAME(M_T_UNIT, "unit")
     HANDLE_M_VALUE_TYPE_NAME(M_T_STRING, "string")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_MAP, "map")
 
     if (t != 0)
         snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
@@ -194,7 +196,7 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
 }
 
 static int evaluate_m_value_as_internal_boolean(M_Value value) {
-    static_assert(M_T_COUNT == 17, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 33, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
 
     switch (value.type) {
         case M_T_INT:   return value.as.integer != 0;
@@ -639,6 +641,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                             };
                         case M_T_STRING:
                         case M_T_UNIT:
+                        case M_T_MAP:
                         case M_T_COUNT:
                             assert(0 && "case M_UNARY_NOT_OP: unreachable");
                             break;
@@ -955,6 +958,11 @@ static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[]
     return x.value;
 }
 
+static void __print_map_helper(FILE *out, M_Map *map) {
+    // TODO: implement iterator and really print the map
+    fprintf(out, "map(size: %d)", map->size);
+}
+
 static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     M_Value last_value = m_value_unit();
@@ -977,6 +985,9 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 break;
             case M_T_STRING:
                 fprintf(interpreter->io_out, "%.*s", last_value.as.string.value_length, last_value.as.string.value);
+                break;
+            case M_T_MAP:
+                __print_map_helper(interpreter->io_out, last_value.as.map);
                 break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
@@ -1181,6 +1192,9 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
             break;
         case M_T_STRING:
             fprintf(interpreter->io_out, "string(\"%.*s\")\n", result.value.as.string.value_length, result.value.as.string.value);
+            break;
+        case M_T_MAP:
+            fprintf(interpreter->io_out, "map(%d)\n", result.value.as.map->size);
             break;
         case M_T_COUNT:
             assert(0 && "__builtin_mca_type: unreachable M_T_COUNT");
@@ -1447,6 +1461,145 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
     };
 }
 
+static M_Value __builtin_mca_map_init(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments;
+    (void)arguments_count;
+
+    M_Map *map = mca_map_init();
+
+    return (M_Value){
+        .allocated = true,
+        .type = M_T_MAP,
+        .as.map = map
+    };
+}
+
+static M_Value __builtin_mca_map_get(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    // for now, we will be able to have only integers and strings as keys
+    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
+
+    int key_type = a1.value.type;
+    void *key;
+    size_t key_size = 0;
+
+    switch (a1.value.type) {
+        case M_T_INT:
+            key = &a1.value.as.integer;
+            key_size = sizeof(int64_t);
+            break;
+        case M_T_STRING:
+            key = a1.value.as.string.value;
+            key_size = a1.value.as.string.value_length;
+        default:
+            break;
+    }
+
+    M_Map_Node_Entry *entry = mca_map_find(a0.value.as.map, key, key_size, key_type);
+
+    if (entry == NULL) return m_value_unit();
+
+    static_assert(M_T_COUNT == 33, "__builtin_mca_map_get");
+    switch (entry->type) {
+        case M_T_STRING:
+            return (M_Value){
+                .allocated = true,
+                .type = M_T_STRING,
+                .as.string.value = entry->data,
+                .as.string.value_length = entry->size
+            };
+        case M_T_INT:
+            return (M_Value){
+                .type = M_T_INT,
+                .as.integer = *(int64_t*)entry->data,
+            };
+        case M_T_BOOL:
+            return (M_Value){
+                .type = M_T_BOOL,
+                .as.boolean = *(bool*)entry->data,
+            };
+        case M_T_FLOAT:
+            return (M_Value){
+                .type = M_T_FLOAT,
+                .as.floating = *(double*)entry->data,
+            };
+        case M_T_MAP:
+            assert(0 && "TODO: for now, we don't accept nested hashmaps");
+            break;
+    }
+
+    assert(0 && "__builtin_mca_map_get: missing handle some value type");
+
+    return m_value_zero(); // unreachable
+}
+
+static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    // for now, we will be able to have only integers and strings as keys
+    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
+
+    static_assert(M_T_COUNT == 33, "mca_map_value");
+    M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
+
+    void *key       = NULL;
+    size_t key_size = 0;
+    int key_type    = a1.value.type;
+
+    void *value       = NULL;
+    size_t value_size = 0;
+    int value_type    = a2.value.type;
+
+    switch (a1.value.type) {
+        case M_T_INT:
+            key = &a1.value.as.integer;
+            key_size = sizeof(int64_t);
+            break;
+        case M_T_STRING:
+            key = a1.value.as.string.value;
+            key_size = a1.value.as.string.value_length;
+        default:
+            break;
+    }
+
+    static_assert(M_T_COUNT == 33, "__builtin_mca_map_get");
+    switch (a2.value.type) {
+        case M_T_STRING:
+            value = a2.value.as.string.value;
+            value_size = a2.value.as.string.value_length;
+            break;
+        case M_T_INT:
+            value = &a2.value.as.integer;
+            value_size = sizeof(int64_t);
+            break;
+        case M_T_BOOL:
+            value = &a2.value.as.boolean;
+            value_size = sizeof(bool);
+            break;
+        case M_T_FLOAT:
+            value = &a2.value.as.floating;
+            value_size = sizeof(double);
+            break;
+        case M_T_MAP:
+        case M_T_UNIT:
+        case M_T_COUNT:
+            assert(0 && "should never happen");
+            break;
+    }
+
+    mca_map_add(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
+
+    return a2.value;
+}
+
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -1492,6 +1645,9 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("at",        2, __builtin_mca_at),
     BIND_FN("select",    3, __builtin_mca_select),
     BIND_FN("ord",       1, __builtin_mca_ord),
+    BIND_FN("map_init",  0, __builtin_mca_map_init),
+    BIND_FN("map_get",   2, __builtin_mca_map_get),
+    BIND_FN("map_set",   3, __builtin_mca_map_set),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),

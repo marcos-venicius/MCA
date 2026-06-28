@@ -5,6 +5,7 @@
 
 #include "./ast.h"
 #include "./ht.h"
+#include "./builtins/map.h"
 
 typedef struct M_Interpreter_Environment M_Interpreter_Environment;
 
@@ -35,14 +36,16 @@ typedef enum {
     M_T_FLOAT  = 1 << 2,
     M_T_BOOL   = 1 << 3,
     M_T_STRING = 1 << 4,
+    M_T_MAP    = 1 << 5,
     M_T_COUNT
 } M_Value_Type;
 
 typedef union {
-    double floating;
-    int64_t integer;
-    bool boolean;
-    M_String string;
+    double    floating;
+    int64_t   integer;
+    bool      boolean;
+    M_String  string;
+    M_Map    *map;
 } M_Value_Union;
 
 typedef struct {

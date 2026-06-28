@@ -15,6 +15,9 @@
 #define CLIBS_ARENA_IMPLEMENTATION
 #include "./arena.h"
 
+#define MCA_MAP_IMPLEMENTATION
+#include "./builtins/map.h"
+
 typedef struct {
     const char *input_file_name;
     const char *math;

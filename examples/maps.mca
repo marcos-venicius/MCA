@@ -1,0 +1,19 @@
+#!/usr/local/bin/mca -i
+
+m = map_init()
+
+map_set(m, 1, 'Hello, World')
+map_set(m, 1, 'Hello, World updated!')
+map_set(m, 'Hey', 1337)
+
+println(m)
+println()
+
+print('key 1: ')
+type(map_get(m, 1))
+print('key 2: ')
+type(map_get(m, 'Hey'))
+print('invalid key: ')
+type(map_get(m, 'non existent'))
+
+# vim: set syntax=r :
