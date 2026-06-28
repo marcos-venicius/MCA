@@ -403,6 +403,7 @@ int main(void) {
     TEST_CASE("as_int(true)", T_INT(1));
     TEST_CASE("as_int('-103956')", T_INT(-103956));
     TEST_CASE("as_int('103956')", T_INT(103956));
+    TEST_CASE("as_int(at('103956', 2))", T_INT(3));
     TEST_CASE("as_float(10)", T_FLOAT(10.0));
     TEST_CASE("as_float(false)", T_FLOAT(0.0));
     TEST_CASE("as_float('-23.2356')", T_FLOAT(-23.2356));

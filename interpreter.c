@@ -1217,7 +1217,7 @@ static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *argument
         case M_T_STRING: {
             char *endptr;
             int size = result.value.as.string.value_length;
-            char *str = result.value.as.string.value;
+            char *str = result.value.allocated ? result.value.as.string.value : strndup(result.value.as.string.value, result.value.as.string.value_length);
 
             errno = 0;
 
@@ -1230,6 +1230,9 @@ static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *argument
             } else if (*endptr != '\0') {
                 m_interpreter_error(arguments[0], "'%.*s' is not a valid integer literal", size, str);
             }
+
+            // free current allocation
+            if (!result.value.allocated) free(str);
 
             return m_value_int(v);
         };
