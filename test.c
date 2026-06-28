@@ -293,6 +293,7 @@ int main(void) {
     TEST_CASE("ord('a')", T_INT('a'));
     TEST_CASE("ord('b')", T_INT('b'));
     TEST_CASE("ord('z')", T_INT('z'));
+    TEST_CASE("format('Hello ', 'World!', ' I am ', 5, ' years old. And ', 5.6, ' feet. I am a ', true, ' tall. I am not ', false)", T_STRING("Hello World! I am 5 years old. And 5.6 feet. I am a true tall. I am not false"));
 
     TEST_CASE_LABEL("Binary operators (equality & relational)");
     TEST_CASE("5 == 5", T_BOOL(true));

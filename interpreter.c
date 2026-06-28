@@ -1600,6 +1600,81 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     return a2.value;
 }
 
+static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    if (arguments_count <= 0) {
+        m_interpreter_error(caller, "expected at least one argument but received %d", arguments_count);
+    }
+
+    size_t buffer_cap = 128;
+    size_t buffer_len = 0;
+    char *buffer = malloc(buffer_cap);
+
+    if (!buffer) {
+        m_interpreter_error(caller, "out of memory during format");
+    }
+    buffer[0] = '\0';
+
+    for (int i = 0; i < arguments_count; i++) {
+        M_Eval_Result result = m_result_expect_type(
+            arguments[i],
+            evaluate_expression(arguments[i]),
+            M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL
+        );
+
+        M_Value val = result.value;
+
+        char temp_num_buf[128];
+        const char *to_append = "";
+        size_t append_len = 0;
+
+        switch (val.type) {
+            case M_T_INT:
+                append_len = snprintf(temp_num_buf, sizeof(temp_num_buf), "%" PRId64, val.as.integer);
+                to_append = temp_num_buf;
+                break;
+            case M_T_FLOAT:
+                append_len = snprintf(temp_num_buf, sizeof(temp_num_buf), "%g", val.as.floating);
+                to_append = temp_num_buf;
+                break;
+            case M_T_BOOL:
+                to_append = val.as.boolean ? "true" : "false";
+                append_len = strlen(to_append);
+                break;
+            case M_T_STRING:
+                to_append = val.as.string.value;
+                append_len = val.as.string.value_length;
+                break;
+            default:
+                assert(0 && "__builtin_mca_format: should never happen");
+                break;
+        }
+
+        if (buffer_len + append_len + 1 > buffer_cap) {
+            while (buffer_len + append_len + 1 > buffer_cap) {
+                buffer_cap *= 2;
+            }
+            buffer = realloc(buffer, buffer_cap);
+            if (!buffer) {
+                m_interpreter_error(caller, "out of memory during format reallocation");
+            }
+        }
+
+        memcpy(buffer + buffer_len, to_append, append_len);
+        buffer_len += append_len;
+        buffer[buffer_len] = '\0';
+    }
+
+    M_Value final_result;
+    final_result.allocated = true;
+    final_result.type = M_T_STRING;
+
+    final_result.as.string.value = buffer;
+    final_result.as.string.value_length = buffer_len;
+
+    return final_result;
+}
+
+// TODO: add a 'help' function that prints out the help for any builtin function
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -1648,6 +1723,7 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("map_init",  0, __builtin_mca_map_init),
     BIND_FN("map_get",   2, __builtin_mca_map_get),
     BIND_FN("map_set",   3, __builtin_mca_map_set),
+    BIND_FN("format",   -1, __builtin_mca_format), // format strings
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),
