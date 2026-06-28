@@ -1598,9 +1598,62 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             break;
     }
 
-    mca_map_add(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
+    mca_map_set(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
 
     return a2.value;
+}
+
+static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    // for now, we will be able to have only integers and strings as keys
+    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
+
+    void *key       = NULL;
+    size_t key_size = 0;
+    int key_type    = a1.value.type;
+
+    switch (a1.value.type) {
+        case M_T_INT:
+            key = &a1.value.as.integer;
+            key_size = sizeof(int64_t);
+            break;
+        case M_T_STRING:
+            key = a1.value.as.string.value;
+            key_size = a1.value.as.string.value_length;
+        default:
+            break;
+    }
+
+    bool deleted = mca_map_del(a0.value.as.map, key, key_size, key_type);
+
+    return m_value_bool(deleted);
+}
+
+static M_Value __builtin_mca_map_len(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    return m_value_int(a0.value.as.map->size);
+}
+
+static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    mca_map_free(a0.value.as.map);
+
+    M_Map *new_map = mca_map_init();
+
+    return (M_Value){
+        .type = M_T_MAP,
+        .allocated = true,
+        .as.map = new_map
+    };
 }
 
 static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1723,10 +1776,14 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("at",        2, __builtin_mca_at),
     BIND_FN("select",    3, __builtin_mca_select),
     BIND_FN("ord",       1, __builtin_mca_ord),
+    BIND_FN("format",   -1, __builtin_mca_format), // format strings
+    // First map implementation
     BIND_FN("map_init",  0, __builtin_mca_map_init),
     BIND_FN("map_get",   2, __builtin_mca_map_get),
+    BIND_FN("map_len",   1, __builtin_mca_map_len),
     BIND_FN("map_set",   3, __builtin_mca_map_set),
-    BIND_FN("format",   -1, __builtin_mca_format), // format strings
+    BIND_FN("map_del",   2, __builtin_mca_map_del),
+    BIND_FN("map_clear", 1, __builtin_mca_map_clear),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),

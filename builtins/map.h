@@ -26,7 +26,8 @@ typedef struct {
 } M_Map;
 
 M_Map            *mca_map_init();
-void              mca_map_add(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type);
+void              mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type);
+bool              mca_map_del(M_Map *m, void *key, size_t key_size, int key_type);
 M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_type);
 void              mca_map_free(M_Map *m);
 
@@ -71,6 +72,12 @@ static mca_map_node_t *alloc_node(void *key, size_t key_size, int key_type, void
     return node;
 }
 
+static void free_node(mca_map_node_t *node) {
+    free(node->key.data);
+    free(node->value.data);
+    free(node);
+}
+
 static int cmp_keys(void *key, size_t key_size, int key_type, M_Map_Node_Entry *entry) {
     if (entry->size != key_size) return 0;
     if (entry->type != key_type) return 0;
@@ -84,7 +91,7 @@ M_Map *mca_map_init() {
     return map;
 }
 
-void mca_map_add(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type) {
+void mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type) {
     uint32_t index = hash_key(key, key_size, key_type);
 
     if (m->nodes[index] == NULL) {
@@ -118,6 +125,34 @@ void mca_map_add(M_Map *m, void *key, size_t key_size, int key_type, void *value
     }
 }
 
+bool mca_map_del(M_Map *m, void *key, size_t key_size, int key_type) {
+    uint32_t index = hash_key(key, key_size, key_type);
+
+    mca_map_node_t *slow = NULL; 
+    mca_map_node_t *fast = m->nodes[index];
+
+    while (fast) {
+        if (cmp_keys(key, key_size, key_type, &fast->key)) {
+            if (!slow) {
+                m->nodes[index] = fast->next;
+            } else {
+                slow->next = fast->next;
+            }
+
+            free_node(fast);
+
+            m->size--;
+
+            return true;
+        }
+
+        slow = fast;
+        fast = fast->next;
+    }
+
+    return false;
+}
+
 M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_type) {
     uint32_t index = hash_key(key, key_size, key_type);
 
@@ -142,9 +177,7 @@ void mca_map_free(M_Map *m) {
         while (head) {
             mca_map_node_t *next = head->next;
 
-            free(head->key.data);
-            free(head->value.data);
-            free(head);
+            free_node(head);
 
             head = next;
         }

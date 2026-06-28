@@ -429,6 +429,55 @@ int main(void) {
     TEST_CASE("println('Hello, World')", T_STRING("Hello, World"));
     TEST_CASE("print('Hello, World\\n')", T_STRING("Hello, World\n"));
 
+    TEST_CASE_LABEL("Hashmaps");
+    TEST_CASE(
+        "m = map_init();"
+        "map_len(m);",
+        T_INT(0)
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 1, 'Hello, World');"
+        "map_get(m, 1)",
+        T_STRING("Hello, World")
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 1, 'Hello, World');"
+        "map_get(m, 2)",
+        T_UNIT()
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 1, 'Hello, World');",
+        T_STRING("Hello, World")
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 'width', '3rem');"
+        "map_set(m, 'height', '3rem');"
+        "map_set(m, 'z-index', 999);"
+        "map_del(m, 'height')",
+        T_BOOL(true)
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 'width', '3rem');"
+        "map_set(m, 'height', '3rem');"
+        "map_set(m, 'z-index', 999);"
+        "map_del(m, 'Height')",
+        T_BOOL(false)
+    );
+    TEST_CASE(
+        "m = map_init();"
+        "map_set(m, 'width', '3rem');"
+        "map_set(m, 'height', '3rem');"
+        "map_set(m, 'z-index', 999);"
+        "map_clear(m);"
+        "map_len(m)",
+        T_INT(0)
+    );
+
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);
     } else {

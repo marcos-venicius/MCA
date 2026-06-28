@@ -5,6 +5,7 @@ m = map_init()
 map_set(m, 1, 'Hello, World')
 map_set(m, 1, 'Hello, World updated!')
 map_set(m, 'Hey', 1337)
+map_set(m, 'hey', 'This is a completely different key')
 
 println(m)
 println()
@@ -15,5 +16,28 @@ print('key 2: ')
 type(map_get(m, 'Hey'))
 print('invalid key: ')
 type(map_get(m, 'non existent'))
+
+if map_del(m, 'unused key') {
+	println('You should not see this print call #1')
+	exit(1)
+}
+
+if !map_del(m, 'Hey') {
+	println('You should not see this print call #2')
+	exit(1)
+}
+
+println(map_get(m, 'hey'))
+
+println('map len: ', map_len(m))
+
+map_clear(m)
+
+println('map len: ', map_len(m))
+
+if map_len(m) {
+	println('You shoudl not see this print call #3')
+	exit(1)
+}
 
 # vim: set syntax=r :
