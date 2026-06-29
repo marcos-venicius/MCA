@@ -748,12 +748,12 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 return m_result_break(result.value);
             }
 
-            return m_result_break(m_value_zero());
+            return m_result_break(m_value_unit());
         };
         case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
     }
 
-    return (M_Eval_Result){ .value = m_value_zero(), .flow = M_CTRL_NORMAL };
+    assert(0 && "should never happen");
 }
 
 PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char **argv) {

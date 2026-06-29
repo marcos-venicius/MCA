@@ -15,13 +15,13 @@ break_value = while {
 
     println(n, a)
 
-    should_be_0 = if n >= M {
+    should_be_unit = if n >= M {
         println(3030)
 
         break CONSTANT
     }
 
-    if should_be_0 != 0 {
+    if should_be_unit != ? {
       exit(123);
     }
 };

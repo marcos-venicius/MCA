@@ -378,7 +378,7 @@ int main(void) {
 
     TEST_CASE_LABEL("Break");
     TEST_CASE("r = while 1 { n = 10; break 11.3; println(0); }; r", T_FLOAT(11.3));
-    TEST_CASE("r = while 1 { n = 10; break; println(10); }; r", T_INT(0));
+    TEST_CASE("r = while 1 { n = 10; break; println(10); }; r", T_UNIT()); // break expressions without values returns UNIT
     TEST_CASE("r = while 1 { n = 10; break floor(10 * 10 - cos(45)); println(10); }; r", T_INT(99));
 
     TEST_CASE_LABEL("If's");
