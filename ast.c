@@ -1264,8 +1264,6 @@ M_Ast *parse_expression(const char *filename, M_Token *head) {
     ast->expressions_array_arena = clibs_arena_create(sizeof(M_Expression*) * M_AST_MAX_EXPRESSION_ARRAY_SIZE, sizeof(M_Expression*));
     ast->expressions_array = (M_Expression**)ast->expressions_array_arena->buffer;
 
-    ast->expressions_array[ast->expressions_array_length++] = parse_expression_impl(ast);
-
 parse_expression_loop:
     while (token(ast) != NULL) {
         if (token(ast)->kind == M_SEMI) {

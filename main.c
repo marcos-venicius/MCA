@@ -221,8 +221,6 @@ int main(int argc, char **argv) {
         return result;
     }
 
-    if (ast == NULL) return 0;
-
     M_Interpreter *interpreter = m_interpreter_create(ast, p_arguments.argc, p_arguments.argv);
 
     m_interpreter_run(interpreter);
