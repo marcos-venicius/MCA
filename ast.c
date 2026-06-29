@@ -363,16 +363,20 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
         return NULL;
     }
 
-    M_Expression_Block *block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block)); block_head->next = NULL;
-    block_head->expr = NULL;
+    M_Expression_Block *block_head = NULL;
     M_Expression_Block *block_tail = NULL;
 
     if (token(ast)->kind != M_LCURLY) {
-        M_Expression *expr = parse_expression_impl(ast);
+        if (token(ast)->kind == M_SEMI) {
+            next_token(ast);
+        } else {
+            M_Expression *expr = parse_expression_impl(ast);
 
-        block_head->expr = expr;
-        block_head->next = NULL;
-        block_tail = block_head;
+            block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
+            block_head->expr = expr;
+            block_head->next = NULL;
+            block_tail = block_head;
+        }
     } else if (token(ast)->kind == M_LCURLY) {
         next_token(ast); // skip '{'
 
@@ -389,6 +393,7 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
             if (expr == NULL) return NULL;
 
             if (block_tail == NULL) {
+                block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
                 block_head->expr = expr;
                 block_head->next = NULL;
                 block_tail = block_head;

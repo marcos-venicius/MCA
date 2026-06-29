@@ -707,7 +707,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return last_evaluated_expression;
         } break;
         case M_EK_LOOP: {
-            M_Eval_Result last_evaluated_expression = m_result_normal(m_value_zero());
+            M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             while (1) {
                 if (expression->loop.condition != NULL) {

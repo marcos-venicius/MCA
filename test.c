@@ -362,7 +362,7 @@ int main(void) {
     TEST_CASE_LABEL("Assignment");
     TEST_CASE("y = x = 10; x + y", T_INT(20));
     TEST_CASE("i = 0; while i < 10 { i += 1 }", T_INT(10));
-    TEST_CASE("i = 10; while i > 10 { i -= 1 }", T_INT(0));
+    TEST_CASE("i = 10; while i > 10 { i -= 1 }", T_UNIT());
     TEST_CASE("i = 10; i += 2", T_INT(12));
     TEST_CASE("i = 10; i += 2; i", T_INT(12));
     TEST_CASE("i = 10; i -= 2", T_INT(8));
@@ -371,7 +371,8 @@ int main(void) {
     TEST_CASE_LABEL("Loops");
     TEST_CASE("n = 10; while n < 20 { n = n + 1 }", T_INT(20));
     TEST_CASE("a = 0; b = 1; n = 0; while n < 15 { n = n + 1; t = a; a = b; b = t + b; a }", T_INT(610)); // fib
-    TEST_CASE("while 0 {}", T_INT(0));
+    TEST_CASE("while false {}", T_UNIT());
+    TEST_CASE("while false;", T_UNIT());
     TEST_CASE("n = 0; while n < 10  n += 1", T_INT(10));
     TEST_CASE("i = 0; n = 0; while n < 10  n += 1  i += 1", T_INT(1)); // when while does not have a block it accept a single expression as body
 
