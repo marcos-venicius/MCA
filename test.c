@@ -228,6 +228,10 @@ static inline void TEST_CASE_LABEL(const char *label) {
 #endif
 
 int main(void) {
+    // TESTS
+    TEST_CASE_LABEL("TOP LEVEL");
+    TEST_CASE("", T_UNIT());
+
     TEST_CASE_LABEL("Basic arithmetic");
     TEST_CASE("1 + 2", T_INT(3));
     TEST_CASE("10 - 5", T_INT(5));

@@ -788,9 +788,9 @@ PUBLIC void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream) {
 }
 
 PUBLIC M_Value m_interpreter_run(M_Interpreter *interpreter) {
-    if (interpreter->program == NULL) return m_value_zero();
+    if (interpreter->program == NULL) return m_value_unit();
 
-    M_Value last_evaluated_expression = m_value_zero();
+    M_Value last_evaluated_expression = m_value_unit();
 
     for (int i = 0; i < interpreter->program->expressions_array_length; i++) {
         M_Expression *expr = interpreter->program->expressions_array[i];
