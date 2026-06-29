@@ -30,7 +30,7 @@ typedef enum {
     M_EK_UNARY,
     M_EK_EXPRESSION_LIST,
     M_EK_CALL,
-    M_EK_LOOP,
+    M_EK_WHILE,
     M_EK_BREAK,
     M_EK_IF,
 } M_Expression_Kind;
@@ -135,7 +135,7 @@ struct M_Expression {
         struct {
             M_Expression        *condition;
             M_Expression_Block  *block;
-        } loop;
+        } while_loop;
 
         struct {
             M_Expression            *condition;

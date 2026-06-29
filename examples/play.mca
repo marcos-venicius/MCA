@@ -1,8 +1,8 @@
 #!/usr/local/bin/mca -i
 
-a = if 0 == 1 { } elif 1 == 0 { } else { }
-
-a = if 0 == 0; elif 0 == 0; else;
+for k, i in m {
+  println(k, i)
+}
 
 println(a, ' ', type(a))
 # vim: set syntax=r :

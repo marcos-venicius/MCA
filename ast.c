@@ -337,7 +337,7 @@ static M_Expression *parse_break_expression(M_Ast *ast) {
     return loop_break;
 }
 
-static M_Expression *parse_loop_expression(M_Ast *ast) {
+static M_Expression *parse_while_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
     next_token(ast); // jump keyword
@@ -358,7 +358,7 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
     }
 
     if (token(ast) == NULL) {
-        ast_error(ast, first_token, "unterminated loop expression. expected '{' but got EOF");
+        ast_error(ast, first_token, "unterminated while expression. expected '{' but got EOF");
         synchronize(ast);
         return NULL;
     }
@@ -409,35 +409,41 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
         }
 
         if (token(ast) == NULL) {
-            ast_error(ast, first_token, "unterminated loop expression. expected '}' but got EOF");
+            ast_error(ast, first_token, "unterminated while expression. expected '}' but got EOF");
             synchronize(ast);
             return NULL;
         }
 
         if (token(ast)->kind != M_RCURLY) {
-            ast_error(ast, first_token, "unterminated loop expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
+            ast_error(ast, first_token, "unterminated while expression. expected '}' but got '%.*s", token(ast)->size, token(ast)->value);
             synchronize(ast);
             return NULL;
         }
 
         next_token(ast); // skip '}'
     } else {
-        ast_error(ast, first_token, "unterminated loop expression. expected expression or block got '%.*s", token(ast)->size, token(ast)->value);
+        ast_error(ast, first_token, "unterminated while expression. expected expression or block got '%.*s", token(ast)->size, token(ast)->value);
         synchronize(ast);
         return NULL;
     }
 
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
-    expr->kind = M_EK_LOOP;
+    expr->kind = M_EK_WHILE;
     expr->location = (M_Location){
         .line = first_token->loc.line,
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    expr->loop.condition = condition; // means infinite
-    expr->loop.block = block_head;
+    expr->while_loop.condition = condition; // means infinite
+    expr->while_loop.block = block_head;
 
     return expr;
+}
+
+static M_Expression *parse_for_expression(M_Ast *ast) {
+    (void)ast;
+    assert(0 && "not implemented yet");
+    return NULL;
 }
 
 static M_Expression *parse_if_expression(M_Ast *ast) {
@@ -830,7 +836,9 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         // and this pointer is a function that parses this keyword semantics
 
         if (token(ast)->size == 5 && strncmp(token(ast)->value, "while", 5) == 0) {
-            return parse_loop_expression(ast);
+            return parse_while_expression(ast);
+        } else if (token(ast)->size == 3 && strncmp(token(ast)->value, "for", 3) == 0) {
+            return parse_for_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
         } else if (token(ast)->size == 2 && strncmp(token(ast)->value, "if", 2) == 0) {

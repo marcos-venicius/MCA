@@ -705,28 +705,28 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
             return last_evaluated_expression;
         } break;
-        case M_EK_LOOP: {
+        case M_EK_WHILE: {
             M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             while (1) {
-                if (expression->loop.condition != NULL) {
-                    M_Eval_Result condition = evaluate_expression(expression->loop.condition);
+                if (expression->while_loop.condition != NULL) {
+                    M_Eval_Result condition = evaluate_expression(expression->while_loop.condition);
 
                     int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
                     if (evaluated_condition == -1) {
-                        m_interpreter_error(expression->loop.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
+                        m_interpreter_error(expression->while_loop.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
                     }
 
                     if (!evaluated_condition) break;
                 }
 
 
-                if (expression->loop.block != NULL) {
+                if (expression->while_loop.block != NULL) {
                     // entering the loop block
                     enter_new_environment();
 
-                    last_evaluated_expression = evaluate_block_expression(expression->loop.block);
+                    last_evaluated_expression = evaluate_block_expression(expression->while_loop.block);
 
                     // quiting the loop block
                     destroy_current_environment();
