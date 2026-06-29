@@ -39,6 +39,7 @@ void              mca_map_free(M_Map *m);
 
 M_Map_Iterator *mca_map_iterator(M_Map *m);
 M_Map_Node     *mca_map_iterator_next(M_Map_Iterator *it);
+bool            mca_map_iterator_finished(M_Map_Iterator *it);
 void            mca_map_iterator_free(M_Map_Iterator *it);
 
 #endif // MCA_MAP_H_
@@ -203,11 +204,13 @@ M_Map_Iterator *mca_map_iterator(M_Map *m) {
     it->idx = 0;
     it->it  = NULL;
 
+    mca_map_iterator_next(it);
+
     return it;
 }
 
 M_Map_Node *mca_map_iterator_next(M_Map_Iterator *it) {
-    if (it == NULL || (it->idx >= __MCA_MAP_CAP && it->it == NULL)) return NULL;
+    if (mca_map_iterator_finished(it)) return NULL;
 
     if (it->it != NULL) {
         if (it->it->next != NULL) {
@@ -230,6 +233,10 @@ M_Map_Node *mca_map_iterator_next(M_Map_Iterator *it) {
     it->it = NULL;
 
     return NULL;
+}
+
+inline bool mca_map_iterator_finished(M_Map_Iterator *it) {
+    return it == NULL || (it->idx >= __MCA_MAP_CAP && it->it == NULL);
 }
 
 void mca_map_iterator_free(M_Map_Iterator *it) {

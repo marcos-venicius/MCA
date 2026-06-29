@@ -29,15 +29,52 @@ if !map_del(m, 'Hey') {
 
 println(map_get(m, 'hey'))
 
-println('map len: ', map_len(m))
+println('map len: ', len(m))
 
 map_clear(m)
 
-println('map len: ', map_len(m))
+println('map len: ', len(m))
 
-if map_len(m) {
+if len(m) {
 	println('You shoudl not see this print call #3')
 	exit(1)
 }
+
+println('\n\n\n\n\n')
+
+i = 0; while i < 50 {
+	print('#')
+
+	i += 1
+}
+println('\n')
+
+root = map_init()
+map_set(root, 'width', '100%')
+map_set(root, 'height', '100%')
+map_set(root, 'box-sizing', 'border-box')
+map_set(root, 'font-size', '16px')
+map_set(root, 'z-index', 50)
+map_set(root, 'background-color', '#1A1A1A')
+map_set(root, 'fake-property', true)
+
+println('html {')
+it = map_it(root); while !map_it_done(it) {
+	key   = map_it_key(it)
+	value = map_it_value(it)
+
+	print('    ', key, ': ')
+
+	if type(value) == 'string' {
+		println('"', value, '";')
+	} elif type(value) == 'int' {
+		println(value, ';')
+	} else {
+		println('/* what is \'', value, '\' */;')
+	}
+	
+	map_it_next(it);
+}
+println('}\n')
 
 # vim: set syntax=r :

@@ -39,6 +39,8 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 #define m_value_bool(v) ((M_Value){ .type = M_T_BOOL, .as.boolean = (v) })
 #define m_value_true() ((M_Value){ .type = M_T_BOOL, .as.boolean = true })
 #define m_value_false() ((M_Value){ .type = M_T_BOOL, .as.boolean = false })
+#define m_value_map_it(it) ((M_Value){ .type = M_T_MAP_IT, .as.map_it = it })
+#define m_string(s) ((M_String){ .value = s, .value_length = strlen(s) })
 
 #define m_result_normal(v) (M_Eval_Result){ .flow = M_CTRL_NORMAL, .value = (v) }
 #define m_result_break(v) (M_Eval_Result){ .flow = M_CTRL_BREAK, .value = (v) }
@@ -101,7 +103,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
 
 #define HANDLE_M_VALUE_TYPE_NAME(T, name) if (t & T) { size += snprintf(buffer + size, 256 - size, "%s"name, (size > 0) ? " | " : ""); t &= ~T; }
 static const char *m_value_type_name(M_Value_Type type) {
-    static_assert(M_T_COUNT == 33, "m_value_type_name: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 65, "m_value_type_name: missing M_Value_Type handling");
 
     int t = type;
 
@@ -120,6 +122,7 @@ static const char *m_value_type_name(M_Value_Type type) {
     HANDLE_M_VALUE_TYPE_NAME(M_T_UNIT, "unit")
     HANDLE_M_VALUE_TYPE_NAME(M_T_STRING, "string")
     HANDLE_M_VALUE_TYPE_NAME(M_T_MAP, "map")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_MAP_IT, "iter<map>")
 
     if (t != 0)
         snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
@@ -196,7 +199,7 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
 }
 
 static int evaluate_m_value_as_internal_boolean(M_Value value) {
-    static_assert(M_T_COUNT == 33, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 65, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
 
     switch (value.type) {
         case M_T_INT:   return value.as.integer != 0;
@@ -642,6 +645,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                         case M_T_STRING:
                         case M_T_UNIT:
                         case M_T_MAP:
+                        case M_T_MAP_IT:
                         case M_T_COUNT:
                             assert(0 && "case M_UNARY_NOT_OP: unreachable");
                             break;
@@ -656,7 +660,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_BINARY: return evaluate_binary_expression(expression);
         case M_EK_IF: {
             M_Eval_Result condition = evaluate_expression(expression->if_expr.condition);
-            M_Eval_Result last_evaluated_expression = m_result_normal(m_value_zero());
+            M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
@@ -677,7 +681,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                         int evaluated_elif_condition = evaluate_m_value_as_internal_boolean(elif_condition.value);
 
                         if (evaluated_elif_condition == -1)
-                            m_interpreter_error(current_elif->condition, "failed to check truthiness of '%s' data type on that 'elif'", m_value_type_name(condition.value.type));
+                            m_interpreter_error(current_elif->condition, "failed to check truthiness of '%s' data type on that 'elif'", m_value_type_name(elif_condition.value.type));
 
                         if (evaluated_elif_condition) {
                             if (current_elif->block != NULL) {
@@ -686,7 +690,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                                 destroy_current_environment(); // quit 'elif' block
                             }
 
-                            goto after_else_block; // we reached a valid elif so we avoid going to the else block
+                            return last_evaluated_expression;
                         }
 
                         current_elif = current_elif->next;
@@ -700,7 +704,6 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 }
             }
 
-after_else_block:
             return last_evaluated_expression;
         } break;
         case M_EK_LOOP: {
@@ -989,6 +992,11 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
             case M_T_MAP:
                 __print_map_helper(interpreter->io_out, last_value.as.map);
                 break;
+            case M_T_MAP_IT:
+                fprintf(interpreter->io_out, "iter<"); 
+                __print_map_helper(interpreter->io_out, last_value.as.map_it->map);
+                fprintf(interpreter->io_out, ">");
+                break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
                 break;
@@ -1179,29 +1187,25 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
 
     switch (result.value.type) {
         case M_T_INT:
-            fprintf(interpreter->io_out, "int(%ld)\n", result.value.as.integer);
-            break;
+            return m_value_string(m_string("int"));
         case M_T_FLOAT:
-            fprintf(interpreter->io_out, "float(%lf)\n", result.value.as.floating);
-            break;
+            return m_value_string(m_string("float"));
         case M_T_BOOL:
-            fprintf(interpreter->io_out, "bool(%s)\n", result.value.as.boolean ? "true" : "false");
-            break;
+            return m_value_string(m_string("bool"));
         case M_T_UNIT:
-            fprintf(interpreter->io_out, "unit\n");
-            break;
+            return m_value_string(m_string("unit"));
         case M_T_STRING:
-            fprintf(interpreter->io_out, "string(\"%.*s\")\n", result.value.as.string.value_length, result.value.as.string.value);
-            break;
+            return m_value_string(m_string("string"));
         case M_T_MAP:
-            fprintf(interpreter->io_out, "map(%d)\n", result.value.as.map->size);
-            break;
+            return m_value_string(m_string("map"));
+        case M_T_MAP_IT:
+            return m_value_string(m_string("iter<map>"));
         case M_T_COUNT:
             assert(0 && "__builtin_mca_type: unreachable M_T_COUNT");
             break;
     }
 
-    return result.value;
+    assert(0 && "should never happen");
 }
 
 static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1253,7 +1257,7 @@ static M_Value __builtin_mca_as_float(M_Expression *caller, M_Expression *argume
         case M_T_FLOAT: return result.value;
         case M_T_BOOL:  return m_value_float(result.value.as.boolean ? 1.0 : 0.0);
         case M_T_STRING: {
-            char *endptr;
+            char *endptr = NULL;
             int size = result.value.as.string.value_length;
             char *str = result.value.as.string.value;
 
@@ -1266,7 +1270,7 @@ static M_Value __builtin_mca_as_float(M_Expression *caller, M_Expression *argume
             } else if (endptr == str) {
                 m_interpreter_error(arguments[0], "'%.*s' is not a valid number", size, str);
             } else if (*endptr != '\0') {
-                m_interpreter_error(arguments[0], "'%.*s' is not a valid float literal", size, str);
+                m_interpreter_error(arguments[0], "'%.*s' is not a valid float literal: %s", size, str, endptr);
             }
 
             return m_value_float(v);
@@ -1349,6 +1353,7 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
     switch (result.value.type) {
         case M_T_STRING: return m_value_int(result.value.as.string.value_length);
         case M_T_MAP: return m_value_int(result.value.as.map->size);
+        case M_T_MAP_IT:
         case M_T_INT:
         case M_T_FLOAT:
         case M_T_BOOL:
@@ -1476,6 +1481,43 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
     };
 }
 
+static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
+    if (entry == NULL) return m_value_unit();
+
+    static_assert(M_T_COUNT == 65, "__builtin_mca_map_get");
+    switch (entry->type) {
+        case M_T_STRING:
+            return (M_Value){
+                .allocated = true,
+                .type = M_T_STRING,
+                .as.string.value = entry->data,
+                .as.string.value_length = entry->size - 1 // ignore the null-byte on counting length
+            };
+        case M_T_INT:
+            return (M_Value){
+                .type = M_T_INT,
+                .as.integer = *(int64_t*)entry->data,
+            };
+        case M_T_BOOL:
+            return (M_Value){
+                .type = M_T_BOOL,
+                .as.boolean = *(bool*)entry->data,
+            };
+        case M_T_FLOAT:
+            return (M_Value){
+                .type = M_T_FLOAT,
+                .as.floating = *(double*)entry->data,
+            };
+        case M_T_UNIT:
+        case M_T_MAP_IT:
+        case M_T_MAP:
+            assert(0 && "TODO: for now, we don't accept nested hashmaps nor iterators or unit as value");
+            break;
+    }
+
+    assert(0 && "should never happen");
+}
+
 static M_Value __builtin_mca_map_init(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments;
@@ -1510,47 +1552,14 @@ static M_Value __builtin_mca_map_get(M_Expression *caller, M_Expression *argumen
             break;
         case M_T_STRING:
             key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length;
+            key_size = a1.value.as.string.value_length + 1; // include the null-byte
         default:
             break;
     }
 
     M_Map_Node_Entry *entry = mca_map_find(a0.value.as.map, key, key_size, key_type);
 
-    if (entry == NULL) return m_value_unit();
-
-    static_assert(M_T_COUNT == 33, "__builtin_mca_map_get");
-    switch (entry->type) {
-        case M_T_STRING:
-            return (M_Value){
-                .allocated = true,
-                .type = M_T_STRING,
-                .as.string.value = entry->data,
-                .as.string.value_length = entry->size
-            };
-        case M_T_INT:
-            return (M_Value){
-                .type = M_T_INT,
-                .as.integer = *(int64_t*)entry->data,
-            };
-        case M_T_BOOL:
-            return (M_Value){
-                .type = M_T_BOOL,
-                .as.boolean = *(bool*)entry->data,
-            };
-        case M_T_FLOAT:
-            return (M_Value){
-                .type = M_T_FLOAT,
-                .as.floating = *(double*)entry->data,
-            };
-        case M_T_MAP:
-            assert(0 && "TODO: for now, we don't accept nested hashmaps");
-            break;
-    }
-
-    assert(0 && "__builtin_mca_map_get: missing handle some value type");
-
-    return m_value_zero(); // unreachable
+    return __builtin_mca_map_parse_m_map_node_entry_helper(entry);
 }
 
 static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1562,7 +1571,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     // for now, we will be able to have only integers and strings as keys
     M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
 
-    static_assert(M_T_COUNT == 33, "mca_map_value");
+    static_assert(M_T_COUNT == 65, "mca_map_value");
     M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
 
     void *key       = NULL;
@@ -1580,16 +1589,16 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             break;
         case M_T_STRING:
             key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length;
+            key_size = a1.value.as.string.value_length + 1; // save the null-byte
         default:
             break;
     }
 
-    static_assert(M_T_COUNT == 33, "__builtin_mca_map_get");
+    static_assert(M_T_COUNT == 65, "__builtin_mca_map_set");
     switch (a2.value.type) {
         case M_T_STRING:
             value = a2.value.as.string.value;
-            value_size = a2.value.as.string.value_length;
+            value_size = a2.value.as.string.value_length + 1; // save the null-byte
             break;
         case M_T_INT:
             value = &a2.value.as.integer;
@@ -1604,6 +1613,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             value_size = sizeof(double);
             break;
         case M_T_MAP:
+        case M_T_MAP_IT:
         case M_T_UNIT:
         case M_T_COUNT:
             assert(0 && "should never happen");
@@ -1634,7 +1644,7 @@ static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *argumen
             break;
         case M_T_STRING:
             key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length;
+            key_size = a1.value.as.string.value_length + 1; // null-byte
         default:
             break;
     }
@@ -1654,6 +1664,84 @@ static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *argum
     a0.value.as.map = mca_map_init();
 
     return m_value_unit();
+}
+
+static M_Value __builtin_mca_map_it(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+
+    M_Map_Iterator *it = mca_map_iterator(a0.value.as.map);
+
+    return m_value_map_it(it);
+}
+
+static M_Value __builtin_mca_map_it_close(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+
+    if (mca_map_iterator_finished(a0.value.as.map_it)) return m_value_unit();
+
+    mca_map_iterator_free(a0.value.as.map_it);
+
+    return m_value_unit();
+}
+
+static M_Value __builtin_mca_map_it_next(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+
+    M_Map_Iterator *it = a0.value.as.map_it;
+
+    if (mca_map_iterator_finished(it)) return m_value_bool(false);
+
+    M_Map_Node *node = mca_map_iterator_next(it);
+
+    if (node == NULL) return m_value_bool(false);
+
+    return m_value_bool(true);
+}
+
+static M_Value __builtin_mca_map_it_done(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+
+    return m_value_bool(mca_map_iterator_finished(a0.value.as.map_it));
+}
+
+static M_Value __builtin_mca_map_it_key(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+
+    M_Map_Iterator *it = a0.value.as.map_it;
+
+    // TODO: should I 'throw' an error?
+    if (mca_map_iterator_finished(it)) return m_value_unit();
+
+    return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
+}
+
+static M_Value __builtin_mca_map_it_value(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+
+    M_Map_Iterator *it = a0.value.as.map_it;
+
+    // TODO: should I 'throw' an error?
+    if (mca_map_iterator_finished(it)) return m_value_unit();
+
+    return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
 }
 
 static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1783,6 +1871,13 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("map_set",   3, __builtin_mca_map_set),
     BIND_FN("map_del",   2, __builtin_mca_map_del),
     BIND_FN("map_clear", 1, __builtin_mca_map_clear),
+    // map iterators (TODO: I may improve the use experience later when we have more data structures)
+    BIND_FN("map_it",       1, __builtin_mca_map_it),
+    BIND_FN("map_it_done",  1, __builtin_mca_map_it_done),
+    BIND_FN("map_it_next",  1, __builtin_mca_map_it_next),
+    BIND_FN("map_it_key",   1, __builtin_mca_map_it_key),
+    BIND_FN("map_it_value", 1, __builtin_mca_map_it_value),
+    BIND_FN("map_it_close", 1, __builtin_mca_map_it_close),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),

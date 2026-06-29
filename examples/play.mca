@@ -12,15 +12,26 @@ r = map_clear(m)
 
 println('result: ', r, ', map: ', m)
 
-map_set(m, 1, 'Hello');
-map_set(m, 2, 'Hello');
-map_set(m, 3, 'Hello');
-map_set(m, 4, 'Hello');
-map_set(m, 5, 'Hello');
-map_set(m, 6, 'Hello');
+map_set(m, 1, 'Hello One');
+map_set(m, 2, 'Hello Two');
+map_set(m, 3, 'Hello Three');
+map_set(m, 4, 'Hello Four');
+map_set(m, 5, 'Hello Five');
+map_set(m, 6, 'Hello Six');
+map_set(m, 7, 7);
+map_set(m, 8, 7);
+map_set(m, 'testing', deg(cos(deg(90))));
 
 println('len: ', len(m))
 
-map_clear(m)
+it = map_it(m)
+
+while !map_it_done(it) {
+  key = map_it_key(it) value = map_it_value(it)
+
+  println('key: ', key, '; value: ', value)
+
+  map_it_next(it)
+} map_it_close(it)
 
 # vim: set syntax=r :

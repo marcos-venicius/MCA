@@ -438,7 +438,7 @@ static M_Expression *parse_loop_expression(M_Ast *ast) {
 static M_Expression *parse_if_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
-    next_token(ast); // jump keyword
+    next_token(ast); // jump 'if' keyword
 
     if (token(ast) == NULL) {
         ast_error(ast, first_token, "unterminated if expression. expected an expression but got EOF");
@@ -446,9 +446,9 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         return NULL;
     }
 
-    M_Expression *condition = parse_expression_impl(ast);
+    M_Expression *if_condition = parse_expression_impl(ast);
 
-    if (condition == NULL) {
+    if (if_condition == NULL) {
         ast_error(ast, first_token, "unterminated if expression. expected an expression 'if ... {");
         synchronize(ast);
         return NULL;
@@ -460,15 +460,8 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         return NULL;
     }
 
-    M_Expression_Block *then_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
-    then_head->next = NULL;
-    then_head->expr = NULL;
+    M_Expression_Block *then_head = NULL;
     M_Expression_Block *then_tail = NULL;
-
-    M_Expression_Block *else_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
-    else_head->next = NULL;
-    else_head->expr = NULL;
-    M_Expression_Block *else_tail = NULL;
 
     if (token(ast)->kind == M_LCURLY) {
         next_token(ast); // skip '{'
@@ -486,6 +479,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             if (expr == NULL) return NULL;
 
             if (then_tail == NULL) {
+                then_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
                 then_head->expr = expr;
                 then_head->next = NULL;
                 then_tail = then_head;
@@ -519,10 +513,13 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         // just propagating upper errors
         if (expr == NULL) return NULL;
 
+        then_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
         then_head->expr = expr;
         then_head->next = NULL;
         then_tail = then_head;
     }
+
+    // end 'if' expression
 
     M_Expression_Elif_Block *elif_head = NULL;
     M_Expression_Elif_Block *elif_tail = NULL;
@@ -536,12 +533,15 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             elif_tail = elif_head;
         } else {
             M_Expression_Elif_Block *next_elif = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Elif_Block));
+            next_elif->block = NULL;
+            next_elif->condition = NULL;
+            next_elif->next = NULL;
 
             elif_tail->next = next_elif;
             elif_tail = elif_tail->next;
         }
 
-        next_token(ast); // skip 'elif'
+        next_token(ast); // skip 'elif' keyword
 
         if (token(ast) == NULL) {
             ast_error(ast, first_token, "unterminated elif expression. expected a condition 'elif ... {' but got EOF");
@@ -554,9 +554,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         // just propagating upper errors
         if (elif_tail->condition == NULL) return NULL;
 
-        M_Expression_Block *elif_block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
-        elif_block_head->next = NULL;
-        elif_block_head->expr = NULL;
+        M_Expression_Block *elif_block_head = NULL;
         M_Expression_Block *elif_block_tail = NULL;
 
         if (token(ast)->kind == M_LCURLY) {
@@ -576,6 +574,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
                 if (expr == NULL) return NULL;
 
                 if (elif_block_tail == NULL) {
+                    elif_block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
                     elif_block_head->expr = expr;
                     elif_block_head->next = NULL;
                     elif_block_tail = elif_block_head;
@@ -611,14 +610,20 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             // just propagating upper errors
             if (expr == NULL) return NULL;
 
+            elif_block_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
             elif_block_head->expr = expr;
             elif_block_head->next = NULL;
             elif_block_tail = elif_block_head;
+
+            elif_tail->block = elif_block_head;
         }
     }
 
+    M_Expression_Block *else_head = NULL;
+    M_Expression_Block *else_tail = NULL;
+
     if (token(ast) != NULL && token(ast)->kind == M_ID && token(ast)->size == 4 && strncmp(token(ast)->value, "else", 4) == 0) {
-        next_token(ast); // jump 'else'
+        next_token(ast); // jump 'else' keyword
 
         if (token(ast) == NULL) {
             ast_error(ast, first_token, "unterminated if expression. expected 'else' block but got EOF");
@@ -642,6 +647,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
                 if (expr == NULL) return NULL;
 
                 if (else_tail == NULL) {
+                    else_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
                     else_head->expr = expr;
                     else_head->next = NULL;
                     else_tail = else_head;
@@ -675,6 +681,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             // just propagating upper errors
             if (expr == NULL) return NULL;
 
+            else_head = clibs_arena_alloc(ast->block_expression_arena, sizeof(M_Expression_Block));
             else_head->expr = expr;
             else_head->next = NULL;
             else_tail = else_head;
@@ -688,7 +695,7 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    expr->if_expr.condition = condition;
+    expr->if_expr.condition = if_condition;
     expr->if_expr.then_block = then_head;
     expr->if_expr.elif_blocks = elif_head;
     expr->if_expr.else_block = else_head;
@@ -714,30 +721,34 @@ static M_Expression *parse_boolean_expression(M_Ast *ast, bool value) {
 static M_Expression *parse_string_literal_expression(M_Ast *ast) {
     M_Token *tk = token(ast);
 
-    // @Leak TODO: this think is going to be leaked
-    // later, I need to do this in a way that this doesn't happen
-    char *string_literal = calloc(tk->size + 1, sizeof(char));
+    char *string_literal = malloc(tk->size + 1);
 
     int tk_str_index = 0;
     int str_literal_index = 0;
 
     while (tk_str_index < tk->size) {
         if (tk->value[tk_str_index] == '\\') {
+            if (tk_str_index + 1 >= tk->size) break;
+
             switch (tk->value[tk_str_index + 1]) {
                 case '\'':
-                    strcat(string_literal + str_literal_index, "'");
+                    string_literal[str_literal_index] = '\'';
                     break;
                 case 'n':
-                    strcat(string_literal + str_literal_index, "\n");
+                    string_literal[str_literal_index] = '\n';
                     break;
                 case '\\':
-                    strcat(string_literal + str_literal_index, "\\");
+                    string_literal[str_literal_index] = '\\';
+                    break;
+                default:
+                    // If it's an unrecognized escape, just copy the character
+                    string_literal[str_literal_index] = tk->value[tk_str_index + 1];
                     break;
             }
 
-            tk_str_index++;
+            tk_str_index++; // Skip the backslash
         } else {
-            memcpy(string_literal + str_literal_index, tk->value + tk_str_index, 1);
+            string_literal[str_literal_index] = tk->value[tk_str_index];
         }
 
         str_literal_index++;
@@ -750,11 +761,14 @@ static M_Expression *parse_string_literal_expression(M_Ast *ast) {
         .col = tk->loc.col,
         .filename = ast->filename
     };
+    
     expr->kind = M_EK_STRING;
     expr->string.value = string_literal;
     expr->string.value_length = str_literal_index;
+    
+    expr->string.value[str_literal_index] = '\0';
 
-    next_token(ast); // jump string
+    next_token(ast); // Jump over the string token
 
     return expr;
 }

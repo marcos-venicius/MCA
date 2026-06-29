@@ -26,12 +26,12 @@ static long tests_count = 0;
 static int m_argc;
 static const char *m_argv[] = {"fakename.mca", "fakearg"};
 
-static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual, const char *file, int line) {
+static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual, const char *file, int line) {
     errors++;
 
     fprintf(stderr, "  \033[1;31mFAIL\033[0m '%s' \033[0;33m(%s:%d)\033[0m\n", expression, file, line);
 
-    static_assert(M_T_COUNT == 33, "LOG_ERROR: missing M_Value_Type handler");
+    static_assert(M_T_COUNT == 65, "LOG_ERROR: missing M_Value_Type handler");
     switch (expected.type) {
         case M_T_INT:
             fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
@@ -51,13 +51,16 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
         case M_T_MAP:
             fprintf(stderr, "       expected: map(%d)", expected.as.map->size);
             break;
+        case M_T_MAP_IT:
+            fprintf(stderr, "       expected: iter<map(%d)>", expected.as.map_it->map->size);
+            break;
         default:
             fprintf(stderr, "       expected: broken(%d)", expected.type);
             break;
     }
 
     if (actual != NULL) {
-        static_assert(M_T_COUNT == 33, "LOG_ERROR: missing M_Value_Type handler");
+        static_assert(M_T_COUNT == 65, "LOG_ERROR: missing M_Value_Type handler");
         switch (actual->type) {
             case M_T_INT:
                 fprintf(stderr, ", actual: int(%ld)", actual->as.integer);
@@ -77,6 +80,9 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
             case M_T_MAP:
                 fprintf(stderr, ", actual: map(%d)", actual->as.map->size);
                 break;
+            case M_T_MAP_IT:
+                fprintf(stderr, ", actual: iter<map(%d)>", actual->as.map_it->map->size);
+                break;
             default:
                 fprintf(stderr, ", actual: broken(%d)", actual->type);
                 break;
@@ -86,7 +92,7 @@ static inline void LOG_ERROR(const char *expression, M_Value expected, M_Value *
     fprintf(stderr, "\n");
 }
 
-static inline void LOG_SUCCESS(const char *expression, M_Value result) {
+static void LOG_SUCCESS(const char *expression, M_Value result) {
     success++;
 
     switch (result.type) {
@@ -108,13 +114,18 @@ static inline void LOG_SUCCESS(const char *expression, M_Value result) {
         case M_T_MAP:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mmap(%d)\033[0m\n", expression, result.as.map->size);
             break;
+        case M_T_MAP_IT:
+            fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37miter<map(%d)>\033[0m\n", expression, result.as.map_it->map->size);
+            break;
         case M_T_COUNT:
             assert(0 && "LOG_SUCCESS: unreachable M_T_COUNT");
             break;
     }
 }
 
-static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *file, int line) {
+static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *file, int line, bool ignore) {
+    if (ignore) return;
+
     tests_count++;
 
     M_Lexer lexer = m_lexer_create(NULL, expression, strlen(expression));
@@ -179,6 +190,9 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
                     goto clear_test_case;
                 }
                 break;
+            case M_T_MAP_IT:
+                assert(0 && "TODO: implement test case for map iterators");
+                break;
             case M_T_MAP:
                 assert(0 && "TODO: implement test case for maps");
                 break;
@@ -205,7 +219,13 @@ static inline void TEST_CASE_LABEL(const char *label) {
 #define T_FLOAT(v) (M_Value){ .type = M_T_FLOAT, .as.floating = v }
 #define T_BOOL(v) (M_Value){ .type = M_T_BOOL, .as.boolean = v }
 #define T_STRING(v) (M_Value){ .type = M_T_STRING, .as.string.value = v, .as.string.value_length = strlen(v) }
-#define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__)
+
+#if 1
+#define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, false)
+#else
+#define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, true)
+#define TEST_CASE_SINGLE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, false)
+#endif
 
 int main(void) {
     TEST_CASE_LABEL("Basic arithmetic");
@@ -262,8 +282,8 @@ int main(void) {
     TEST_CASE("ceil(4.2)", T_INT(5));
     TEST_CASE("round(4.5)", T_INT(5));
     TEST_CASE("round(4.4)", T_INT(4));
-    TEST_CASE("type(4.4)", T_FLOAT(4.4));
-    TEST_CASE("type(4)", T_INT(4));
+    TEST_CASE("type(4.4)", T_STRING("float"));
+    TEST_CASE("type(4)", T_STRING("int"));
     TEST_CASE("srand(4)", T_UNIT());
     TEST_CASE("rand(1, 10)", T_INT(2));
     TEST_CASE("len('Hello World')", T_INT(11));
@@ -374,10 +394,12 @@ int main(void) {
     TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(33));
     TEST_CASE("if 10 == 10 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(1337));
     TEST_CASE("if 10 == 11 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 2 == 1 { 33 } else { 42 }", T_INT(42));
+    TEST_CASE("if false 0 elif true { ;;;; } else true", T_UNIT());
 
     TEST_CASE_LABEL("Else's");
     TEST_CASE("if 10 == 10.1 { 1337 } else { 42 }", T_INT(42));
-    TEST_CASE("if 10 == 10.1 { 1337 } else { }", T_INT(0));
+    TEST_CASE("if 10 == 10.1 { 1337 } else { }", T_UNIT());
+    TEST_CASE("if 10 == 10.1 { 1337 } else { ;; }", T_UNIT());
 
     TEST_CASE_LABEL("Logical operators");
     TEST_CASE("if 10 == 10 and 20 == 20 { 20 } else { }", T_INT(20));
