@@ -2,5 +2,27 @@
 
 # It's just a playground file so I can test things easily.
 
+m = map_init()
+
+map_set(m, 1, 'Hello')
+map_set(m, 2, 'World')
+map_set(m, 3, '!')
+
+# println(len(m)) TODO: implement len(<map>)
+
+r = map_clear(m)
+
+println('result: ', r, ', map: ', m)
+
+map_set(m, 1, 'Hello');
+map_set(m, 2, 'Hello');
+map_set(m, 3, 'Hello');
+map_set(m, 4, 'Hello');
+map_set(m, 5, 'Hello');
+map_set(m, 6, 'Hello');
+
+println('len: ', len(m))
+
+map_clear(m)
 
 # vim: set syntax=r :

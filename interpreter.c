@@ -1344,9 +1344,21 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING | M_T_MAP);
 
-    return m_value_int(result.value.as.string.value_length);
+    switch (result.value.type) {
+        case M_T_STRING: return m_value_int(result.value.as.string.value_length);
+        case M_T_MAP: return m_value_int(result.value.as.map->size);
+        case M_T_INT:
+        case M_T_FLOAT:
+        case M_T_BOOL:
+        case M_T_UNIT:
+        case M_T_COUNT:
+            assert(0 && "should never happen");
+            break;
+    }
+
+    return m_value_zero(); // unreacheable
 }
 
 static M_Value __builtin_mca_as_srand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1632,14 +1644,6 @@ static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *argumen
     return m_value_bool(deleted);
 }
 
-static M_Value __builtin_mca_map_len(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
-    (void)caller;
-    (void)arguments_count;
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
-
-    return m_value_int(a0.value.as.map->size);
-}
-
 static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -1647,13 +1651,9 @@ static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *argum
 
     mca_map_free(a0.value.as.map);
 
-    M_Map *new_map = mca_map_init();
+    a0.value.as.map = mca_map_init();
 
-    return (M_Value){
-        .type = M_T_MAP,
-        .allocated = true,
-        .as.map = new_map
-    };
+    return m_value_unit();
 }
 
 static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1780,7 +1780,6 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     // First map implementation
     BIND_FN("map_init",  0, __builtin_mca_map_init),
     BIND_FN("map_get",   2, __builtin_mca_map_get),
-    BIND_FN("map_len",   1, __builtin_mca_map_len),
     BIND_FN("map_set",   3, __builtin_mca_map_set),
     BIND_FN("map_del",   2, __builtin_mca_map_del),
     BIND_FN("map_clear", 1, __builtin_mca_map_clear),

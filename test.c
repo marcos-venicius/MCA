@@ -432,7 +432,7 @@ int main(void) {
     TEST_CASE_LABEL("Hashmaps");
     TEST_CASE(
         "m = map_init();"
-        "map_len(m);",
+        "len(m);",
         T_INT(0)
     );
     TEST_CASE(
@@ -474,7 +474,7 @@ int main(void) {
         "map_set(m, 'height', '3rem');"
         "map_set(m, 'z-index', 999);"
         "map_clear(m);"
-        "map_len(m)",
+        "len(m)",
         T_INT(0)
     );
 
