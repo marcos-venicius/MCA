@@ -512,6 +512,8 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         }
 
         next_token(ast); // skip '}'
+    } else if (token(ast)->kind == M_SEMI) {
+        next_token(ast);
     } else {
         M_Expression *expr = parse_expression_impl(ast);
 
@@ -609,6 +611,8 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             next_token(ast); // skip '}'
 
             elif_tail->block = elif_block_head;
+        } else if (token(ast)->kind == M_SEMI) {
+            next_token(ast);
         } else {
             M_Expression *expr = parse_expression_impl(ast);
 
@@ -680,6 +684,8 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
             }
 
             next_token(ast); // skip '}'
+        } else if (token(ast)->kind == M_SEMI) {
+            next_token(ast);
         } else {
             M_Expression *expr = parse_expression_impl(ast);
 

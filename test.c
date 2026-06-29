@@ -383,14 +383,16 @@ int main(void) {
 
     TEST_CASE_LABEL("If's");
     TEST_CASE("x = 10; if x == 10 { x = 11.3 }", T_FLOAT(11.3));
+    TEST_CASE("if 0 == 0;", T_UNIT()); // empty if expression, equivalent to if 0 == 0 {}
     TEST_CASE("x = if 10 != 10.1 { 1337 }", T_INT(1337));
-    TEST_CASE("x = if 10 != 10.1 {}", T_INT(0));
+    TEST_CASE("x = if 10 != 10.1 {}", T_UNIT());
     TEST_CASE("if false 0 elif false 1 else true 2", T_INT(2));
     TEST_CASE("if false { 0 } elif false { 1 } else true 2", T_INT(2));
     TEST_CASE("if false { 0 } elif false { 1 } else { 2; 3; 4; }", T_INT(4));
     TEST_CASE("srand(4); a = if rand(0, 10) % 2 == 0 'Ok' else 'Fail'; println(a)", T_STRING("Ok"));
 
     TEST_CASE_LABEL("Elif's");
+    TEST_CASE("if 0 == 1; elif 0 == 0;", T_UNIT()); // empty elif expression, equivalent to elif 0 == 0 {}
     TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 20 { 56 } elif 1 == 1 { } else { 42 }", T_INT(56));
     TEST_CASE("if 10 == 10.1 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(33));
     TEST_CASE("if 10 == 10 { 1337 } elif 20 == 21 { 1 } elif 20 == 22 { 56 } elif 1 == 1 { 33 } else { 42 }", T_INT(1337));
@@ -398,6 +400,7 @@ int main(void) {
     TEST_CASE("if false 0 elif true { ;;;; } else true", T_UNIT());
 
     TEST_CASE_LABEL("Else's");
+    TEST_CASE("if 0 == 1; elif 0 == 1; else;", T_UNIT()); // empty else expression, equivalent to else {}
     TEST_CASE("if 10 == 10.1 { 1337 } else { 42 }", T_INT(42));
     TEST_CASE("if 10 == 10.1 { 1337 } else { }", T_UNIT());
     TEST_CASE("if 10 == 10.1 { 1337 } else { ;; }", T_UNIT());
