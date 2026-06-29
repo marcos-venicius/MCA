@@ -1,6 +1,8 @@
 #!/usr/local/bin/mca -i
 
-a = while false;
-println(a)
+a = if 0 == 1 { } elif 1 == 0 { } else { }
 
+# a = if 0 == 0; elif 0 == 0; else;
+
+println(a, ' ', type(a))
 # vim: set syntax=r :

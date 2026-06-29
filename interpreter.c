@@ -266,7 +266,7 @@ static void set_variable_on_environment(M_Interpreter_Environment *env, const ch
 }
 
 static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
-    M_Eval_Result last_result = { .value = m_value_zero(), .flow = M_CTRL_NORMAL };
+    M_Eval_Result last_result = m_result_normal(m_value_unit());
 
     M_Expression_Block *current = block;
 
@@ -984,7 +984,7 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 fprintf(interpreter->io_out, "%s", last_value.as.boolean ? "true" : "false");
                 break;
             case M_T_UNIT:
-                fprintf(interpreter->io_out, "(uint)");
+                fprintf(interpreter->io_out, "(unit)");
                 break;
             case M_T_STRING:
                 fprintf(interpreter->io_out, "%.*s", last_value.as.string.value_length, last_value.as.string.value);
