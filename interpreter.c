@@ -32,7 +32,6 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 
 // [[macros]]
 #define m_value_unit() ((M_Value){ .type = M_T_UNIT })
-#define m_value_zero() ((M_Value){ .type = M_T_INT, .as.integer = 0 })
 #define m_value_int(v) ((M_Value){ .type = M_T_INT, .as.integer = (v) })
 #define m_value_float(v) ((M_Value){ .type = M_T_FLOAT, .as.floating = (v) })
 #define m_value_string(v) ((M_Value){ .type = M_T_STRING, .as.string = (v) })
@@ -1363,7 +1362,7 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
             break;
     }
 
-    return m_value_zero(); // unreacheable
+    return m_value_unit(); // unreacheable
 }
 
 static M_Value __builtin_mca_as_srand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
