@@ -8,8 +8,6 @@ map_set(m, 1, 'Hello')
 map_set(m, 2, 'World')
 map_set(m, 3, '!')
 
-# println(len(m)) TODO: implement len(<map>)
-
 r = map_clear(m)
 
 println('result: ', r, ', map: ', m)

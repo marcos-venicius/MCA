@@ -40,7 +40,7 @@ all: bin/mca bin/test
 log.o: log.c log.h
 	$(CC) $(CC_FLAGS) -c log.c $(CC_LIBS)
 
-main.o: main.c lexer.h lexer.c log.h log.c
+main.o: main.c lexer.h lexer.c log.h log.c ht.h builtins/map.h
 	$(CC) $(CC_FLAGS) -c main.c $(CC_LIBS)
 
 lexer.o: lexer.c lexer.h log.h log.c

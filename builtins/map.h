@@ -11,25 +11,35 @@ typedef struct {
     int    type;
 } M_Map_Node_Entry;
 
-typedef struct mca_map_node_t mca_map_node_t;
+typedef struct M_Map_Node M_Map_Node;
 
-struct mca_map_node_t {
+struct M_Map_Node {
     M_Map_Node_Entry key;
     M_Map_Node_Entry value;
 
-    mca_map_node_t *next;
+    M_Map_Node *next;
 };
 
 typedef struct {
-    mca_map_node_t *nodes[__MCA_MAP_CAP];
-    int             size;
+    M_Map_Node *nodes[__MCA_MAP_CAP];
+    int         size;
 } M_Map;
+
+typedef struct {
+    M_Map      *map;
+    M_Map_Node *it;
+    int         idx;
+} M_Map_Iterator;
 
 M_Map            *mca_map_init();
 void              mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type);
 bool              mca_map_del(M_Map *m, void *key, size_t key_size, int key_type);
 M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_type);
 void              mca_map_free(M_Map *m);
+
+M_Map_Iterator *mca_map_iterator(M_Map *m);
+M_Map_Node     *mca_map_iterator_next(M_Map_Iterator *it);
+void            mca_map_iterator_free(M_Map_Iterator *it);
 
 #endif // MCA_MAP_H_
 
@@ -53,8 +63,8 @@ static uint32_t hash_key(void *data, size_t size, int type) {
     return hash & (__MCA_MAP_CAP - 1);
 }
 
-static mca_map_node_t *alloc_node(void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type) {
-    mca_map_node_t *node = (mca_map_node_t*)malloc(sizeof(mca_map_node_t));
+static M_Map_Node *alloc_node(void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type) {
+    M_Map_Node *node = (M_Map_Node*)malloc(sizeof(M_Map_Node));
 
     node->key.data = malloc(key_size);
     node->key.size = key_size;
@@ -72,7 +82,7 @@ static mca_map_node_t *alloc_node(void *key, size_t key_size, int key_type, void
     return node;
 }
 
-static void free_node(mca_map_node_t *node) {
+static void free_node(M_Map_Node *node) {
     free(node->key.data);
     free(node->value.data);
     free(node);
@@ -99,8 +109,8 @@ void mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value
 
         m->size++;
     } else {
-        mca_map_node_t *slow = NULL;
-        mca_map_node_t *fast = m->nodes[index];
+        M_Map_Node *slow = NULL;
+        M_Map_Node *fast = m->nodes[index];
 
         while (fast) {
             if (cmp_keys(key, key_size, key_type, &fast->key)) {
@@ -128,8 +138,8 @@ void mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value
 bool mca_map_del(M_Map *m, void *key, size_t key_size, int key_type) {
     uint32_t index = hash_key(key, key_size, key_type);
 
-    mca_map_node_t *slow = NULL; 
-    mca_map_node_t *fast = m->nodes[index];
+    M_Map_Node *slow = NULL; 
+    M_Map_Node *fast = m->nodes[index];
 
     while (fast) {
         if (cmp_keys(key, key_size, key_type, &fast->key)) {
@@ -156,7 +166,7 @@ bool mca_map_del(M_Map *m, void *key, size_t key_size, int key_type) {
 M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_type) {
     uint32_t index = hash_key(key, key_size, key_type);
 
-    mca_map_node_t *head = m->nodes[index];
+    M_Map_Node *head = m->nodes[index];
 
     while (head) {
         if (cmp_keys(key, key_size, key_type, &head->key))
@@ -172,10 +182,10 @@ void mca_map_free(M_Map *m) {
     // TODO: use arena?
 
     for (int i = 0; i < __MCA_MAP_CAP; i++) {
-        mca_map_node_t *head = m->nodes[i];
+        M_Map_Node *head = m->nodes[i];
 
         while (head) {
-            mca_map_node_t *next = head->next;
+            M_Map_Node *next = head->next;
 
             free_node(head);
 
@@ -184,6 +194,46 @@ void mca_map_free(M_Map *m) {
     }
 
     free(m);
+}
+
+M_Map_Iterator *mca_map_iterator(M_Map *m) {
+    M_Map_Iterator *it = malloc(sizeof(M_Map_Iterator));
+
+    it->map = m;
+    it->idx = 0;
+    it->it  = NULL;
+
+    return it;
+}
+
+M_Map_Node *mca_map_iterator_next(M_Map_Iterator *it) {
+    if (it == NULL || (it->idx >= __MCA_MAP_CAP && it->it == NULL)) return NULL;
+
+    if (it->it != NULL) {
+        if (it->it->next != NULL) {
+            return it->it = it->it->next;
+        } else {
+            it->idx++;
+        }
+    }
+
+    while (it->idx < __MCA_MAP_CAP) {
+        if (it->map->nodes[it->idx] != NULL) {
+            it->it = it->map->nodes[it->idx];
+
+            return it->it;
+        }
+
+        it->idx++;
+    }
+
+    it->it = NULL;
+
+    return NULL;
+}
+
+void mca_map_iterator_free(M_Map_Iterator *it) {
+    if (it) free(it);
 }
 
 #endif // MCA_MAP_IMPLEMENTATION
