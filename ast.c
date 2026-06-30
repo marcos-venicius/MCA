@@ -1297,13 +1297,8 @@ parse_expression_loop:
         goto parse_expression_loop;
     }
 
-    if (ast->errors > 0) {
+    if (ast->errors > 0)
         fprintf(stderr, "compilation failed with \033[1;31m%ld\033[0m errors\n", ast->errors);
-
-        ast_free(ast);
-
-        return NULL;
-    }
 
     return ast;
 }

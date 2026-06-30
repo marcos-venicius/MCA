@@ -51,40 +51,40 @@ bool m_lexer_finished_with_errors() {
 
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
-        case M_INT: return "NUMBER";
-        case M_FLOAT: return "FLOAT";
-        case M_STRING: return "STRING";
+        case M_INT: return "int";
+        case M_FLOAT: return "float";
+        case M_STRING: return "string";
 
-        case M_ID: return "ID";
+        case M_ID: return "identifier";
 
-        case M_PLUS: return "PLUS";
-        case M_PLUS_EQUAL: return "PLUS_EQUAL";
-        case M_DIVIDE: return "DIVIDE";
-        case M_TIMES: return "TIMES";
-        case M_MOD: return "MOD";
-        case M_POW: return "POW";
-        case M_MINUS: return "MINUS";
-        case M_MINUS_EQUAL: return "MINUS_EQUAL";
+        case M_PLUS: return "+";
+        case M_PLUS_EQUAL: return "+=";
+        case M_DIVIDE: return "/";
+        case M_TIMES: return "*";
+        case M_MOD: return "%";
+        case M_POW: return "^";
+        case M_MINUS: return "-";
+        case M_MINUS_EQUAL: return "-=";
 
-        case M_EXCLAMATION: return "EXCLAMATION";
+        case M_EXCLAMATION: return "!";
 
-        case M_QUESTION_MARK: return "QUESTION_MARK";
+        case M_QUESTION_MARK: return "?";
 
-        case M_ASSIGN: return "ASSIGN";
+        case M_ASSIGN: return "=";
 
-        case M_EQUAL: return "EQUAL";
-        case M_NOT_EQUAL: return "NOT_EQUAL";
-        case M_GT: return "GT";
-        case M_LT: return "LT";
-        case M_GTE: return "GTE";
-        case M_LTE: return "LTE";
+        case M_EQUAL: return "==";
+        case M_NOT_EQUAL: return "!=";
+        case M_GT: return ">";
+        case M_LT: return "<";
+        case M_GTE: return ">=";
+        case M_LTE: return "<=";
 
-        case M_LPAREN: return "LPAREN";
-        case M_RPAREN: return "RPAREN";
-        case M_LCURLY: return "LCURLY";
-        case M_RCURLY: return "RCURLY";
-        case M_COMMA: return "COMMA";
-        case M_SEMI: return "SEMI";
+        case M_LPAREN: return "(";
+        case M_RPAREN: return ")";
+        case M_LCURLY: return "{";
+        case M_RCURLY: return "}";
+        case M_COMMA: return ",";
+        case M_SEMI: return ";";
     }
 
     assert(0 && "m_lexer_token_kind_display_name: unhandled M_Token_Kind case");

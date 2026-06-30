@@ -141,6 +141,14 @@ int compile(const char *filename, const char *string, const size_t string_size, 
         return 0;
     }
 
+    if ((*ast_output)->errors > 0) {
+        ast_free(*ast_output);
+
+        *ast_output = NULL;
+
+        return -1;
+    }
+
     if (is_log_enabled()) {
         for (int i = 0; i < (*ast_output)->expressions_array_length; i++) {
             printf("EXP %d:\n", i + 1);
