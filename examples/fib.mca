@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 # will work soon
 
@@ -11,7 +11,7 @@ LAST_FIB_VALUE = while n < M {
   t = a; # this variable is global
   a = b;
   b = t + b;
-  n = n + 1;
+  n += 1
 
   println(a);
 };

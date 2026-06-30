@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 # It's a "busy-wait", not a really usefull sleep
 # It's just an example of what we already can implement
@@ -15,9 +15,7 @@ duration = while {
 
     delta = stop - start
 
-    if delta >= SLEEP_FOR {
-      break delta;
-    }
+    if (delta >= SLEEP_FOR) break delta;
   }
 }
 

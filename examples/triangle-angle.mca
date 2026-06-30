@@ -1,10 +1,10 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 # This program gets all three angles of a triangle
 
 # insert your values here
-a = if argc() >= 2 { as_int(argv(1)) } else { ? }
-b = if argc() >= 3 { as_int(argv(2)) } else { ? }
-c = if argc() >= 4 { as_int(argv(3)) } else { ? }
+a = if (argc() >= 2) as_int(argv(1))
+b = if (argc() >= 3) as_int(argv(2))
+c = if (argc() >= 4) as_int(argv(3))
 
 # some constants
 SUM      = a + b + c

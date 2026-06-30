@@ -3,13 +3,10 @@
 #include <stdio.h>
 #include <assert.h>
 
-#define CLIBS_HT_IMPLEMENTATION
 #include "./lexer.h"
 #include "./ast.h"
 #include "./interpreter.h"
-#define CLIBS_ARENA_IMPLEMENTATION
 #include "./arena.h"
-#define MCA_MAP_IMPLEMENTATION
 #include "./builtins/map.h"
 
 #ifndef M_PI

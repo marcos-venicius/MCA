@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 # You can inspect data type by using 'type(x)' function
 # This function will print to default stdout the data type like 'type(value)'

@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 
 # you can use '?' (unit) to declare a variable with no initial value

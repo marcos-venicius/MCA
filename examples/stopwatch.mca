@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 # This program is a simple and CPU-blocking
 # stopwatch implementation with the current
@@ -9,11 +9,7 @@
 
 GAP         = 7 # gap between display
 CURRENT_GAP = 0
-STOP_AT     = ?
-
-if argc() == 2 {
-  STOP_AT = as_int(argv(1))
-}
+STOP_AT     = if (argc() == 2) as_int(argv(1))
 
 BIG_BANG = time()
 
@@ -36,11 +32,9 @@ while {
     delta = step - start
 
     if CURRENT_GAP == GAP {
-      if delta >= GAP {
-        break;
-      }
+      if (delta >= GAP) break;
     } elif delta >= 1 {
-      CURRENT_GAP = CURRENT_GAP + 1
+      CURRENT_GAP += 1
       break;
     }
   }
@@ -63,9 +57,7 @@ while {
     println(seconds, 's')
   }
 
-  if STOP_AT != ? and elapsed >= STOP_AT {
-    break;
-  }
+  if (STOP_AT != ? and elapsed >= STOP_AT) break;
 }
 
 # vim: set syntax=r :

@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 a = 0
 b = 1
@@ -11,7 +11,7 @@ break_value = while {
     t = a
     a = b
     b = t + b
-    n = n + 1
+    n += 1
 
     println(n, a)
 

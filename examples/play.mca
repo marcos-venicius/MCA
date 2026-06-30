@@ -1,8 +1,3 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
-for k, i in m {
-  println(k, i)
-}
-
-println(a, ' ', type(a))
 # vim: set syntax=r :

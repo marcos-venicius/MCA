@@ -1,24 +1,22 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 A = 1 and 2
 B = 10 or 0
 C = 0 or 0
 
-println(A, B, C)
+println(A, ' ', B, ' ', C)
 
 n    = 0
 year = year(0)
 
 while n < 15 {
-  if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0) {
-    println(year, ' is a lap year')
-  } else {
-    println(year, ' is not a lap year')
-  }
+  text = if ((year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)) ' is a lap year' else ' is not a lap year'
 
-  year = year - 1
+  println(year, text)
 
-  n = n + 1
+  year -= 1
+
+  n += 1
 }
 
 # vim: set syntax=r :

@@ -1,12 +1,11 @@
-#ifndef AST_H_
-#define AST_H_
+#pragma once
 
 #include "./lexer.h"
 #include "./arena.h"
 #include "./location.h"
 #include <stdint.h>
 
-// @Note: completely arbitrary number. May study what's the best value for this later
+// @Leak @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
 
 typedef struct {
@@ -164,5 +163,3 @@ typedef struct {
 M_Ast *parse_expression(const char *filename, M_Token *head);
 const char *binary_expression_operator_name(M_Binary_Expression_Operator op);
 void ast_free(M_Ast *ast);
-
-#endif // AST_H_

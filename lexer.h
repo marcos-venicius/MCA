@@ -1,5 +1,4 @@
-#ifndef LEXER_H_
-#define LEXER_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdbool.h>
@@ -81,5 +80,3 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind);
 M_Lexer m_lexer_create(const char *filename, const char *content, const size_t content_size);
 M_Token *m_lexer_tokenize(M_Lexer *lexer);
 void m_lexer_free(M_Lexer *lexer);
-
-#endif // LEXER_H_

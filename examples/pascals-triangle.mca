@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 PROGRAM_NAME = argv(0)
 
@@ -26,7 +26,7 @@ if !is_int(NUM_ROWS) {
 }
 
 n = NUM_ROWS - 1
-k = if n % 2 == 0 { n / 2 } else { (n - 1) / 2 }
+k = if (n % 2 == 0) n / 2 else (n - 1) / 2
 
 biggest_value     = n! / (k! * (n - k)!)
 biggest_value_len = len(as_string(as_int(biggest_value))) + 1
@@ -37,16 +37,16 @@ println()
 row_index = 0; while row_index < NUM_ROWS {
     padding_index = 0; while padding_index < padding {
         print(' ')
-        padding_index = padding_index + 1
+        padding_index += 1
     }
 
-    padding = padding - (biggest_value_len / 2)
+    padding -= (biggest_value_len / 2)
 
     # padding the number
     z = 0; while z < biggest_value_len - 1 {
         print(' ')
 
-        z = z + 1
+        z += 1
     }
     print(1)
 
@@ -58,14 +58,14 @@ row_index = 0; while row_index < NUM_ROWS {
         # padding the number
         z = 0; while z < biggest_value_len - len(as_string(p)) {
             print(' ')
-            z = z + 1
+            z += 1
         }
         print(p)
 
-        x = x + 1
+        x += 1
     }
 
-    row_index = row_index + 1
+    row_index += 1
 
     println()
 }

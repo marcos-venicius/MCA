@@ -1,4 +1,4 @@
-#!/usr/local/bin/mca -i
+#!/usr/local/bin/mca
 
 target = 10.0;
 
@@ -18,10 +18,6 @@ final_result = while counter < target {
 
 println(final_result)
 
-if final_result == 55.0 {
-  exit(0)
-} else {
-  exit(1)
-}
+exit(if (final_result == 55.0) 0 else 1)
 
 # vim: set syntax=r :

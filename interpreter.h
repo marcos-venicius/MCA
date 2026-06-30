@@ -1,5 +1,4 @@
-#ifndef EVALUATOR_H_
-#define EVALUATOR_H_
+#pragma once
 
 #include <stdio.h>
 
@@ -75,5 +74,3 @@ void m_interpreter_set_stdout(M_Interpreter *interpreter, FILE *stream);
 void m_interpreter_set_stderr(M_Interpreter *interpreter, FILE *stream);
 M_Value m_interpreter_run(M_Interpreter *interpreter);
 void m_interpreter_free(M_Interpreter *interpreter);
-
-#endif // EVALUATOR_H_

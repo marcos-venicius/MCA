@@ -7,7 +7,7 @@
 
 #include "./ast.h"
 #include "./arena.h"
-#include "lexer.h"
+#include "./lexer.h"
 
 static M_Expression *parse_expression_impl(M_Ast *ast);
 
@@ -440,12 +440,6 @@ static M_Expression *parse_while_expression(M_Ast *ast) {
     return expr;
 }
 
-static M_Expression *parse_for_expression(M_Ast *ast) {
-    (void)ast;
-    assert(0 && "not implemented yet");
-    return NULL;
-}
-
 static M_Expression *parse_if_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
@@ -837,8 +831,6 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
         if (token(ast)->size == 5 && strncmp(token(ast)->value, "while", 5) == 0) {
             return parse_while_expression(ast);
-        } else if (token(ast)->size == 3 && strncmp(token(ast)->value, "for", 3) == 0) {
-            return parse_for_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
         } else if (token(ast)->size == 2 && strncmp(token(ast)->value, "if", 2) == 0) {

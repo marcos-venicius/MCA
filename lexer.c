@@ -6,7 +6,6 @@
 #include <stdarg.h>
 
 #include "./lexer.h"
-#include "./log.h"
 
 static inline char chr(M_Lexer *lexer);
 static inline void advance_cursor(M_Lexer *lexer);
@@ -278,7 +277,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
         case ',': { advance_cursor(lexer); save_token(lexer, M_COMMA); } break;
         case '?': { advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); } break;
-        default: LOG("[!] unrecognized single token [%c]\n", chr(lexer)); return;
+        default: m_lexer_error(lexer, "unrecognized single token %c\n", chr(lexer)); return;
     }
 }
 
