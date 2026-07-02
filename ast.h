@@ -171,6 +171,7 @@ typedef struct {
     size_t errors;
 
     M_Token *current_token;
+    M_Token *last_consumed_token;
 
     const char *filename;
 } M_Ast;

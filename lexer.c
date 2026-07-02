@@ -78,6 +78,7 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_GTE: return ">=";
         case M_LTE: return "<=";
 
+        case M_BACKSLASH: return "\\";
         case M_LPAREN: return "(";
         case M_RPAREN: return ")";
         case M_LCURLY: return "{";
@@ -263,21 +264,22 @@ static void tokenize_string(M_Lexer *lexer) {
 
 static void tokenize_single(M_Lexer *lexer) {
     switch (chr(lexer)) {
-        case '*': { advance_cursor(lexer); save_token(lexer, M_TIMES); } break;
-        case '/': { advance_cursor(lexer); save_token(lexer, M_DIVIDE); } break;
-        case '(': { advance_cursor(lexer); save_token(lexer, M_LPAREN); } break;
-        case ')': { advance_cursor(lexer); save_token(lexer, M_RPAREN); } break;
-        case '{': { advance_cursor(lexer); save_token(lexer, M_LCURLY); } break;
-        case '}': { advance_cursor(lexer); save_token(lexer, M_RCURLY); } break;
-        case '+': { advance_cursor(lexer); save_token(lexer, M_PLUS); } break;
-        case '-': { advance_cursor(lexer); save_token(lexer, M_MINUS); } break;
-        case '%': { advance_cursor(lexer); save_token(lexer, M_MOD); } break;
-        case '^': { advance_cursor(lexer); save_token(lexer, M_POW); } break;
-        case '!': { advance_cursor(lexer); save_token(lexer, M_EXCLAMATION); } break;
-        case ';': { advance_cursor(lexer); save_token(lexer, M_SEMI); } break;
-        case ',': { advance_cursor(lexer); save_token(lexer, M_COMMA); } break;
-        case '?': { advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); } break;
-        default: m_lexer_error(lexer, "unrecognized single token %c\n", chr(lexer)); return;
+        case '*':  advance_cursor(lexer); save_token(lexer, M_TIMES); break;
+        case '/':  advance_cursor(lexer); save_token(lexer, M_DIVIDE); break;
+        case '(':  advance_cursor(lexer); save_token(lexer, M_LPAREN); break;
+        case ')':  advance_cursor(lexer); save_token(lexer, M_RPAREN); break;
+        case '{':  advance_cursor(lexer); save_token(lexer, M_LCURLY); break;
+        case '}':  advance_cursor(lexer); save_token(lexer, M_RCURLY); break;
+        case '+':  advance_cursor(lexer); save_token(lexer, M_PLUS); break;
+        case '-':  advance_cursor(lexer); save_token(lexer, M_MINUS); break;
+        case '%':  advance_cursor(lexer); save_token(lexer, M_MOD); break;
+        case '^':  advance_cursor(lexer); save_token(lexer, M_POW); break;
+        case '!':  advance_cursor(lexer); save_token(lexer, M_EXCLAMATION); break;
+        case ';':  advance_cursor(lexer); save_token(lexer, M_SEMI); break;
+        case ',':  advance_cursor(lexer); save_token(lexer, M_COMMA); break;
+        case '?':  advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); break;
+        case '\\': advance_cursor(lexer); save_token(lexer, M_BACKSLASH); break;
+        default:   m_lexer_error(lexer, "unrecognized single token %c\n", chr(lexer)); return;
     }
 }
 
@@ -334,6 +336,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case ';':
             case ',':
             case '?':
+            case '\\':
                 tokenize_single(lexer);
                 break;
             case '-':
