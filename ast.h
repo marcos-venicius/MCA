@@ -8,10 +8,21 @@
 // @Leak @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
 
+typedef int64_t M_Int;
+typedef double  M_Float;
+typedef bool    M_Bool;
+
 typedef struct {
     char *value;
     int   value_length;
 } M_String;
+
+typedef struct {
+    // @Note: just a pointer in a bigger string
+    //        cannot be freed
+    const char *value;
+    int         value_length;
+} M_Const_String;
 
 typedef struct M_Expression M_Expression;
 
@@ -27,7 +38,7 @@ typedef enum {
     M_EK_ADD_ASSIGN,
     M_EK_SUB_ASSIGN,
     M_EK_UNARY,
-    M_EK_EXPRESSION_LIST,
+    M_EK_FN,
     M_EK_CALL,
     M_EK_WHILE,
     M_EK_BREAK,
@@ -77,71 +88,75 @@ struct M_Expression_Elif_Block {
     M_Expression_Elif_Block *next;
 };
 
+typedef struct {
+    M_Binary_Expression_Operator op;
+
+    M_Expression *left;
+    M_Expression *right;
+} m_binary_expression_t;
+
+typedef struct {
+    M_Unary_Expression_Operator op;
+
+    M_Expression *operand;
+} m_unary_expression_t;
+
+typedef struct {
+    M_Const_String name;
+
+    // @Note: all the arguments (at least for now) will be an identifier
+    //        we do not support default argument values for now
+    M_Expression **arguments;
+    int            arguments_length;
+
+    M_Expression_Block *block;
+} m_fn_expression_t;
+
+typedef struct {
+    M_Const_String fn_name;
+
+    // @Leak TODO: improve this to use a dynamic array
+    M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
+    int           arguments_length;
+} m_call_expression_t;
+
+typedef struct {
+    M_Const_String name;
+
+    M_Expression *right;
+} m_assign_expression_t;
+
+typedef struct {
+    M_Expression        *condition;
+    M_Expression_Block  *block;
+} m_while_loop_expression_t;
+
+typedef struct {
+    M_Expression            *condition;
+    M_Expression_Block      *then_block;
+    M_Expression_Elif_Block *elif_blocks;
+    M_Expression_Block      *else_block;
+} m_if_expression_t;
+
 struct M_Expression {
     M_Expression_Kind kind;
-    M_Location location;
+    M_Location        location;
 
     union {
-        int64_t integer;
-        double  floating;
-        bool    boolean;
-
-        // when the kind is M_EK_BREAK it can be null or filled
-        M_Expression *expr;
-
-        // when the kind is M_EK_BINARY
-        struct {
-            M_Binary_Expression_Operator op;
-
-            M_Expression *left;
-            M_Expression *right;
-        } binary;
-
-        struct {
-            M_Unary_Expression_Operator op;
-
-            M_Expression *operand;
-        } unary;
-
-        struct {
-            const char *fn_name;
-            int         fn_name_length;
-
-            M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
-            int           arguments_length;
-        } call;
-
-        // @Note: when it's a string, this will be heap-allocated
-        // when it's and ID it'll be a sized string using just
-        // a pointer to the original string during lexing
-        // TODO: should I own everything?
-        struct {
-            const char *value;
-            int         value_length;
-        } id;
-        M_String string;
-
-        // used for M_EK_ASSIGN, M_EK_ADD_ASSIGN and M_EK_SUB_ASSIGN
-        struct {
-            struct {
-                const char *value;
-                int         length;
-            } name;
-
-            M_Expression *right;
-        } assign;
-
-        struct {
-            M_Expression        *condition;
-            M_Expression_Block  *block;
-        } while_loop;
-
-        struct {
-            M_Expression            *condition;
-            M_Expression_Block      *then_block;
-            M_Expression_Elif_Block *elif_blocks;
-            M_Expression_Block      *else_block;
-        } if_expr;
+        // M_EK_UNIT (void)
+        M_Int                     Int;    // M_EK_INT
+        M_Float                   Float;  // M_EK_FLOAT
+        M_Bool                    Bool;   // M_EK_BOOL
+        M_String                  String; // M_EK_STRING @Leak @Note: when it's a string, this will be heap-allocated
+        M_Const_String            Id;     // M_EK_ID
+        m_binary_expression_t     Binary; // M_EK_BINARY
+        m_assign_expression_t     Assign; // M_EK_ASSIGN, M_EK_ADD_ASSIGN, M_EK_SUB_ASSIGN
+        m_unary_expression_t      Unary;  // M_EK_UNARY
+        m_fn_expression_t         Fn;     // M_EK_FN
+        m_call_expression_t       Call;   // M_EK_CALL
+        m_while_loop_expression_t While;  // M_EK_WHILE
+        m_if_expression_t         If;     // M_EK_IF
+        M_Expression             *Break;  // M_EK_BREAK (can be null)
     };
 };
 

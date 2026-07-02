@@ -212,7 +212,7 @@ static int evaluate_m_value_as_internal_boolean(M_Value value) {
 static M_Value evaluate_function_call_expression(M_Expression *expr) {
     M_Fn_C_Impl fn = resolve_builtin_function(expr);
 
-    return fn(expr, expr->call.arguments, expr->call.arguments_length);
+    return fn(expr, expr->Call.arguments, expr->Call.arguments_length);
 }
 
 static void enter_new_environment() {
@@ -283,10 +283,10 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
-    switch (expression->binary.op) {
+    switch (expression->Binary.op) {
         case M_BINARY_AND_OP:
             {
-                M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (left.value.type) {
                     case M_T_BOOL:
@@ -305,7 +305,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
                         break;
                 }
 
-                M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (right.value.type) {
                     case M_T_BOOL:
@@ -328,7 +328,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
             }
         case M_BINARY_OR_OP:
             {
-                M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (left.value.type) {
                     case M_T_BOOL:
@@ -347,7 +347,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
                         break;
                 }
 
-                M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (right.value.type) {
                     case M_T_BOOL:
@@ -372,23 +372,23 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
             break;
     }
 
-    M_Eval_Result left = m_result_expect_type(expression->binary.left, evaluate_expression(expression->binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
-    M_Eval_Result right = m_result_expect_type(expression->binary.right, evaluate_expression(expression->binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
+    M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
+    M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
 
     M_Value_Type l_type = left.value.type;
     M_Value_Type r_type = right.value.type;
 
     if (l_type == M_T_UNIT || r_type == M_T_UNIT) {
-        switch (expression->binary.op) {
+        switch (expression->Binary.op) {
             case M_BINARY_EQUAL_OP:
                 return m_result_normal(m_value_bool(l_type == r_type));
             case M_BINARY_NOT_EQUAL_OP:
                 return m_result_normal(m_value_bool(l_type != r_type));
             default:
                 m_interpreter_error(
-                    l_type == M_T_UNIT ? expression->binary.left : expression->binary.right,
+                    l_type == M_T_UNIT ? expression->Binary.left : expression->Binary.right,
                     "invalid operation. cannot perform binary operation '%s' with unit type",
-                    binary_expression_operator_name(expression->binary.op)
+                    binary_expression_operator_name(expression->Binary.op)
                 );
                 break;
         }
@@ -397,16 +397,16 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
     if (l_type == M_T_STRING || l_type == M_T_STRING) {
         if (l_type != r_type) {
             m_interpreter_error(
-                l_type != M_T_STRING ? expression->binary.left : expression->binary.right,
+                l_type != M_T_STRING ? expression->Binary.left : expression->Binary.right,
                 "you cannot do binary operations between this types '%s %s %s'",
                 m_value_type_name(l_type),
-                binary_expression_operator_name(expression->binary.op),
+                binary_expression_operator_name(expression->Binary.op),
                 m_value_type_name(r_type)
             );
         }
 
         static_assert(M_BINARY_OP_COUNT == 14, "evaluate_binary_expression: unhandled binary operator");
-        switch (expression->binary.op) {
+        switch (expression->Binary.op) {
             case M_BINARY_EQUAL_OP: {
                 bool are_equal = left.value.as.string.value_length == right.value.as.string.value_length &&
                     strncmp(left.value.as.string.value, right.value.as.string.value, right.value.as.string.value_length) == 0;
@@ -432,9 +432,9 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
             case M_BINARY_GTE_OP:
             case M_BINARY_LTE_OP:
                 m_interpreter_error(
-                    l_type != M_T_STRING ? expression->binary.left : expression->binary.right,
+                    l_type != M_T_STRING ? expression->Binary.left : expression->Binary.right,
                     "you cannot do binary operation '%s' between strings",
-                    binary_expression_operator_name(expression->binary.op)
+                    binary_expression_operator_name(expression->Binary.op)
                 );
                 break;
             case M_BINARY_OP_COUNT: break;
@@ -443,7 +443,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
 
     bool returns_bool = false;
 
-    switch (expression->binary.op) {
+    switch (expression->Binary.op) {
         case M_BINARY_AND_OP:
         case M_BINARY_OR_OP:
         case M_BINARY_EQUAL_OP:
@@ -461,7 +461,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
     if (l_type == M_T_FLOAT || r_type == M_T_FLOAT) {
         double l_val = (l_type == M_T_FLOAT) ? left.value.as.floating : (l_type == M_T_BOOL) ? (double)left.value.as.boolean : (double)left.value.as.integer;
         double r_val = (r_type == M_T_FLOAT) ? right.value.as.floating : (r_type == M_T_BOOL) ? (double)right.value.as.boolean : (double)right.value.as.integer;
-        double result = evaluate_binary_operation_on_doubles(expression->binary.op, l_val, r_val);
+        double result = evaluate_binary_operation_on_doubles(expression->Binary.op, l_val, r_val);
 
         if (returns_bool) {
             return (M_Eval_Result){
@@ -487,7 +487,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
     double result = 0;
 
     static_assert(M_BINARY_OP_COUNT == 14, "evaluate_binary_expression: unhandled binary operator");
-    switch (expression->binary.op) {
+    switch (expression->Binary.op) {
         case M_BINARY_PLUS_OP:      result = l + r; break;
         case M_BINARY_TIMES_OP:     result = l * r; break;
         case M_BINARY_DIVIDE_OP:    result = (double)l / (double)r; break; // TODO: handle division by zero
@@ -518,10 +518,10 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
 static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
     assert((expression->kind == M_EK_ASSIGN || expression->kind == M_EK_ADD_ASSIGN || expression->kind == M_EK_SUB_ASSIGN) && "evaluate_assignment_expression: cannot handle this kind of expression");
 
-    char *key = strndup(expression->assign.name.value, expression->assign.name.length);
+    char *key = strndup(expression->Assign.name.value, expression->Assign.name.value_length);
 
     if (expression->kind == M_EK_ASSIGN) {
-        M_Eval_Result result = evaluate_expression(expression->assign.right);
+        M_Eval_Result result = evaluate_expression(expression->Assign.right);
 
         set_variable_on_environment(interpreter->current_environment, key, result.value);
 
@@ -536,7 +536,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
         m_interpreter_error(expression, "the variable '%s' does not exists", key);
 
     M_Value left = m_value_expect_type(expression, *current_value, M_T_INT | M_T_FLOAT);
-    M_Eval_Result right = m_result_expect_type(expression->assign.right, evaluate_expression(expression->assign.right), M_T_INT | M_T_FLOAT);
+    M_Eval_Result right = m_result_expect_type(expression->Assign.right, evaluate_expression(expression->Assign.right), M_T_INT | M_T_FLOAT);
 
     M_Value_Type l_type = left.type;
     M_Value_Type r_type = right.value.type;
@@ -576,13 +576,13 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
     switch (expression->kind) {
-        case M_EK_STRING: return m_result_normal(m_value_string(expression->string));
+        case M_EK_STRING: return m_result_normal(m_value_string(expression->String));
         case M_EK_UNIT:   return m_result_normal(m_value_unit());
-        case M_EK_BOOL:   return m_result_normal(m_value_bool(expression->boolean));
-        case M_EK_INT:    return m_result_normal(m_value_int(expression->integer));
-        case M_EK_FLOAT:  return m_result_normal(m_value_float(expression->floating));
+        case M_EK_BOOL:   return m_result_normal(m_value_bool(expression->Bool));
+        case M_EK_INT:    return m_result_normal(m_value_int(expression->Int));
+        case M_EK_FLOAT:  return m_result_normal(m_value_float(expression->Float));
         case M_EK_ID: {
-            char *key = strndup(expression->id.value, expression->id.value_length);
+            char *key = strndup(expression->Id.value, expression->Id.value_length);
 
             M_Value *value = get_variable_from_environment(interpreter->current_environment, key);
 
@@ -597,9 +597,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_ADD_ASSIGN: return evaluate_assignment_expression(expression);
         case M_EK_SUB_ASSIGN: return evaluate_assignment_expression(expression);
         case M_EK_UNARY: {
-            switch (expression->unary.op) {
+            switch (expression->Unary.op) {
                 case M_UNARY_MINUS_OP: {
-                    M_Eval_Result result = evaluate_expression(expression->unary.operand);
+                    M_Eval_Result result = evaluate_expression(expression->Unary.operand);
                     M_Value_Union out = {0};
 
                     switch (result.value.type) {
@@ -623,7 +623,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     };
                 } 
                 case M_UNARY_NOT_OP: {
-                    M_Eval_Result result = m_result_expect_type(expression, evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT | M_T_BOOL);
+                    M_Eval_Result result = m_result_expect_type(expression, evaluate_expression(expression->Unary.operand), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
                     switch (result.value.type) {
                         case M_T_BOOL:
@@ -650,7 +650,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                             break;
                     }
                 } break;
-                case M_UNARY_FACTORIAL_OP: return calculate_factorial(m_result_expect_type(expression, evaluate_expression(expression->unary.operand), M_T_INT | M_T_FLOAT));
+                case M_UNARY_FACTORIAL_OP: return calculate_factorial(m_result_expect_type(expression, evaluate_expression(expression->Unary.operand), M_T_INT | M_T_FLOAT));
             }
 
             assert(0 && "evaluate_expression_impl: invalid unary expression operator");
@@ -658,21 +658,21 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         case M_EK_CALL: return m_result_normal(evaluate_function_call_expression(expression));
         case M_EK_BINARY: return evaluate_binary_expression(expression);
         case M_EK_IF: {
-            M_Eval_Result condition = evaluate_expression(expression->if_expr.condition);
+            M_Eval_Result condition = evaluate_expression(expression->If.condition);
             M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
             if (evaluated_condition == -1)
-                m_interpreter_error(expression->if_expr.condition, "failed to check truthiness of '%s' data type on that 'if'", m_value_type_name(condition.value.type));
+                m_interpreter_error(expression->If.condition, "failed to check truthiness of '%s' data type on that 'if'", m_value_type_name(condition.value.type));
 
             if (evaluated_condition) {
                 enter_new_environment(); // enter 'if' block
-                last_evaluated_expression = evaluate_block_expression(expression->if_expr.then_block);
+                last_evaluated_expression = evaluate_block_expression(expression->If.then_block);
                 destroy_current_environment(); // quit 'if' block
             } else {
-                if (expression->if_expr.elif_blocks != NULL) {
-                    M_Expression_Elif_Block *current_elif = expression->if_expr.elif_blocks;
+                if (expression->If.elif_blocks != NULL) {
+                    M_Expression_Elif_Block *current_elif = expression->If.elif_blocks;
 
                     while (current_elif != NULL) {
                         M_Eval_Result elif_condition = evaluate_expression(current_elif->condition);
@@ -696,9 +696,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     }
                 }
 
-                if (expression->if_expr.else_block != NULL) {
+                if (expression->If.else_block != NULL) {
                     enter_new_environment(); // enter 'else' block
-                    last_evaluated_expression = evaluate_block_expression(expression->if_expr.else_block);
+                    last_evaluated_expression = evaluate_block_expression(expression->If.else_block);
                     destroy_current_environment(); // quit 'else' block
                 }
             }
@@ -709,24 +709,24 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             while (1) {
-                if (expression->while_loop.condition != NULL) {
-                    M_Eval_Result condition = evaluate_expression(expression->while_loop.condition);
+                if (expression->While.condition != NULL) {
+                    M_Eval_Result condition = evaluate_expression(expression->While.condition);
 
                     int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
                     if (evaluated_condition == -1) {
-                        m_interpreter_error(expression->while_loop.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
+                        m_interpreter_error(expression->While.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
                     }
 
                     if (!evaluated_condition) break;
                 }
 
 
-                if (expression->while_loop.block != NULL) {
+                if (expression->While.block != NULL) {
                     // entering the loop block
                     enter_new_environment();
 
-                    last_evaluated_expression = evaluate_block_expression(expression->while_loop.block);
+                    last_evaluated_expression = evaluate_block_expression(expression->While.block);
 
                     // quiting the loop block
                     destroy_current_environment();
@@ -741,15 +741,14 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return last_evaluated_expression;
         } break;
         case M_EK_BREAK: {
-            if (expression->expr != NULL) {
-                M_Eval_Result result = evaluate_expression(expression->expr);
+            if (expression->Break != NULL) {
+                M_Eval_Result result = evaluate_expression(expression->Break);
 
                 return m_result_break(result.value);
             }
 
             return m_result_break(m_value_unit());
         };
-        case M_EK_EXPRESSION_LIST: assert(0 && "evaluate_expression: case M_EK_EXPRESSION_LIST. should never happen. this is handled in an upper level");
     }
 
     assert(0 && "should never happen");
@@ -1903,18 +1902,18 @@ static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr) {
     for (int i = 0; i < builtin_functions_bindings_length; i++) {
         M_Fn_Binding signature = builtin_functions_bindings[i];
 
-        if (signature.name_length != expr->call.fn_name_length) continue;
+        if (signature.name_length != expr->Call.fn_name.value_length) continue;
 
-        if (strncmp(signature.name, expr->call.fn_name, signature.name_length) != 0) continue;
+        if (strncmp(signature.name, expr->Call.fn_name.value, signature.name_length) != 0) continue;
 
         // found a function that accepts N arguments
         if (signature.arguments_count == -1)
             return signature.c_impl;
 
-        if (expr->call.arguments_length > signature.arguments_count) {
-            m_interpreter_error(expr, "too many arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->call.arguments_length);
-        } else if (expr->call.arguments_length < signature.arguments_count) {
-            m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->call.arguments_length);
+        if (expr->Call.arguments_length > signature.arguments_count) {
+            m_interpreter_error(expr, "too many arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->Call.arguments_length);
+        } else if (expr->Call.arguments_length < signature.arguments_count) {
+            m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", signature.name, signature.arguments_count, expr->Call.arguments_length);
         }
 
         // found a function that accepts this exact amount of arguments.
@@ -1922,7 +1921,7 @@ static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr) {
         return signature.c_impl;
     }
 
-    m_interpreter_error(expr, "function '%.*s' does not exists", expr->call.fn_name_length, expr->call.fn_name);
+    m_interpreter_error(expr, "function '%.*s' does not exists", expr->Call.fn_name.value_length, expr->Call.fn_name.value);
 
     // didn't found a function (unreachable, just so the compiler doesn't yells at me)
     return NULL;

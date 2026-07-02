@@ -233,9 +233,9 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
         .col = fn_name->loc.col,
         .filename = ast->filename
     };
-    fn->call.fn_name = fn_name->value;
-    fn->call.fn_name_length = fn_name->size;
-    fn->call.arguments_length = 0;
+    fn->Call.fn_name.value = fn_name->value;
+    fn->Call.fn_name.value_length = fn_name->size;
+    fn->Call.arguments_length = 0;
 
     // 'identifier()' a function call with no args.
     if (next->kind == M_RPAREN) {
@@ -252,7 +252,7 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
         // so we just propagate the error
         if (expr == NULL) return NULL;
 
-        fn->call.arguments[fn->call.arguments_length++] = expr;
+        fn->Call.arguments[fn->Call.arguments_length++] = expr;
 
         if (token(ast) == NULL) {
             ast_error(ast, lparen, "expected ',' or ')' but got EOF");
@@ -298,8 +298,8 @@ static M_Expression *parse_variable_expression(M_Ast *ast) {
         .col = token(ast)->loc.col,
         .filename = ast->filename
     };
-    expr->id.value = token(ast)->value;
-    expr->id.value_length = token(ast)->size;
+    expr->Id.value = token(ast)->value;
+    expr->Id.value_length = token(ast)->size;
 
     next_token(ast);
 
@@ -332,7 +332,7 @@ static M_Expression *parse_break_expression(M_Ast *ast) {
         .filename = ast->filename
     };
     loop_break->kind = M_EK_BREAK;
-    loop_break->expr = break_value;
+    loop_break->Break = break_value;
 
     return loop_break;
 }
@@ -434,8 +434,8 @@ static M_Expression *parse_while_expression(M_Ast *ast) {
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    expr->while_loop.condition = condition; // means infinite
-    expr->while_loop.block = block_head;
+    expr->While.condition = condition; // means infinite
+    expr->While.block = block_head;
 
     return expr;
 }
@@ -706,10 +706,10 @@ static M_Expression *parse_if_expression(M_Ast *ast) {
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    expr->if_expr.condition = if_condition;
-    expr->if_expr.then_block = then_head;
-    expr->if_expr.elif_blocks = elif_head;
-    expr->if_expr.else_block = else_head;
+    expr->If.condition = if_condition;
+    expr->If.then_block = then_head;
+    expr->If.elif_blocks = elif_head;
+    expr->If.else_block = else_head;
 
     return expr;
 }
@@ -722,7 +722,7 @@ static M_Expression *parse_boolean_expression(M_Ast *ast, bool value) {
         .filename = ast->filename
     };
     expr->kind = M_EK_BOOL;
-    expr->boolean = value;
+    expr->Bool = value;
 
     next_token(ast);
 
@@ -774,10 +774,9 @@ static M_Expression *parse_string_literal_expression(M_Ast *ast) {
     };
     
     expr->kind = M_EK_STRING;
-    expr->string.value = string_literal;
-    expr->string.value_length = str_literal_index;
-    
-    expr->string.value[str_literal_index] = '\0';
+    expr->String.value = string_literal;
+    expr->String.value_length = str_literal_index;
+    expr->String.value[str_literal_index] = '\0';
 
     next_token(ast); // Jump over the string token
 
@@ -795,7 +794,7 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
             .filename = ast->filename
         };
         expr->kind = M_EK_INT;
-        expr->integer = convert_to_integer(token(ast));
+        expr->Int = convert_to_integer(token(ast));
 
         next_token(ast);
 
@@ -820,7 +819,7 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
             .filename = ast->filename
         };
         expr->kind = M_EK_FLOAT;
-        expr->floating = convert_to_double(token(ast));
+        expr->Float = convert_to_double(token(ast));
 
         next_token(ast);
 
@@ -899,8 +898,8 @@ static M_Expression *parse_factorial_expression(M_Ast *ast) {
             .col = op_token->loc.col,
             .filename = ast->filename
         };
-        expr->unary.op = op;
-        expr->unary.operand = left;
+        expr->Unary.op = op;
+        expr->Unary.operand = left;
 
         left = expr;
     }
@@ -935,8 +934,8 @@ static M_Expression *parse_unary_expression(M_Ast *ast) {
             .col = op_token->loc.col,
             .filename = ast->filename
         };
-        expr->unary.op = op == M_UNARY_FACTORIAL_OP ? M_UNARY_NOT_OP : op;
-        expr->unary.operand = operand;
+        expr->Unary.op = op == M_UNARY_FACTORIAL_OP ? M_UNARY_NOT_OP : op;
+        expr->Unary.operand = operand;
 
         return expr;
     }
@@ -974,9 +973,9 @@ static M_Expression *parse_power_expression(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = op;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = op;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1014,9 +1013,9 @@ static M_Expression *parse_term_expression(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = op;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = op;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1055,9 +1054,9 @@ static M_Expression *parse_additive_expression(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = op;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = op;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1097,9 +1096,9 @@ static M_Expression *parse_relational_expression(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = op;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = op;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1136,9 +1135,9 @@ static M_Expression *parse_equality_expression(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = op;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = op;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1174,9 +1173,9 @@ static M_Expression *parse_logical_operators(M_Ast *ast) {
             .col = first_token->loc.col,
             .filename = ast->filename
         };
-        expr->binary.op = and ? M_BINARY_AND_OP : M_BINARY_OR_OP;
-        expr->binary.left = left;
-        expr->binary.right = right;
+        expr->Binary.op = and ? M_BINARY_AND_OP : M_BINARY_OR_OP;
+        expr->Binary.left = left;
+        expr->Binary.right = right;
 
         left = expr;
     }
@@ -1205,9 +1204,9 @@ static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_K
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    assignment_expr->assign.name.value = name;
-    assignment_expr->assign.name.length = name_length;
-    assignment_expr->assign.right = right;
+    assignment_expr->Assign.name.value = name;
+    assignment_expr->Assign.name.value_length = name_length;
+    assignment_expr->Assign.right = right;
 
     return assignment_expr;
 }
