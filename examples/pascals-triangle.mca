@@ -26,8 +26,11 @@ if !is_int(NUM_ROWS)  help(format('error: invalid triangle height: ', NUM_ROWS, 
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2
+x = 0
 
-biggest_value     = as_int(n! / (k! * (n - k)!))
+biggest_value = 1
+while ((x += 1) < k + 1)  biggest_value = next_pascal_number(biggest_value, x, n)
+
 biggest_value_len = len(as_string(biggest_value)) + 1
 padding           = as_int(NUM_ROWS * biggest_value_len / 2)
 

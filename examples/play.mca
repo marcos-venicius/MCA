@@ -1,7 +1,4 @@
 #!/usr/local/bin/mca
 
-make_adder = \(x) -> \(y) -> x + y;
-add_5 = make_adder(5)
-println(add_5(10))
 
 # vim: set syntax=r :
