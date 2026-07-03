@@ -212,23 +212,38 @@ static int evaluate_m_value_as_internal_boolean(M_Value value) {
     }
 }
 
+static inline void acquire_environment(M_Environment *env) {
+    if (env != NULL) env->ref_count++;
+}
+
+static void release_environment(M_Environment *env) {
+    if (env == NULL) return;
+
+    env->ref_count--;
+
+    if (env->ref_count <= 0) {
+        ht_free(env->variables);
+        release_environment(env->parent);
+        free(env);
+    }
+}
+
 static M_Environment *create_new_environment(M_Environment *parent) {
     M_Environment *new_env = malloc(sizeof(M_Environment));
     new_env->parent = parent;
     new_env->variables = ht_init(sizeof(M_Value));
+    new_env->ref_count = 1;
+
+    acquire_environment(parent);
 
     return new_env;
-}
-
-static void free_environment(M_Environment *env) {
-    ht_free(env->variables);
-    free(env);
 }
 
 static void enter_new_environment() {
     M_Environment *new_env = malloc(sizeof(M_Environment));
     new_env->variables = ht_init(sizeof(M_Value));
     new_env->parent = interpreter->current_environment;
+    new_env->ref_count = 1;
 
     interpreter->current_environment = new_env;
 }
@@ -323,7 +338,7 @@ static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t
     // restoring the environment
     interpreter->current_environment = caller_env;
 
-    free_environment(fn_env);
+    release_environment(fn_env);
 
     return return_value.value;
 }
@@ -823,6 +838,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         };
         case M_EK_FN:
             expression->Fn.closure_env = interpreter->current_environment;
+            acquire_environment(expression->Fn.closure_env);
             return m_result_normal(m_value_fn(expression));
     }
 

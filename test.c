@@ -475,8 +475,7 @@ int main(void) {
     TEST_CASE("f = \\(x) -> { x * 2 }; f(10)", T_INT(20));
     TEST_CASE("f = \\(x) -> { a = 10; x + a }; f(5)", T_INT(15));
     TEST_CASE("f = \\(a, cb) -> cb(a); f(10, \\(x) -> x * 2)", T_INT(20));
-    // TODO: implement ref counting for envs
-    // TEST_CASE("make_adder = \\(x) -> \\(y) -> x + y; add_5 = make_adder(5); add_5(10)", T_INT(15));
+    TEST_CASE("make_adder = \\(x) -> \\(y) -> x + y; add_5 = make_adder(5); add_5(10)", T_INT(15));
     TEST_CASE("x = 10; f = \\(x) -> x * 2; f(20) + x", T_INT(50));
     TEST_CASE("x = 10; f = \\() -> x; x = 20; f()", T_INT(20));
     TEST_CASE("f = \\(x) -> x; if true { y = 100; f(y) }", T_INT(100));
