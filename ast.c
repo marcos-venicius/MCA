@@ -86,6 +86,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_STRING:
         case M_EXCLAMATION:
         case M_BACKSLASH:
+        case M_ARROW:
         case M_LPAREN:
         case M_RPAREN:
         case M_LCURLY:
@@ -160,6 +161,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_INT:
         case M_FLOAT:
         case M_BACKSLASH:
+        case M_ARROW:
         case M_LPAREN:
         case M_RPAREN:
         case M_LCURLY:
@@ -208,6 +210,40 @@ static void ast_info(M_Ast *ast, M_Token *token, const char *message, ...) {
     fprintf(stderr, "\n");
 
     va_end(args);
+}
+
+static bool expect(M_Ast *ast, M_Token_Kind kind) {
+    if (token(ast) == NULL) {
+        ast_error(ast, ast->last_consumed_token, "expected '%s' but go EOF", m_lexer_token_kind_display_name(kind));
+        synchronize(ast);
+        return false;
+    }
+
+    if (token(ast)->kind != kind) {
+        ast_error(ast, ast->last_consumed_token, "expected '%s' but go '%s'", m_lexer_token_kind_display_name(kind), m_lexer_token_kind_display_name(token(ast)->kind));
+        synchronize(ast);
+        return false;
+    }
+
+    return true;
+}
+
+static M_Expression *parse_identifier_expression(M_Ast *ast) {
+    if (!expect(ast, M_ID)) return NULL;
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_ID;
+    expr->location = (M_Location){
+        .line = token(ast)->loc.line,
+        .col = token(ast)->loc.col,
+        .filename = ast->filename
+    };
+    expr->Id.value = strndup(token(ast)->value, token(ast)->size);
+    expr->Id.value_length = token(ast)->size;
+
+    next_token(ast);
+
+    return expr;
 }
 
 static M_Expression_Block *parse_block_expression(M_Ast *ast) {
@@ -315,7 +351,7 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
         .col = fn_name->loc.col,
         .filename = ast->filename
     };
-    fn->Call.fn_name.value = fn_name->value;
+    fn->Call.fn_name.value = strndup(fn_name->value, fn_name->size);
     fn->Call.fn_name.value_length = fn_name->size;
     fn->Call.arguments_length = 0;
 
@@ -372,18 +408,54 @@ static M_Expression *parse_function_call_expression(M_Ast *ast) {
     return fn;
 }
 
-static M_Expression *parse_variable_expression(M_Ast *ast) {
+static M_Expression *parse_function_declaration_expression(M_Ast *ast) {
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
-    expr->kind = M_EK_ID;
+    expr->kind = M_EK_FN;
     expr->location = (M_Location){
         .line = token(ast)->loc.line,
         .col = token(ast)->loc.col,
         .filename = ast->filename
     };
-    expr->Id.value = token(ast)->value;
-    expr->Id.value_length = token(ast)->size;
+    expr->Fn.arguments_length = 0;
 
-    next_token(ast);
+    next_token(ast); // skip '\'
+
+    if (!expect(ast, M_LPAREN)) return NULL;
+    next_token(ast); // skip '('
+
+    // parse arguments
+    while (token(ast) != NULL && token(ast)->kind != M_RPAREN) {
+        if (!expect(ast, M_ID)) return NULL;
+
+        M_Expression *arg_expr = parse_identifier_expression(ast);
+
+        expr->Fn.arguments[expr->Fn.arguments_length++] = arg_expr;
+
+        if (token(ast) == NULL) {
+            ast_error(ast, ast->last_consumed_token, "expected ',' or ')' but got EOF");
+            synchronize(ast);
+            return NULL;
+        }
+
+        if (token(ast)->kind == M_RPAREN) break;
+
+        if (token(ast)->kind != M_COMMA) {
+            ast_error(ast, ast->last_consumed_token, "expected ',' but got '%s'", m_lexer_token_kind_display_name(token(ast)->kind));
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip ','
+    }
+
+    if (!expect(ast, M_RPAREN)) return NULL;
+    next_token(ast); // skip ')'
+
+    if (!expect(ast, M_ARROW)) return NULL;
+    next_token(ast); // skip '->'
+
+    // TODO: handle error propagation
+    expr->Fn.block = parse_block_expression(ast);
 
     return expr;
 }
@@ -679,7 +751,7 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
         if (checkahead(ast, M_LPAREN)) return parse_function_call_expression(ast);
 
-        return parse_variable_expression(ast);
+        return parse_identifier_expression(ast);
     } else if (token(ast)->kind == M_STRING) {
         return parse_string_literal_expression(ast);
     } else if (token(ast)->kind == M_LPAREN) {
@@ -704,6 +776,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         next_token(ast);
 
         return expr;
+    } else if (token(ast)->kind == M_BACKSLASH) {
+        return parse_function_declaration_expression(ast);
     } else {
         ast_error(ast, token(ast), "expected number literal, function call or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
         synchronize(ast);

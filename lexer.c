@@ -79,6 +79,7 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_LTE: return "<=";
 
         case M_BACKSLASH: return "\\";
+        case M_ARROW: return "->";
         case M_LPAREN: return "(";
         case M_RPAREN: return ")";
         case M_LCURLY: return "{";
@@ -342,6 +343,8 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '-':
                 if (nchr(lexer) == '=') {
                     tokenize_n(lexer, 2, M_MINUS_EQUAL);
+                } else if (nchr(lexer) == '>') {
+                    tokenize_n(lexer, 2, M_ARROW);
                 } else {
                     tokenize_single(lexer);
                 }

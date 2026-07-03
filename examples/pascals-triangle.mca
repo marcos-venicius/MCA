@@ -25,12 +25,7 @@ if !is_int(NUM_ROWS) {
     exit(1)
 }
 
-pad = \(padding, char) -> {
-    i = 0; while i < padding {
-        print(char)
-        i += 1
-    }
-}
+pad = \(padding_amount, char) -> while ((padding_amount -= 1) >= 0) print(char)
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2

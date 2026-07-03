@@ -37,16 +37,18 @@ typedef enum {
     M_T_STRING = 1 << 4,
     M_T_MAP    = 1 << 5,
     M_T_MAP_IT = 1 << 6,
+    M_T_FN     = 1 << 7,
     M_T_COUNT
 } M_Value_Type;
 
 typedef union {
-    double          floating;
-    int64_t         integer;
-    bool            boolean;
-    M_String        string;
-    M_Map          *map;
-    M_Map_Iterator *map_it;
+    double             floating;
+    int64_t            integer;
+    bool               boolean;
+    M_String           string;
+    M_Map             *map;
+    M_Map_Iterator    *map_it;
+    M_Expression      *fn;
 } M_Value_Union;
 
 typedef struct {

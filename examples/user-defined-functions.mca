@@ -1,11 +1,29 @@
 #!/usr/local/bin/mca
 
-# it should not work at this moment
-# we do not have this feature yet
+TZ = -3
 
-# def f(x, y) = x^2 + y^2;
+# get the distance between two coordinates, one line functions.
+d = \(x1, y1, x2, y2) -> sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
 
-# get the distance between two coordinates
-# def d(x1, y1, x2, y2) = sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
+distance = d(10, 10, 20, 20)
+
+println('Distance between 10x10 & 20x20 is: ', distance)
+
+# You can define a function with a body that accepts other functions
+# param(message):     is a string
+# param(transformer): is a function that accepts a string and return a string
+display_message = \(message, transformer) -> {
+  y  = year(TZ) # functions can reference global variables
+  m  = month(TZ)
+  d  = date(TZ)
+  H  = hour(TZ)
+  M  = minute(TZ)
+  S  = second(TZ)
+
+  println(y, '-', m, '-', d, ' ', H, ':', M, ':', S, ' [MESSAGE] ', transformer(message))
+}
+
+# you can pass anonymous functions as arguments to other functions
+display_message('Hello, World', \(m) -> format('<', m, '>'))
 
 # vim: set syntax=r :

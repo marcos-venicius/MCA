@@ -28,7 +28,7 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
 
     fprintf(stderr, "  \033[1;31mFAIL\033[0m '%s' \033[0;33m(%s:%d)\033[0m\n", expression, file, line);
 
-    static_assert(M_T_COUNT == 65, "LOG_ERROR: missing M_Value_Type handler");
+    static_assert(M_T_COUNT == 129, "LOG_ERROR: missing M_Value_Type handler");
     switch (expected.type) {
         case M_T_INT:
             fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
@@ -51,13 +51,16 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
         case M_T_MAP_IT:
             fprintf(stderr, "       expected: iter<map(%d)>", expected.as.map_it->map->size);
             break;
+        case M_T_FN:
+            fprintf(stderr, "       expected: fn(...%d)", expected.as.fn->Fn.arguments_length);
+            break;
         default:
             fprintf(stderr, "       expected: broken(%d)", expected.type);
             break;
     }
 
     if (actual != NULL) {
-        static_assert(M_T_COUNT == 65, "LOG_ERROR: missing M_Value_Type handler");
+        static_assert(M_T_COUNT == 129, "LOG_ERROR: missing M_Value_Type handler");
         switch (actual->type) {
             case M_T_INT:
                 fprintf(stderr, ", actual: int(%ld)", actual->as.integer);
@@ -79,6 +82,9 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
                 break;
             case M_T_MAP_IT:
                 fprintf(stderr, ", actual: iter<map(%d)>", actual->as.map_it->map->size);
+                break;
+            case M_T_FN:
+                fprintf(stderr, ", actual: fn(...%d)", actual->as.fn->Fn.arguments_length);
                 break;
             default:
                 fprintf(stderr, ", actual: broken(%d)", actual->type);
@@ -113,6 +119,9 @@ static void LOG_SUCCESS(const char *expression, M_Value result) {
             break;
         case M_T_MAP_IT:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37miter<map(%d)>\033[0m\n", expression, result.as.map_it->map->size);
+            break;
+        case M_T_FN:
+            fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mfn(...%d)\033[0m\n", expression, result.as.fn->Fn.arguments_length);
             break;
         case M_T_COUNT:
             assert(0 && "LOG_SUCCESS: unreachable M_T_COUNT");
@@ -186,6 +195,9 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
                     LOG_SUCCESS(expression, expected);
                     goto clear_test_case;
                 }
+                break;
+            case M_T_FN:
+                assert(0 && "TODO: implement test case for functions");
                 break;
             case M_T_MAP_IT:
                 assert(0 && "TODO: implement test case for map iterators");

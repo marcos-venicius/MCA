@@ -101,19 +101,32 @@ typedef struct {
     M_Expression *operand;
 } m_unary_expression_t;
 
+// functions doesn't have a name because they are primary values.
+// in simple terms, you define a function as a variable that points to
+// an anonymous function: `alert = \(message) -> println('Alert: ', message)`
+// or, you can also have a block
+// ```r
+//      pad_string = \(text, size, char) -> {
+//          i = 0; while i < size {
+//              print(char)
+//              i += 1
+//          }
+//          println(text)
+//      }
+// ```
 typedef struct {
-    M_Const_String name;
-
     // @Note: all the arguments (at least for now) will be an identifier
     //        we do not support default argument values for now
-    M_Expression **arguments;
-    int            arguments_length;
+    // @Leak TODO: improve this to use a dynamic array
+    M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
+    int           arguments_length;
 
     M_Expression_Block *block;
 } m_fn_expression_t;
 
 typedef struct {
-    M_Const_String fn_name;
+    // @Leak TODO: free this later
+    M_String fn_name;
 
     // @Leak TODO: improve this to use a dynamic array
     M_Expression *arguments[M_EK_CALL_MAX_ARGUMENTS];
@@ -148,7 +161,7 @@ struct M_Expression {
         M_Float                   Float;  // M_EK_FLOAT
         M_Bool                    Bool;   // M_EK_BOOL
         M_String                  String; // M_EK_STRING @Leak @Note: when it's a string, this will be heap-allocated
-        M_Const_String            Id;     // M_EK_ID
+        M_String                  Id;     // M_EK_ID     @Leak This is gonna be heap allocated but never freed
         m_binary_expression_t     Binary; // M_EK_BINARY
         m_assign_expression_t     Assign; // M_EK_ASSIGN, M_EK_ADD_ASSIGN, M_EK_SUB_ASSIGN
         m_unary_expression_t      Unary;  // M_EK_UNARY

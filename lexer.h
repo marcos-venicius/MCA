@@ -41,7 +41,8 @@ typedef enum {
     M_QUESTION_MARK,
 
     // symbols
-    M_BACKSLASH,
+    M_BACKSLASH, // '\'
+    M_ARROW, // '->'
     M_LPAREN,
     M_RPAREN,
     M_LCURLY,

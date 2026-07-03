@@ -39,6 +39,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 #define m_value_true() ((M_Value){ .type = M_T_BOOL, .as.boolean = true })
 #define m_value_false() ((M_Value){ .type = M_T_BOOL, .as.boolean = false })
 #define m_value_map_it(it) ((M_Value){ .type = M_T_MAP_IT, .as.map_it = it })
+#define m_value_fn(f) ((M_Value){ .type = M_T_FN, .as.fn = f })
 #define m_string(s) ((M_String){ .value = s, .value_length = strlen(s) })
 
 #define m_result_normal(v) (M_Eval_Result){ .flow = M_CTRL_NORMAL, .value = (v) }
@@ -102,7 +103,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
 
 #define HANDLE_M_VALUE_TYPE_NAME(T, name) if (t & T) { size += snprintf(buffer + size, 256 - size, "%s"name, (size > 0) ? " | " : ""); t &= ~T; }
 static const char *m_value_type_name(M_Value_Type type) {
-    static_assert(M_T_COUNT == 65, "m_value_type_name: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 129, "m_value_type_name: missing M_Value_Type handling");
 
     int t = type;
 
@@ -122,6 +123,7 @@ static const char *m_value_type_name(M_Value_Type type) {
     HANDLE_M_VALUE_TYPE_NAME(M_T_STRING, "string")
     HANDLE_M_VALUE_TYPE_NAME(M_T_MAP, "map")
     HANDLE_M_VALUE_TYPE_NAME(M_T_MAP_IT, "iter<map>")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_FN, "fn")
 
     if (t != 0)
         snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
@@ -198,7 +200,7 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
 }
 
 static int evaluate_m_value_as_internal_boolean(M_Value value) {
-    static_assert(M_T_COUNT == 65, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 129, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
 
     switch (value.type) {
         case M_T_INT:   return value.as.integer != 0;
@@ -207,12 +209,6 @@ static int evaluate_m_value_as_internal_boolean(M_Value value) {
 
         default: return -1; // unreacheable
     }
-}
-
-static M_Value evaluate_function_call_expression(M_Expression *expr) {
-    M_Fn_C_Impl fn = resolve_builtin_function(expr);
-
-    return fn(expr, expr->Call.arguments, expr->Call.arguments_length);
 }
 
 static void enter_new_environment() {
@@ -280,6 +276,51 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
     }
 
     return last_result;
+}
+
+// @Note @Bug TODO: We have a bug for now that a function can and will modify upper scopes by default.
+//                  so, if you have a function at the beginning of the file,
+//                  but in the end of the file you have 3 nested ifs and the third
+//                  one have a variable 'a', if, inside your function, you have a parameter called 'a',
+//                  the 'a' inside if is gonna be modified.
+static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t call) {
+    enter_new_environment();
+
+    // fill function parameters with given values
+    for (int i = 0; i < fn->Fn.arguments_length; i++) {
+        M_Eval_Result evaluated_argument = evaluate_expression(call.arguments[i]);
+
+        set_variable_on_environment(interpreter->current_environment, fn->Fn.arguments[i]->Id.value, evaluated_argument.value);
+    }
+
+    M_Eval_Result return_value = evaluate_block_expression(fn->Fn.block);
+
+    destroy_current_environment();
+
+    return return_value.value;
+}
+
+static M_Value evaluate_function_call_expression(M_Expression *expr) {
+    M_Fn_C_Impl fn = resolve_builtin_function(expr);
+
+    if (fn != NULL)
+        return fn(expr, expr->Call.arguments, expr->Call.arguments_length);
+
+    M_Value *var = get_variable_from_environment(interpreter->current_environment, expr->Call.fn_name.value);
+
+    if (var == NULL)
+        m_interpreter_error(expr, "function '%.*s' does not exists", expr->Call.fn_name.value_length, expr->Call.fn_name.value);
+
+    if (var->type != M_T_FN)
+        m_interpreter_error(expr, "you are trying to call '%s' that is a '%s', which it's not a function", expr->Call.fn_name, m_value_type_name(var->type));
+
+    if (expr->Call.arguments_length > var->as.fn->Fn.arguments_length) {
+        m_interpreter_error(expr, "too many arguments %s(...). expected %d but got %d", expr->Call.fn_name.value, var->as.fn->Fn.arguments_length, expr->Call.arguments_length);
+    } else if (expr->Call.arguments_length < var->as.fn->Fn.arguments_length) {
+        m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", expr->Call.fn_name.value, var->as.fn->Fn.arguments_length, expr->Call.arguments_length);
+    }
+
+    return evaluate_function_execution(var->as.fn, expr->Call);
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
@@ -646,6 +687,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                         case M_T_MAP:
                         case M_T_MAP_IT:
                         case M_T_COUNT:
+                        case M_T_FN:
                             assert(0 && "case M_UNARY_NOT_OP: unreachable");
                             break;
                     }
@@ -749,6 +791,8 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
             return m_result_break(m_value_unit());
         };
+        case M_EK_FN:
+            return m_result_normal(m_value_fn(expression));
     }
 
     assert(0 && "should never happen");
@@ -995,6 +1039,9 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 __print_map_helper(interpreter->io_out, last_value.as.map_it->map);
                 fprintf(interpreter->io_out, ">");
                 break;
+            case M_T_FN:
+                fprintf(interpreter->io_out, "fn(...%d)", last_value.as.fn->Fn.arguments_length);
+                break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
                 break;
@@ -1198,6 +1245,8 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
             return m_value_string(m_string("map"));
         case M_T_MAP_IT:
             return m_value_string(m_string("iter<map>"));
+        case M_T_FN:
+            return m_value_string(m_string("fn"));
         case M_T_COUNT:
             assert(0 && "__builtin_mca_type: unreachable M_T_COUNT");
             break;
@@ -1357,6 +1406,7 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
         case M_T_BOOL:
         case M_T_UNIT:
         case M_T_COUNT:
+        case M_T_FN:
             assert(0 && "should never happen");
             break;
     }
@@ -1482,7 +1532,7 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
 static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
     if (entry == NULL) return m_value_unit();
 
-    static_assert(M_T_COUNT == 65, "__builtin_mca_map_get");
+    static_assert(M_T_COUNT == 129, "__builtin_mca_map_get");
     switch (entry->type) {
         case M_T_STRING:
             return (M_Value){
@@ -1509,6 +1559,7 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
         case M_T_UNIT:
         case M_T_MAP_IT:
         case M_T_MAP:
+        case M_T_FN: // accept later
             assert(0 && "TODO: for now, we don't accept nested hashmaps nor iterators or unit as value");
             break;
     }
@@ -1569,7 +1620,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     // for now, we will be able to have only integers and strings as keys
     M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
 
-    static_assert(M_T_COUNT == 65, "mca_map_value");
+    static_assert(M_T_COUNT == 129, "mca_map_value");
     M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
 
     void *key       = NULL;
@@ -1592,7 +1643,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             break;
     }
 
-    static_assert(M_T_COUNT == 65, "__builtin_mca_map_set");
+    static_assert(M_T_COUNT == 129, "__builtin_mca_map_set");
     switch (a2.value.type) {
         case M_T_STRING:
             value = a2.value.as.string.value;
@@ -1614,6 +1665,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
         case M_T_MAP_IT:
         case M_T_UNIT:
         case M_T_COUNT:
+        case M_T_FN: // accept later
             assert(0 && "should never happen");
             break;
     }
@@ -1921,8 +1973,5 @@ static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr) {
         return signature.c_impl;
     }
 
-    m_interpreter_error(expr, "function '%.*s' does not exists", expr->Call.fn_name.value_length, expr->Call.fn_name.value);
-
-    // didn't found a function (unreachable, just so the compiler doesn't yells at me)
     return NULL;
 }
