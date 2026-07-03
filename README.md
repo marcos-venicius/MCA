@@ -44,10 +44,10 @@ MCA supports dynamic data typing with automatic coercion when performing mathema
 A rich example showcasing closures, string manipulations, variables, and math:
 
 ```r
-PROGRAM_NAME = argv(0)
-
 help = \(error) -> {
-    println('usage: ', PROGRAM_NAME, ' <triangle-height>')
+    program_name = argv(0)
+
+    println('usage: ', program_name, ' <triangle-height>')
     println()
     println('    triangle height must be greater than 0 and a valid integer\n')
     println()
@@ -70,8 +70,11 @@ if !is_int(NUM_ROWS)  help(format('error: invalid triangle height: ', NUM_ROWS, 
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2
+x = 0
 
-biggest_value     = as_int(n! / (k! * (n - k)!))
+biggest_value = 1
+while ((x += 1) < k + 1)  biggest_value = next_pascal_number(biggest_value, x, n)
+
 biggest_value_len = len(as_string(biggest_value)) + 1
 padding           = as_int(NUM_ROWS * biggest_value_len / 2)
 
@@ -95,6 +98,8 @@ row_index = 0; while row_index < NUM_ROWS {
 
 println()
 ```
+
+In fact, this code is present in the examples folder [here](./examples/pascals-triangle.mca).
 
 ## 3. Standard Library
 
