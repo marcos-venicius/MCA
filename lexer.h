@@ -47,6 +47,8 @@ typedef enum {
     M_RPAREN,
     M_LCURLY,
     M_RCURLY,
+    M_LBRACKET,
+    M_RBRACKET,
     M_SEMI,
     M_COMMA,
 } M_Token_Kind;

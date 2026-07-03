@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#define __MCA_MAP_CAP 1024 // 32^2 // should always be a power of 2
+#define __MCA_MAP_CAP 4096 // 32^2 // should always be a power of 2
 
 typedef struct {
     void  *data; 

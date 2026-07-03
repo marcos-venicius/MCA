@@ -44,6 +44,8 @@ typedef enum {
     M_EK_WHILE,
     M_EK_BREAK,
     M_EK_IF,
+    M_EK_ARRAY,
+    M_EK_INDEX,
 } M_Expression_Kind;
 
 typedef enum {
@@ -154,6 +156,16 @@ typedef struct {
     M_Expression_Block      *else_block;
 } m_if_expression_t;
 
+typedef struct {
+    M_Expression **items;
+    int           items_length;
+} m_array_expression_t;
+
+typedef struct {
+    M_Expression *left;
+    M_Expression *index;
+} m_index_expression_t;
+
 struct M_Expression {
     M_Expression_Kind kind;
     M_Location        location;
@@ -173,6 +185,8 @@ struct M_Expression {
         m_while_loop_expression_t While;  // M_EK_WHILE
         m_if_expression_t         If;     // M_EK_IF
         M_Expression             *Break;  // M_EK_BREAK (can be null)
+        m_array_expression_t      Array;  // M_EK_ARRAY
+        m_index_expression_t      Index;  // M_EK_INDEX
     };
 };
 

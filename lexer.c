@@ -82,6 +82,8 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_ARROW: return "->";
         case M_LPAREN: return "(";
         case M_RPAREN: return ")";
+        case M_LBRACKET: return "[";
+        case M_RBRACKET: return "]";
         case M_LCURLY: return "{";
         case M_RCURLY: return "}";
         case M_COMMA: return ",";
@@ -269,6 +271,8 @@ static void tokenize_single(M_Lexer *lexer) {
         case '/':  advance_cursor(lexer); save_token(lexer, M_DIVIDE); break;
         case '(':  advance_cursor(lexer); save_token(lexer, M_LPAREN); break;
         case ')':  advance_cursor(lexer); save_token(lexer, M_RPAREN); break;
+        case '[':  advance_cursor(lexer); save_token(lexer, M_LBRACKET); break;
+        case ']':  advance_cursor(lexer); save_token(lexer, M_RBRACKET); break;
         case '{':  advance_cursor(lexer); save_token(lexer, M_LCURLY); break;
         case '}':  advance_cursor(lexer); save_token(lexer, M_RCURLY); break;
         case '+':  advance_cursor(lexer); save_token(lexer, M_PLUS); break;
@@ -330,6 +334,8 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '/':
             case '(':
             case ')':
+            case '[':
+            case ']':
             case '{':
             case '}':
             case '%':

@@ -32,27 +32,39 @@ typedef enum {
     M_T_MAP    = 1 << 5,
     M_T_MAP_IT = 1 << 6,
     M_T_FN     = 1 << 7,
+    M_T_ARRAY  = 1 << 8,
     M_T_COUNT
 } M_Value_Type;
 
+typedef struct M_Array M_Array;
+
+struct M_Array {
+    struct M_Value *items;
+    int length;
+    int capacity;
+};
+
 typedef union {
-    double             floating;
-    int64_t            integer;
-    bool               boolean;
-    M_String           string;
-    M_Map             *map;
-    M_Map_Iterator    *map_it;
-    M_Expression      *fn;
+    double           floating;
+    int64_t          integer;
+    bool             boolean;
+    M_String         string;
+    M_Map           *map;
+    M_Map_Iterator  *map_it;
+    M_Expression    *fn;
+    M_Array         *array;
 } M_Value_Union;
 
-typedef struct {
+typedef struct M_Value M_Value;
+
+struct M_Value {
     // if the value is just a view or actually allocated
     bool allocated;
 
     M_Value_Type type;
 
     M_Value_Union as;
-} M_Value;
+};
 
 typedef enum {
     M_CTRL_NORMAL,

@@ -6,22 +6,28 @@
 
 static uint32_t hash_key(void *data, size_t size, int type) {
     const unsigned char *bytes = (const unsigned char*)data;
+    uint32_t hash = 2166136261u;
 
-    unsigned long hash = 5381;
+    // Mix in type and size to ensure different types/sizes with same prefix don't collide
+    hash ^= (uint32_t)type;
+    hash *= 16777619u;
+    
+    hash ^= (uint32_t)size;
+    hash *= 16777619u;
 
-    hash = ((hash << 5) + hash) + (uint32_t)size;
-    hash = ((hash << 5) + hash) + (uint32_t)type;
-
-    for (size_t i = 0; i < size; i++)
-        hash = ((hash << 5) + hash) + bytes[i];
+    for (size_t i = 0; i < size; i++) {
+        hash ^= bytes[i];
+        hash *= 16777619u;
+    }
 
     return hash & (__MCA_MAP_CAP - 1);
 }
 
 static M_Map_Node *alloc_node(void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type) {
-    M_Map_Node *node = (M_Map_Node*)malloc(sizeof(M_Map_Node));
+    // Allocate node and key data in a single contiguous block to save a malloc()
+    M_Map_Node *node = (M_Map_Node*)malloc(sizeof(M_Map_Node) + key_size);
 
-    node->key.data = malloc(key_size);
+    node->key.data = (char*)node + sizeof(M_Map_Node);
     node->key.size = key_size;
     node->key.type = key_type;
 
@@ -38,7 +44,7 @@ static M_Map_Node *alloc_node(void *key, size_t key_size, int key_type, void *va
 }
 
 static void free_node(M_Map_Node *node) {
-    free(node->key.data);
+    // node->key.data is part of the node block, so only free value.data and node
     free(node->value.data);
     free(node);
 }

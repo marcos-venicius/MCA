@@ -28,7 +28,7 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
 
     fprintf(stderr, "  \033[1;31mFAIL\033[0m '%s' \033[0;33m(%s:%d)\033[0m\n", expression, file, line);
 
-    static_assert(M_T_COUNT == 129, "LOG_ERROR: missing M_Value_Type handler");
+    static_assert(M_T_COUNT == 257, "LOG_ERROR: missing M_Value_Type handler");
     switch (expected.type) {
         case M_T_INT:
             fprintf(stderr, "       expected: int(%ld)", expected.as.integer);
@@ -45,6 +45,9 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
         case M_T_STRING:
             fprintf(stderr, "       expected: string(\"%.*s\")", expected.as.string.value_length, expected.as.string.value);
             break;
+        case M_T_ARRAY:
+            fprintf(stderr, "       expected: array(%d)", expected.as.array->length);
+            break;
         case M_T_MAP:
             fprintf(stderr, "       expected: map(%d)", expected.as.map->size);
             break;
@@ -60,7 +63,7 @@ static void LOG_ERROR(const char *expression, M_Value expected, M_Value *actual,
     }
 
     if (actual != NULL) {
-        static_assert(M_T_COUNT == 129, "LOG_ERROR: missing M_Value_Type handler");
+        static_assert(M_T_COUNT == 257, "LOG_ERROR: missing M_Value_Type handler");
         switch (actual->type) {
             case M_T_INT:
                 fprintf(stderr, ", actual: int(%ld)", actual->as.integer);
@@ -99,6 +102,7 @@ static void LOG_SUCCESS(const char *expression, M_Value result) {
     success++;
 
     switch (result.type) {
+        case M_T_ARRAY:
         case M_T_INT:
             fprintf(stderr, "  \033[1;32mPASS\033[0m '%s' => \033[1;37mint(%ld)\033[0m\n", expression, result.as.integer);
             break;
@@ -195,6 +199,9 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
                     LOG_SUCCESS(expression, expected);
                     goto clear_test_case;
                 }
+                break;
+            case M_T_ARRAY:
+                assert(0 && "TODO: implement test case for array");
                 break;
             case M_T_FN:
                 assert(0 && "TODO: implement test case for functions");
@@ -528,6 +535,16 @@ int main(void) {
         "len(m)",
         T_INT(0)
     );
+    TEST_CASE("m = map_init();map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_del(m, 'Height')", T_BOOL(false));
+    TEST_CASE("m = map_init();map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_clear(m);len(m)", T_INT(0));
+
+    TEST_CASE_LABEL("Arrays");
+    TEST_CASE("a = []; len(a)", T_INT(0));
+    TEST_CASE("a = [1, 2, 'three']; len(a)", T_INT(3));
+    TEST_CASE("a = [1, 2, 'three']; a[0]", T_INT(1));
+    TEST_CASE("a = [1, 2, 'three']; a[2]", T_STRING("three"));
+    TEST_CASE("a = [1]; append(a, 2); len(a)", T_INT(2));
+    TEST_CASE("a = [1]; append(a, 2); a[1]", T_INT(2));
 
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);

@@ -10,6 +10,7 @@
 #include "./lexer.h"
 
 static M_Expression *parse_expression_impl(M_Ast *ast);
+static M_Expression *parse_array_literal_expression(M_Ast *ast);
 
 static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
@@ -76,6 +77,8 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_GTE:         return M_BINARY_GTE_OP;
         case M_LTE:         return M_BINARY_LTE_OP;
 
+        case M_LBRACKET:
+        case M_RBRACKET:
         case M_PLUS_EQUAL:
         case M_MINUS_EQUAL:
         case M_QUESTION_MARK:
@@ -168,6 +171,8 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_RCURLY:
         case M_SEMI:
         case M_COMMA:
+        case M_LBRACKET:
+        case M_RBRACKET:
             assert(0 && "token_kind_as_unary_expression_operator: invalid token kind as unary operator");
     }
 
@@ -778,6 +783,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         return expr;
     } else if (token(ast)->kind == M_BACKSLASH) {
         return parse_function_declaration_expression(ast);
+    } else if (token(ast)->kind == M_LBRACKET) {
+        return parse_array_literal_expression(ast);
     } else {
         ast_error(ast, token(ast), "expected number literal, function call or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
         synchronize(ast);
@@ -787,10 +794,100 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
     return NULL;
 }
 
+static M_Expression *parse_array_literal_expression(M_Ast *ast) {
+    M_Token *start_token = token(ast);
+    next_token(ast); // skip '['
+    
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_ARRAY;
+    expr->location = (M_Location){
+        .line = start_token->loc.line,
+        .col = start_token->loc.col,
+        .filename = ast->filename
+    };
+    expr->Array.items_length = 0;
+    expr->Array.items = NULL;
+    
+    int capacity = 8;
+    M_Expression **temp_items = malloc(sizeof(M_Expression *) * capacity);
+    int length = 0;
+
+    if (token(ast) != NULL && token(ast)->kind != M_RBRACKET) {
+        while (true) {
+            M_Expression *item = parse_expression_impl(ast);
+            if (!item) {
+                free(temp_items);
+                return NULL;
+            }
+            
+            if (length >= capacity) {
+                capacity *= 2;
+                temp_items = realloc(temp_items, sizeof(M_Expression *) * capacity);
+            }
+            temp_items[length++] = item;
+            
+            if (token(ast) == NULL) {
+                ast_error(ast, start_token, "expected ']' but got EOF");
+                synchronize(ast);
+                free(temp_items);
+                return NULL;
+            }
+            if (token(ast)->kind == M_RBRACKET) break;
+            if (token(ast)->kind != M_COMMA) {
+                ast_error(ast, token(ast), "expected ',' or ']'");
+                synchronize(ast);
+                free(temp_items);
+                return NULL;
+            }
+            next_token(ast); // skip ','
+        }
+    }
+    
+    if (length > 0) {
+        expr->Array.items = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression *) * length);
+        memcpy(expr->Array.items, temp_items, sizeof(M_Expression *) * length);
+    }
+    expr->Array.items_length = length;
+    free(temp_items);
+    
+    if (!expect(ast, M_RBRACKET)) return NULL;
+    next_token(ast); // skip ']'
+    
+    return expr;
+}
+
+static M_Expression *parse_postfix_expression(M_Ast *ast) {
+    M_Expression *left = parse_primary_expression(ast);
+    if (left == NULL) return NULL;
+
+    while (token(ast) != NULL && token(ast)->kind == M_LBRACKET) {
+        M_Token *bracket_token = token(ast);
+        next_token(ast); // skip '['
+
+        M_Expression *index = parse_expression_impl(ast);
+
+        if (!expect(ast, M_RBRACKET)) return NULL;
+        next_token(ast); // skip ']'
+
+        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+        expr->kind = M_EK_INDEX;
+        expr->location = (M_Location){
+            .line = bracket_token->loc.line,
+            .col = bracket_token->loc.col,
+            .filename = ast->filename
+        };
+        expr->Index.left = left;
+        expr->Index.index = index;
+
+        left = expr;
+    }
+    return left;
+}
+
 static M_Expression *parse_factorial_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
-    M_Expression *left = parse_primary_expression(ast);
+    M_Expression *left = parse_postfix_expression(ast);
 
     if (left == NULL) return NULL;
 

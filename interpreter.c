@@ -104,7 +104,7 @@ static M_Eval_Result calculate_factorial(M_Eval_Result r) {
 
 #define HANDLE_M_VALUE_TYPE_NAME(T, name) if (t & T) { size += snprintf(buffer + size, 256 - size, "%s"name, (size > 0) ? " | " : ""); t &= ~T; }
 static const char *m_value_type_name(M_Value_Type type) {
-    static_assert(M_T_COUNT == 129, "m_value_type_name: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 257, "m_value_type_name: missing M_Value_Type handling");
 
     int t = type;
 
@@ -125,6 +125,7 @@ static const char *m_value_type_name(M_Value_Type type) {
     HANDLE_M_VALUE_TYPE_NAME(M_T_MAP, "map")
     HANDLE_M_VALUE_TYPE_NAME(M_T_MAP_IT, "iter<map>")
     HANDLE_M_VALUE_TYPE_NAME(M_T_FN, "fn")
+    HANDLE_M_VALUE_TYPE_NAME(M_T_ARRAY, "array")
 
     if (t != 0)
         snprintf(buffer + size, 256 - size, "%sunknown(%d)", (size > 0) ? " | " : "", t);
@@ -201,7 +202,7 @@ static double evaluate_binary_operation_on_doubles(M_Binary_Expression_Operator 
 }
 
 static int evaluate_m_value_as_internal_boolean(M_Value value) {
-    static_assert(M_T_COUNT == 129, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
+    static_assert(M_T_COUNT == 257, "evaluate_m_value_as_internal_boolean: missing M_Value_Type handling");
 
     switch (value.type) {
         case M_T_INT:   return value.as.integer != 0;
@@ -729,6 +730,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                             };
                         case M_T_STRING:
                         case M_T_UNIT:
+                        case M_T_ARRAY:
                         case M_T_MAP:
                         case M_T_MAP_IT:
                         case M_T_COUNT:
@@ -742,6 +744,35 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
             assert(0 && "evaluate_expression_impl: invalid unary expression operator");
         } break;
+
+        case M_EK_ARRAY: {
+            M_Array *array = malloc(sizeof(M_Array));
+            array->length = expression->Array.items_length;
+            array->capacity = array->length == 0 ? 8 : array->length;
+            array->items = malloc(sizeof(M_Value) * array->capacity);
+
+            for (int i = 0; i < array->length; i++) {
+                array->items[i] = evaluate_expression(expression->Array.items[i]).value;
+            }
+
+            M_Value val = (M_Value){.allocated = true, .type = M_T_ARRAY, .as = {.array = array}};
+            return m_result_normal(val);
+        }
+        case M_EK_INDEX: {
+            M_Value left = evaluate_expression(expression->Index.left).value;
+            if (left.type != M_T_ARRAY)
+                m_interpreter_error(expression, "cannot index into non-array value");
+
+            M_Value index = evaluate_expression(expression->Index.index).value;
+            if (index.type != M_T_INT)
+                m_interpreter_error(expression, "array index must be an integer");
+
+            int idx = index.as.integer;
+            if (idx < 0 || idx >= left.as.array->length)
+                m_interpreter_error(expression, "array index out of bounds");
+
+            return m_result_normal(left.as.array->items[idx]);
+        }
         case M_EK_CALL: return m_result_normal(evaluate_function_call_expression(expression));
         case M_EK_BINARY: return evaluate_binary_expression(expression);
         case M_EK_IF: {
@@ -1050,6 +1081,22 @@ static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[]
     return x.value;
 }
 
+
+static void __print_array_helper(FILE *out, M_Array *array) {
+    fprintf(out, "[");
+    for (int i = 0; i < array->length; i++) {
+        if (i > 0) fprintf(out, ", ");
+        switch(array->items[i].type) {
+            case M_T_INT: fprintf(out, "%ld", array->items[i].as.integer); break;
+            case M_T_FLOAT: fprintf(out, "%f", array->items[i].as.floating); break;
+            case M_T_BOOL: fprintf(out, "%s", array->items[i].as.boolean ? "true" : "false"); break;
+            case M_T_STRING: fprintf(out, "'%.*s'", array->items[i].as.string.value_length, array->items[i].as.string.value); break;
+            default: fprintf(out, "%s", m_value_type_name(array->items[i].type)); break;
+        }
+    }
+    fprintf(out, "]");
+}
+
 static void __print_map_helper(FILE *out, M_Map *map) {
     // TODO: implement iterator and really print the map
     fprintf(out, "map(size: %d)", map->size);
@@ -1088,6 +1135,9 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
                 break;
             case M_T_FN:
                 fprintf(interpreter->io_out, "fn(...%d)", last_value.as.fn->Fn.arguments_length);
+                break;
+            case M_T_ARRAY:
+                __print_array_helper(interpreter->io_out, last_value.as.array);
                 break;
             case M_T_COUNT:
                 assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
@@ -1290,6 +1340,8 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
             return m_value_string(m_string("string"));
         case M_T_MAP:
             return m_value_string(m_string("map"));
+        case M_T_ARRAY:
+            return m_value_string(m_string("array"));
         case M_T_MAP_IT:
             return m_value_string(m_string("iter<map>"));
         case M_T_FN:
@@ -1442,11 +1494,12 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING | M_T_MAP);
+    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING | M_T_MAP | M_T_ARRAY);
 
     switch (result.value.type) {
         case M_T_STRING: return m_value_int(result.value.as.string.value_length);
         case M_T_MAP: return m_value_int(result.value.as.map->size);
+        case M_T_ARRAY: return m_value_int(result.value.as.array->length);
         case M_T_MAP_IT:
         case M_T_INT:
         case M_T_FLOAT:
@@ -1579,7 +1632,7 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
 static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
     if (entry == NULL) return m_value_unit();
 
-    static_assert(M_T_COUNT == 129, "__builtin_mca_map_get");
+    static_assert(M_T_COUNT == 257, "__builtin_mca_map_get");
     switch (entry->type) {
         case M_T_STRING:
             return (M_Value){
@@ -1667,7 +1720,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     // for now, we will be able to have only integers and strings as keys
     M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
 
-    static_assert(M_T_COUNT == 129, "mca_map_value");
+    static_assert(M_T_COUNT == 257, "mca_map_value");
     M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
 
     void *key       = NULL;
@@ -1690,7 +1743,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             break;
     }
 
-    static_assert(M_T_COUNT == 129, "__builtin_mca_map_set");
+    static_assert(M_T_COUNT == 257, "__builtin_mca_map_set");
     switch (a2.value.type) {
         case M_T_STRING:
             value = a2.value.as.string.value;
@@ -1710,6 +1763,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
             break;
         case M_T_MAP:
         case M_T_MAP_IT:
+        case M_T_ARRAY:
         case M_T_UNIT:
         case M_T_COUNT:
         case M_T_FN: // accept later
@@ -1772,6 +1826,30 @@ static M_Value __builtin_mca_map_it(M_Expression *caller, M_Expression *argument
     M_Map_Iterator *it = mca_map_iterator(a0.value.as.map);
 
     return m_value_map_it(it);
+}
+
+static M_Value __builtin_mca_append(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+    (void)caller;
+    (void)arguments_count;
+
+    M_Value arr = evaluate_expression(arguments[0]).value;
+
+    if (arr.type != M_T_ARRAY) {
+        m_interpreter_error(arguments[0], "first argument to append must be an array");
+        return m_value_unit();
+    }
+
+    M_Value val = evaluate_expression(arguments[1]).value;
+    M_Array *a = arr.as.array;
+
+    if (a->length >= a->capacity) {
+        a->capacity = a->capacity == 0 ? 8 : a->capacity * 2;
+        a->items = realloc(a->items, sizeof(M_Value) * a->capacity);
+    }
+
+    a->items[a->length++] = val;
+
+    return arr;
 }
 
 static M_Value __builtin_mca_map_it_close(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1975,6 +2053,7 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("map_it_key",   1, __builtin_mca_map_it_key),
     BIND_FN("map_it_value", 1, __builtin_mca_map_it_value),
     BIND_FN("map_it_close", 1, __builtin_mca_map_it_close),
+    BIND_FN("append",       2, __builtin_mca_append),
 
     // random
     BIND_FN("srand", 1, __builtin_mca_as_srand),
