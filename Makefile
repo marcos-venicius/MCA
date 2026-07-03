@@ -4,13 +4,13 @@ CC_LIBS = -lm
 OPTIMIZATION_FLAGS = 
 
 ifdef MCA_OPTIMIZE
-	OPTIMIZATION_FLAGS = -O3
+	CC_FLAGS += -O3
 else
 	CC_FLAGS += -ggdb
 endif
 
 bin/mca: main.o lexer.o ast.o io.o interpreter.o builtins/map.o ht.o arena.o
-	$(CC) $(CC_FLAGS) $(OPTIMIZATION_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
+	$(CC) $(CC_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
 
 bin/test: test.o lexer.o ast.o io.o interpreter.o builtins/map.o ht.o arena.o
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)

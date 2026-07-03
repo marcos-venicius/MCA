@@ -1702,7 +1702,9 @@ static M_Value __builtin_mca_map_get(M_Expression *caller, M_Expression *argumen
         case M_T_STRING:
             key = a1.value.as.string.value;
             key_size = a1.value.as.string.value_length + 1; // include the null-byte
+            break;
         default:
+            assert(0 && "should never happen");
             break;
     }
 
