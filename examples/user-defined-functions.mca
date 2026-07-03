@@ -13,7 +13,7 @@ println('Distance between 10x10 & 20x20 is: ', distance)
 # param(message):     is a string
 # param(transformer): is a function that accepts a string and return a string
 display_message = \(message, transformer) -> {
-  y  = year(TZ) # functions can reference global variables
+  y  = year(TZ) # functions can reference global variables that are in the scope where the function was declared (lexical scope)
   m  = month(TZ)
   d  = date(TZ)
   H  = hour(TZ)
@@ -23,7 +23,13 @@ display_message = \(message, transformer) -> {
   println(y, '-', m, '-', d, ' ', H, ':', M, ':', S, ' [MESSAGE] ', transformer(message))
 }
 
-# you can pass anonymous functions as arguments to other functions
-display_message('Hello, World', \(m) -> format('<', m, '>'))
+if true {
+  if true {
+    if true {
+      # you can pass anonymous functions as arguments to other functions
+      display_message('Hello, World', \(m) -> format('<', m, '>'))
+    }
+  }
+}
 
 # vim: set syntax=r :

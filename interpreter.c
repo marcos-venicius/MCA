@@ -13,6 +13,7 @@
 #include "./ht.h"
 #include "./io.h"
 #include "./builtins/map.h"
+#include "env.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -211,8 +212,21 @@ static int evaluate_m_value_as_internal_boolean(M_Value value) {
     }
 }
 
+static M_Environment *create_new_environment(M_Environment *parent) {
+    M_Environment *new_env = malloc(sizeof(M_Environment));
+    new_env->parent = parent;
+    new_env->variables = ht_init(sizeof(M_Value));
+
+    return new_env;
+}
+
+static void free_environment(M_Environment *env) {
+    ht_free(env->variables);
+    free(env);
+}
+
 static void enter_new_environment() {
-    M_Interpreter_Environment *new_env = malloc(sizeof(M_Interpreter_Environment));
+    M_Environment *new_env = malloc(sizeof(M_Environment));
     new_env->variables = ht_init(sizeof(M_Value));
     new_env->parent = interpreter->current_environment;
 
@@ -220,7 +234,7 @@ static void enter_new_environment() {
 }
 
 static void destroy_current_environment() {
-    M_Interpreter_Environment *current_env = interpreter->current_environment;
+    M_Environment *current_env = interpreter->current_environment;
 
     if (current_env == NULL) return;
 
@@ -231,7 +245,7 @@ static void destroy_current_environment() {
     free(current_env);
 }
 
-static M_Value *get_variable_from_environment(M_Interpreter_Environment *env, const char *key) {
+static M_Value *get_variable_from_environment(M_Environment *env, const char *key) {
     if (env == NULL) return NULL;
 
     M_Value *value = ht_find(env->variables, key);
@@ -241,7 +255,13 @@ static M_Value *get_variable_from_environment(M_Interpreter_Environment *env, co
     return get_variable_from_environment(env->parent, key);
 }
 
-static void set_variable_on_environment(M_Interpreter_Environment *env, const char *key, M_Value data) {
+static void define_variable_in_environment(M_Environment *env, const char *key, M_Value data) {
+    if (env == NULL) return;
+
+    ht_add(env->variables, key, &data);
+}
+
+static void set_variable_on_environment(M_Environment *env, const char *key, M_Value data) {
     // the variable doesn't exists on upper scopes, so we create one in the current scope
     if (env == NULL) {
         ht_add(interpreter->current_environment->variables, key, &data);
@@ -254,6 +274,8 @@ static void set_variable_on_environment(M_Interpreter_Environment *env, const ch
     // we find the variable at the current scope or on upper ones, so we update it
     if (value != NULL) {
         ht_add(env->variables, key, &data);
+
+        return;
     }
 
     // we did not find the variable in this scope so we climb up
@@ -278,24 +300,30 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
     return last_result;
 }
 
-// @Note @Bug TODO: We have a bug for now that a function can and will modify upper scopes by default.
-//                  so, if you have a function at the beginning of the file,
-//                  but in the end of the file you have 3 nested ifs and the third
-//                  one have a variable 'a', if, inside your function, you have a parameter called 'a',
-//                  the 'a' inside if is gonna be modified.
 static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t call) {
-    enter_new_environment();
+    // creating a new environment pointing the parent to the captured
+    // event in the scope the function was defined
+    M_Environment *fn_env     = create_new_environment(fn->Fn.closure_env);
+    M_Environment *caller_env = interpreter->current_environment;
 
     // fill function parameters with given values
     for (int i = 0; i < fn->Fn.arguments_length; i++) {
         M_Eval_Result evaluated_argument = evaluate_expression(call.arguments[i]);
 
-        set_variable_on_environment(interpreter->current_environment, fn->Fn.arguments[i]->Id.value, evaluated_argument.value);
+        define_variable_in_environment(fn_env, fn->Fn.arguments[i]->Id.value, evaluated_argument.value);
     }
+
+    // evaluate the arguments to the function using the current scope
+    // and only switch the scope to the closure scope when executing the function
+    // code itself.
+    interpreter->current_environment = fn_env;
 
     M_Eval_Result return_value = evaluate_block_expression(fn->Fn.block);
 
-    destroy_current_environment();
+    // restoring the environment
+    interpreter->current_environment = caller_env;
+
+    free_environment(fn_env);
 
     return return_value.value;
 }
@@ -564,6 +592,8 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
     if (expression->kind == M_EK_ASSIGN) {
         M_Eval_Result result = evaluate_expression(expression->Assign.right);
 
+
+
         set_variable_on_environment(interpreter->current_environment, key, result.value);
 
         free(key);
@@ -792,6 +822,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return m_result_break(m_value_unit());
         };
         case M_EK_FN:
+            expression->Fn.closure_env = interpreter->current_environment;
             return m_result_normal(m_value_fn(expression));
     }
 
@@ -809,7 +840,7 @@ PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char 
     interpreter->argc = argc;
     interpreter->argv = argv;
 
-    interpreter->global_environment = malloc(sizeof(M_Interpreter_Environment));
+    interpreter->global_environment = malloc(sizeof(M_Environment));
     interpreter->global_environment->variables = ht_init(sizeof(M_Value));
     interpreter->global_environment->parent = NULL;
     interpreter->current_environment = interpreter->global_environment;

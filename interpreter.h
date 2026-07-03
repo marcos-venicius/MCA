@@ -5,19 +5,13 @@
 #include "./ast.h"
 #include "./ht.h"
 #include "./builtins/map.h"
+#include "./env.h"
 
-typedef struct M_Interpreter_Environment M_Interpreter_Environment;
-
-struct M_Interpreter_Environment {
-    ht_t *variables;
-
-    M_Interpreter_Environment *parent;
-};
 
 typedef struct {
-    M_Interpreter_Environment *global_environment;
+    M_Environment *global_environment;
 
-    M_Interpreter_Environment *current_environment;
+    M_Environment *current_environment;
 
     M_Ast *program;
 

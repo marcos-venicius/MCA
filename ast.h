@@ -4,6 +4,7 @@
 #include "./arena.h"
 #include "./location.h"
 #include <stdint.h>
+#include "./env.h"
 
 // @Leak @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
@@ -122,6 +123,8 @@ typedef struct {
     int           arguments_length;
 
     M_Expression_Block *block;
+
+    M_Environment *closure_env;
 } m_fn_expression_t;
 
 typedef struct {

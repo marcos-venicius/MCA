@@ -469,6 +469,18 @@ int main(void) {
     TEST_CASE("println('Hello, World')", T_STRING("Hello, World"));
     TEST_CASE("print('Hello, World\\n')", T_STRING("Hello, World\n"));
 
+    TEST_CASE_LABEL("Functions");
+    TEST_CASE("f = \\(a, b) -> a + b; f(10, 20)", T_INT(30));
+    TEST_CASE("f = \\() -> 100; f()", T_INT(100));
+    TEST_CASE("f = \\(x) -> { x * 2 }; f(10)", T_INT(20));
+    TEST_CASE("f = \\(x) -> { a = 10; x + a }; f(5)", T_INT(15));
+    TEST_CASE("f = \\(a, cb) -> cb(a); f(10, \\(x) -> x * 2)", T_INT(20));
+    // TODO: implement ref counting for envs
+    // TEST_CASE("make_adder = \\(x) -> \\(y) -> x + y; add_5 = make_adder(5); add_5(10)", T_INT(15));
+    TEST_CASE("x = 10; f = \\(x) -> x * 2; f(20) + x", T_INT(50));
+    TEST_CASE("x = 10; f = \\() -> x; x = 20; f()", T_INT(20));
+    TEST_CASE("f = \\(x) -> x; if true { y = 100; f(y) }", T_INT(100));
+
     TEST_CASE_LABEL("Hashmaps");
     TEST_CASE(
         "m = map_init();"
