@@ -1,63 +1,51 @@
 #!/usr/local/bin/mca
 
-PROGRAM_NAME = argv(0)
+help = \(error) -> {
+    program_name = argv(0)
 
-if argc() != 2 {
-    println('usage: ', PROGRAM_NAME, ' <triangle-height>')
+    println('usage: ', program_name, ' <triangle-height>')
     println()
     println('    triangle height must be greater than 0 and a valid integer\n')
     println()
     println('    Just try the number 5, for example.')
+
+    if error != ?  println('\nerror: ', error)
+
     exit(1)
 }
+
+pad                = \(padding, char) -> while ((padding -= 1) >= 0) print(char)
+next_pascal_number = \(p, x, y) -> p * (y - x + 1) / x
+
+if argc() != 2  help(?)
 
 NUM_ROWS = as_int(argv(1))
 
-# PASCAL'S TRIANGLE RENDERING
-
-if NUM_ROWS <= 0 {
-    println('error: invalid triangle height: ', NUM_ROWS)
-    exit(1)
-}
-
-if !is_int(NUM_ROWS) {
-    println('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.')
-    exit(1)
-}
-
-pad = \(padding_amount, char) -> while ((padding_amount -= 1) >= 0) print(char)
+if NUM_ROWS <= 0      help(format('error: invalid triangle height: ', NUM_ROWS))
+if !is_int(NUM_ROWS)  help(format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2
 
-biggest_value     = n! / (k! * (n - k)!)
-biggest_value_len = len(as_string(as_int(biggest_value))) + 1
+biggest_value     = as_int(n! / (k! * (n - k)!))
+biggest_value_len = len(as_string(biggest_value)) + 1
 padding           = as_int(NUM_ROWS * biggest_value_len / 2)
 
 println()
 
 row_index = 0; while row_index < NUM_ROWS {
     pad(padding, ' ')
-
     padding -= (biggest_value_len / 2)
-
     pad(biggest_value_len - 1, ' ')
-
     print(1)
-
     p = 1
-
     x = 1; while x < row_index + 1 {
-        p = p * (row_index - x + 1) / x
-
+        p = next_pascal_number(p, x, row_index)
         pad(biggest_value_len - len(as_string(p)), ' ')
         print(p)
-
         x += 1
     }
-
     row_index += 1
-
     println()
 }
 
