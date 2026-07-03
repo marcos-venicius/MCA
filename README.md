@@ -1,247 +1,158 @@
-# MCA Language (Math Expression CAlculator)
+# MCA Language (Mere Computer Algorithm)
 
-MCA is an advanced, expression-oriented mathematical calculator and programming language. It is designed to evaluate complex mathematical expressions, with almost everything in the language evaluating to a value.
+MCA is a dynamic expression-oriented toy scripting language. Originally born as a math calculator, it has evolved into a fully-fledged, expression-centric scripting language featuring functions, closures, dynamic data types, and more. In MCA, almost every construct evaluates to a value.
 
 https://github.com/user-attachments/assets/d7a7ae56-7963-4d62-8066-676eb96ce89b
 
-## 1. Introduction and Syntax Overview
+## 1. Key Features
 
-MCA looks similar to C or Rust but acts as an expression evaluator. It features variables, control flow (`if`, `elif`, `else`, `while`), and robust math builtins.
+### Expression-Oriented
+Everything in MCA resolves to a value. Blocks `{ ... }` and control flow statements (`if`, `while`, `break`) all implicitly evaluate to their last executed expression.
 
-*Note: Semi-colons are not needed in the majority of the cases (the parser will try its best to know where would need one). In some special cases though (where the parser couldn't do its job) you can specify it manually. Most of the times, only `break` will need a special attention.*
+### Functions and Closures
+Functions are first-class citizens in MCA. You can define anonymous functions and assign them to variables, pass them as arguments to other functions, and use closures to capture lexical scope.
+
+Anonymous function syntax uses the `\(args...) -> body` notation:
+
+```r
+# A simple one-liner function
+distance = \(x1, y1, x2, y2) -> sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
+
+# Multi-line function using block syntax
+display = \(message, formatter) -> {
+    # 'formatter' is an anonymous function passed as a parameter
+    println('[LOG] ', formatter(message))
+}
+
+# Passing an anonymous function as a parameter
+display('Hello World', \(m) -> format('<', m, '>'))
+```
 
 ### Data Types
-
-MCA has three core data types:
+MCA supports dynamic data typing with automatic coercion when performing mathematical operations (e.g., integer division with a remainder cleanly coerces to a Float).
+- **Unit**: Represents nothing/empty value (`?`).
 - **Integer**: 64-bit signed integer (`int64_t`).
 - **Float**: 64-bit floating point number (`double`).
 - **Boolean**: `true` or `false`.
-
-Variables dynamically hold any of these types. When performing arithmetic operations, types are automatically coerced. For example, integer division that results in a remainder will return a float (e.g., `5 / 2` evaluates to `2.5`).
-
-### Operators
-- **Arithmetic**: `+`, `-`, `*`, `/`, `%` (modulo), `^` (exponentiation), `!` (factorial)
-- **Relational**: `==`, `!=`, `<`, `>`, `<=`, `>=` (these return boolean values)
-- **Logical**: `and`, `or` (these return boolean values)
-
-### Control Flow
-
-Because MCA is expression-oriented, blocks and loops evaluate to a value (the last executed expression).
-
-```r
-# If-else evaluates to a value
-result = if 10 == 10 { 1337 } else { 42 } # result is 1337
-
-# Loops evaluate to a value
-x = 0
-loop_result = while x < 10 {
-    x = x + 1
-    if x == 5 { 
-        break 42; # Break early and return 42
-        # since break accepts an expression as value
-        # it's commonly needed to specify a ';' at the end,
-        # just to ensure that the next expression on the next line
-        # will not be the value of the 'break' if you don't want to.
-    }
-}
-```
+- **String**: Sequences of characters (e.g. `'hello world'`).
+- **Map**: Key-value data structures.
+- **Function**: First-class callable functions.
 
 ## 2. Examples
 
-**Pascal's Triangle rendering**
-
-This program is actually part of the examples [here](./examples/pascals-triangle.mca). It has some complex syntax and a lot of the language features. **Try run it!**.
+**Pascal's Triangle Rendering**
+A rich example showcasing closures, string manipulations, variables, and math:
 
 ```r
 PROGRAM_NAME = argv(0)
 
-if argc() != 2 {
+help = \(error) -> {
     println('usage: ', PROGRAM_NAME, ' <triangle-height>')
     println()
     println('    triangle height must be greater than 0 and a valid integer\n')
     println()
     println('    Just try the number 5, for example.')
+
+    if error != ?  println('\nerror: ', error)
+
     exit(1)
 }
+
+pad                = \(padding, char) -> while ((padding -= 1) >= 0) print(char)
+next_pascal_number = \(p, x, y) -> p * (y - x + 1) / x
+
+if argc() != 2  help(?)
 
 NUM_ROWS = as_int(argv(1))
 
-# PASCAL'S TRIANGLE RENDERING
-
-if NUM_ROWS <= 0 {
-    println('error: invalid triangle height: ', NUM_ROWS)
-    exit(1)
-}
-
-if !is_int(NUM_ROWS) {
-    println('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.')
-    exit(1)
-}
+if NUM_ROWS <= 0      help(format('error: invalid triangle height: ', NUM_ROWS))
+if !is_int(NUM_ROWS)  help(format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
 
 n = NUM_ROWS - 1
-k = if n % 2 == 0 { n / 2 } else { (n - 1) / 2 }
+k = if (n % 2 == 0) n / 2 else (n - 1) / 2
 
-biggest_value     = n! / (k! * (n - k)!)
-biggest_value_len = len(as_string(as_int(biggest_value))) + 1
+biggest_value     = as_int(n! / (k! * (n - k)!))
+biggest_value_len = len(as_string(biggest_value)) + 1
 padding           = as_int(NUM_ROWS * biggest_value_len / 2)
 
 println()
 
 row_index = 0; while row_index < NUM_ROWS {
-    padding_index = 0; while padding_index < padding {
-        print(' ')
-        padding_index = padding_index + 1
-    }
-
-    padding = padding - (biggest_value_len / 2)
-
-    # padding the number
-    z = 0; while z < biggest_value_len - 1 {
-        print(' ')
-
-        z = z + 1
-    }
+    pad(padding, ' ')
+    padding -= (biggest_value_len / 2)
+    pad(biggest_value_len - 1, ' ')
     print(1)
-
     p = 1
-
     x = 1; while x < row_index + 1 {
-        p = p * (row_index - x + 1) / x
-
-        # padding the number
-        z = 0; while z < biggest_value_len - len(as_string(p)) {
-            print(' ')
-            z = z + 1
-        }
+        p = next_pascal_number(p, x, row_index)
+        pad(biggest_value_len - len(as_string(p)), ' ')
         print(p)
-
-        x = x + 1
+        x += 1
     }
-
-    row_index = row_index + 1
-
+    row_index += 1
     println()
 }
 
 println()
 ```
 
-**Fibonacci Sequence**
-```r
-target = 15
-a = 0
-b = 1
-n = 0
+## 3. Standard Library
 
-LAST_FIB_VALUE = while n < target {
-  temp = a
-  a = b
-  b = temp + b
-  n = n + 1
+MCA is bundled with built-in functions covering mathematics, strings, maps, and system utilities.
 
-  println(a)
-}
-println(LAST_FIB_VALUE)
-```
-
-**Checking Leap Years**
-```r
-n    = 0
-year = year(-3) # Get year from timestamp (using -3 timezone offset)
-
-while n < 15 {
-  if (year % 4 == 0 and year % 100 != 0) or (year % 400 == 0) {
-    println(year)
-  }
-  year = year - 1
-  n = n + 1
-}
-```
-
-## 3. Built-in Libraries
-
-MCA provides a wide range of built-in functions. 
-*Note: Parentheses are strictly required for function calls, even if they take zero arguments.*
-
-### Constants
-- **`PI()`**: Returns $\pi$ ($\approx 3.14159$).
-- **`E()`**: Returns Euler's number $e$ ($\approx 2.71828$).
-
-### Math and Rounding
-- **`abs(x)`**: Absolute value.
-- **`floor(x)`**, **`ceil(x)`**, **`round(x)`**: Rounding functions.
-- **`sqrt(x)`**: Square root.
-- **`exp(x)`**: Exponential ($e^x$).
-- **`log(x)`**, **`log10(x)`**: Natural and base-10 logarithms.
-- **`max(x, y, ...)`**, **`min(x, y, ...)`**: Minimum and maximum among arguments.
-
-### Trigonometry (Evaluated in radians)
-- **`sin(x)`**, **`cos(x)`**, **`tan(x)`**: Standard trigonometric functions.
-- **`rad(x)`**, **`deg(x)`**: Converters between degrees and radians.
-
-### I/O & System
-- **`print(...)`**: Prints arguments separated by spaces.
-- **`println(...)`**: Prints arguments separated by spaces, followed by a newline.
-- **`exit(x)`**: Exits the program with status code `x`.
-
-### Time & Date
-- **`time()`**: Returns the current time (timestamp).
-- **`year(ts)`**, **`month(ts)`**, **`date(ts)`**, **`day(ts)`**, **`hour(ts)`**, **`minute(ts)`**, **`second(ts)`**: Extracts the specific date/time component from a timestamp `ts`.
-
-### Type Castings and Inspection
+### Core Utilities & Strings
+- **Type Checking**: `is_int(x)`, `is_float(x)`, `is_bool(x)`, `is_string(x)`, `is_unit(x)`
+- **Type Casting**: `as_int(x)`, `as_float(x)`, `as_bool(x)`, `as_string(x)`
 - **`type(x)`**: Returns the numeric representation of the type.
-- **`as_int(x)`**, **`as_float(x)`**, **`as_bool(x)`**: Explicitly cast `x` to integer, float, or boolean.
+- **Strings**: `len(s)` (length), `at(s, index)` (char at index), `select(s, from, to)` (substring slice), `ord(s)` (ASCII code), `format(fmt, ...)` (string formatting)
+
+### Maps
+Key-value mappings can be managed via:
+- `map_init()`, `map_set(m, k, v)`, `map_get(m, k)`, `map_del(m, k)`, `map_clear(m)`
+- **Iteration**: `map_it(m)`, `map_it_done(it)`, `map_it_next(it)`, `map_it_key(it)`, `map_it_value(it)`
+
+### Mathematical Constants & Functions
+- **Constants**: `PI()`, `E()`
+- **Basic Math**: `abs(x)`, `floor(x)`, `ceil(x)`, `round(x)`, `sqrt(x)`, `exp(x)`, `log(x)`, `log10(x)`, `max(x, y, ...)`, `min(x, y, ...)`
+- **Trigonometry**: `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)`. Standard evaluation is in radians. Converters: `rad(x)`, `deg(x)`.
+
+### Environment & I/O
+- **`print(...)`**, **`println(...)`**: Display to stdout.
+- **`read_entire_file(path)`**: Read an entire file into a string.
+- **`argc()`**, **`argv(index)`**: CLI arguments parsing.
+- **`exit(code)`**: Abort execution with a status code.
+- **`time()`**: Unix timestamp in seconds.
+- **Date Utilities**: `year(ts)`, `month(ts)`, `date(ts)`, `day(ts)`, `hour(ts)`, `minute(ts)`, `second(ts)`
 
 ## 4. Language Caveats
 
-1. **No String Type**: There are no string literals (like `"hello"`) in the language. Everything revolves around integers, floats, and booleans.
-2. **Dynamic Division Coercion**: Division `/` dynamically returns a float or an integer depending on whether there is a fractional remainder. If the result cleanly divides without a fractional part, it evaluates to an `integer` type.
-3. **Mandatory Parentheses**: You cannot reference a function without calling it, and you must use parentheses even for zero-argument functions (e.g., `time()` or `PI()`). 
-4. **Expression-Oriented Returns**: Statements implicitly return the value of their last expression. Use `;` to sequence operations, but realize that blocks `{ ... }` themselves resolve to a value. 
-5. **Trigonometric Inputs**: All trigonometric functions (`sin`, `cos`, `tan`) expect their input in radians, not degrees. Use `rad(degrees)` to wrap and convert your values safely.
+1. **Mandatory Parentheses**: You cannot reference a function without calling it unless you are intentionally passing it by reference. For zero-argument function invocations, you must use parentheses (e.g., `time()` or `PI()`). 
+2. **Semi-Colons**: Statements implicitly return the value of their last expression. Use `;` to sequence operations on the same line if the parser complains, but most newlines will be resolved automatically without them.
 
+## Building and Running
 
-## Debugging
+### Compiling
 
-you can export `MCA_LOG_ENABLED` as `1` to enable logging.
-
-```bash
-export MCA_LOG_ENABLED=1
-```
-
-## Building the tool
-
-If you want to build the tool you can use:
-
+Build the regular tool:
 ```bash
 make
 ```
 
-If you want an omptized version:
-
-```
+Build an optimized version:
+```bash
 MCA_OPTIMIZE=1 make
 ```
 
-## Building the test cases
-
+Build and run tests:
 ```bash
 make bin/test
-```
-
-Running the test cases
-
-```bash
 ./bin/test
 ```
 
-## Tool usage help
+### Usage Help
 
 ```bash
-USAGE: mca [math] [flags]
+USAGE: ./bin/mca <file> [argv]
 
-    -i   [file]         evaluate math inside a file
     -h                  show this help
-
-error: please, provide some math or -i flag
 ```
