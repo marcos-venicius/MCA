@@ -56,7 +56,7 @@ lexer.o: lexer.c lexer.h
 ast.o: ast.c ast.h lexer.h lexer.c
 	$(CC) $(CC_FLAGS) -c ast.c $(CC_LIBS)
 
-interpreter.o: interpreter.c interpreter.h
+interpreter.o: interpreter.c interpreter.h colors.h
 	$(CC) $(CC_FLAGS) -c interpreter.c $(CC_LIBS)
 
 main.o: main.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c ht.h ht.c builtins/map.h builtins/map.c

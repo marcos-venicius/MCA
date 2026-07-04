@@ -14,6 +14,7 @@
 #include "./io.h"
 #include "./builtins/map.h"
 #include "env.h"
+#include "./colors.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -36,6 +37,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 #define m_value_int(v) ((M_Value){ .type = M_T_INT, .as.integer = (v) })
 #define m_value_float(v) ((M_Value){ .type = M_T_FLOAT, .as.floating = (v) })
 #define m_value_string(v) ((M_Value){ .type = M_T_STRING, .as.string = (v) })
+#define m_value_sized_string(v, s) ((M_Value){ .allocated = false, .type = M_T_STRING, .as.string.value = v, .as.string.value_length = s })
 #define m_value_bool(v) ((M_Value){ .type = M_T_BOOL, .as.boolean = (v) })
 #define m_value_true() ((M_Value){ .type = M_T_BOOL, .as.boolean = true })
 #define m_value_false() ((M_Value){ .type = M_T_BOOL, .as.boolean = false })
@@ -149,6 +151,22 @@ static void m_interpreter_error(M_Expression *expr, const char *fmt, ...) {
     va_end(args);
 
     exit(1);
+}
+
+static void m_interpreter_warn(M_Expression *expr, const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+
+    if (expr->location.filename) {
+        fprintf(stderr, "%s:%d:%d: \033[1;33mwarn\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
+    } else {
+        fprintf(stderr, "%d:%d: \033[1;33mwarn\033[0m: ", expr->location.line, expr->location.col);
+    }
+
+    vfprintf(stderr, fmt, args);
+    fprintf(stderr, "\n");
+
+    va_end(args);
 }
 
 static inline M_Eval_Result m_result_expect_type(M_Expression *expr, M_Eval_Result result, M_Value_Type expected_type_mask) {
@@ -759,19 +777,31 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return m_result_normal(val);
         }
         case M_EK_INDEX: {
-            M_Value left = evaluate_expression(expression->Index.left).value;
-            if (left.type != M_T_ARRAY)
-                m_interpreter_error(expression, "cannot index into non-array value");
+            M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(expression->Index.left), M_T_ARRAY | M_T_STRING);
 
             M_Value index = evaluate_expression(expression->Index.index).value;
             if (index.type != M_T_INT)
                 m_interpreter_error(expression, "array index must be an integer");
 
-            int idx = index.as.integer;
-            if (idx < 0 || idx >= left.as.array->length)
-                m_interpreter_error(expression, "array index out of bounds");
+            M_Int idx = index.as.integer;
 
-            return m_result_normal(left.as.array->items[idx]);
+            switch (left.value.type) {
+                case M_T_ARRAY:
+                    if (idx < 0 || idx >= left.value.as.array->length)
+                        m_interpreter_error(expression, "array index out of bounds");
+                    return m_result_normal(left.value.as.array->items[idx]);
+                case M_T_STRING:
+                    if (idx < 0 || idx >= left.value.as.string.value_length)
+                        m_interpreter_error(expression, "string index out of bounds");
+                    return m_result_normal(m_value_sized_string(left.value.as.string.value + idx, 1));
+                default: {
+                    static_assert(M_T_COUNT == 257, "handle index type");
+                    break;
+                }
+            }
+
+            assert(0 && "should never happen");
+            break;
         }
         case M_EK_CALL: return m_result_normal(evaluate_function_call_expression(expression));
         case M_EK_BINARY: return evaluate_binary_expression(expression);
@@ -1570,6 +1600,8 @@ static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[
 static M_Value __builtin_mca_at(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
+
+    m_interpreter_warn(caller, "deprecated function 'at'. use index operator "C_MAGENTA"[0]"C_RESET);
 
     M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
     M_Eval_Result index = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);

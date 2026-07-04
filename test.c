@@ -325,7 +325,7 @@ int main(void) {
     TEST_CASE("is_bool(false)", T_BOOL(true));
     TEST_CASE("is_unit(1)", T_BOOL(false));
     TEST_CASE("is_unit(?)", T_BOOL(true));
-    TEST_CASE("at('Hello, World', 7)", T_STRING("W"));
+    TEST_CASE("'Hello, World'[7]", T_STRING("W"));
     TEST_CASE("read_entire_file('./test/file.txt')", T_STRING("Hello World\n"));
     TEST_CASE("select('Hello, World', 7, 12)", T_STRING("World"));
     TEST_CASE("select('heyhey', 0, 6)", T_STRING("heyhey"));
@@ -450,7 +450,7 @@ int main(void) {
     TEST_CASE("as_int(true)", T_INT(1));
     TEST_CASE("as_int('-103956')", T_INT(-103956));
     TEST_CASE("as_int('103956')", T_INT(103956));
-    TEST_CASE("as_int(at('103956', 2))", T_INT(3));
+    TEST_CASE("as_int('103956'[2])", T_INT(3));
     TEST_CASE("as_float(10)", T_FLOAT(10.0));
     TEST_CASE("as_float(false)", T_FLOAT(0.0));
     TEST_CASE("as_float('-23.2356')", T_FLOAT(-23.2356));
@@ -545,6 +545,10 @@ int main(void) {
     TEST_CASE("a = [1, 2, 'three']; a[2]", T_STRING("three"));
     TEST_CASE("a = [1]; append(a, 2); len(a)", T_INT(2));
     TEST_CASE("a = [1]; append(a, 2); a[1]", T_INT(2));
+
+    TEST_CASE_LABEL("Strings");
+    TEST_CASE("a = 'Hello World'; a[0]", T_STRING("H"));
+    TEST_CASE("'Hello World'[6]", T_STRING("W"));
 
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);
