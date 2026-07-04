@@ -13,10 +13,9 @@ map_set(m, 1,         'as_string')
 map_set(m, -1,        'as_string')
 
 i = 0; it = map_it(m); while !map_it_done(it) {
-
   k = map_it_key(it)
   v = map_it_value(it)
-  c = if v == 'as_int' as_int(k) elif v == 'as_float' as_float(k) elif v == 'as_strings' as_string(k)
+  c = if v == 'as_int' as_int(k) elif v == 'as_float' as_float(k) elif v == 'as_string' as_string(k)
 
   println(v, '(', type(k), '(', k, ')) > ', type(c), '(', c, ')')
 
