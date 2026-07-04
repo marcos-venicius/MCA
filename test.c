@@ -496,13 +496,13 @@ int main(void) {
     TEST_CASE(
         "m = {};"
         "map_set(m, 1, 'Hello, World');"
-        "map_get(m, 1)",
+        "m[1]",
         T_STRING("Hello, World")
     );
     TEST_CASE(
         "m = {};"
         "map_set(m, 1, 'Hello, World');"
-        "map_get(m, 2)",
+        "m[2]",
         T_UNIT()
     );
     TEST_CASE(

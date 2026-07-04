@@ -117,7 +117,7 @@ MCA is bundled with built-in functions covering mathematics, strings, maps, and 
 
 ### Maps
 Key-value mappings can be managed via:
-- `~map_init()~ use {}`, `map_set(m, k, v)`, `map_get(m, k)`, `map_del(m, k)`, `map_clear(m)`
+- ~`map_init()`~ use `{}`, `map_set(m, k, v)`, ~`map_get(m, k)`~ use `m[k]`, `map_del(m, k)`, `map_clear(m)`
 - **Iteration**: `map_it(m)`, `map_it_done(it)`, `map_it_next(it)`, `map_it_key(it)`, `map_it_value(it)`
 
 ### Mathematical Constants & Functions

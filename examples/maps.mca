@@ -11,11 +11,11 @@ println(m)
 println()
 
 print('key 1: ')
-type(map_get(m, 1))
+type(m[1])
 print('key 2: ')
-type(map_get(m, 'Hey'))
+type(m['Hey'])
 print('invalid key: ')
-type(map_get(m, 'non existent'))
+type(m['non existent'])
 
 if map_del(m, 'unused key') {
 	println('You should not see this print call #1')
@@ -27,7 +27,7 @@ if !map_del(m, 'Hey') {
 	exit(1)
 }
 
-println(map_get(m, 'hey'))
+println(m['hey'])
 
 println('map len: ', len(m))
 

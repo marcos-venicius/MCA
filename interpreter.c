@@ -31,6 +31,7 @@ typedef M_Value (*M_Fn_C_Impl)(M_Expression *caller, M_Expression *arguments[], 
 // [[forward declarations]]
 static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr);
 static M_Eval_Result evaluate_expression(M_Expression *expression);
+static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry);
 
 // [[macros]]
 #define m_value_unit() ((M_Value){ .type = M_T_UNIT })
@@ -44,6 +45,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 #define m_value_map_it(it) ((M_Value){ .type = M_T_MAP_IT, .as.map_it = it })
 #define m_value_fn(f) ((M_Value){ .type = M_T_FN, .as.fn = f })
 #define m_string(s) ((M_String){ .value = s, .value_length = strlen(s) })
+
+#define ACCEPTABLE_MAP_KEY_TYPES M_T_INT | M_T_STRING
+#define ACCEPTABLE_ARRAY_KEY_TYPES M_T_INT
 
 #define m_result_normal(v) (M_Eval_Result){ .flow = M_CTRL_NORMAL, .value = (v) }
 #define m_result_break(v) (M_Eval_Result){ .flow = M_CTRL_BREAK, .value = (v) }
@@ -627,8 +631,6 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
     if (expression->kind == M_EK_ASSIGN) {
         M_Eval_Result result = evaluate_expression(expression->Assign.right);
 
-
-
         set_variable_on_environment(interpreter->current_environment, key, result.value);
 
         free(key);
@@ -778,23 +780,55 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return m_result_normal(val);
         }
         case M_EK_INDEX: {
-            M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(expression->Index.left), M_T_ARRAY | M_T_STRING);
+            M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(expression->Index.left), M_T_ARRAY | M_T_STRING | M_T_MAP);
+            M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES | ACCEPTABLE_ARRAY_KEY_TYPES);
 
-            M_Value index = evaluate_expression(expression->Index.index).value;
-            if (index.type != M_T_INT)
-                m_interpreter_error(expression, "array index must be an integer");
-
-            M_Int idx = index.as.integer;
+            static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
+            static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
 
             switch (left.value.type) {
-                case M_T_ARRAY:
+                case M_T_ARRAY: {
+                    M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
+
                     if (idx < 0 || idx >= left.value.as.array->length)
                         m_interpreter_error(expression, "array index out of bounds");
+
                     return m_result_normal(left.value.as.array->items[idx]);
-                case M_T_STRING:
+                };
+                case M_T_STRING: {
+                    M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
+
                     if (idx < 0 || idx >= left.value.as.string.value_length)
                         m_interpreter_error(expression, "string index out of bounds");
                     return m_result_normal(m_value_sized_string(left.value.as.string.value + idx, 1));
+                }
+                case M_T_MAP: {
+                    M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
+
+                    int key_type = idx.type;
+                    void *key;
+                    size_t key_size = 0;
+
+                    switch (idx.type) {
+                        case M_T_INT:
+                            key = &idx.as.integer;
+                            key_size = sizeof(M_Int);
+                            break;
+                        case M_T_STRING:
+                            key = idx.as.string.value;
+                            key_size = idx.as.string.value_length;
+                            break;
+                        default:
+                            assert(0 && "should never happen");
+                            break;
+                    }
+
+                    M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, key_type);
+
+                    M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(entry);
+
+                    return m_result_normal(value);
+                };
                 default: {
                     static_assert(M_T_COUNT == 257, "handle index type");
                     break;
@@ -1691,7 +1725,7 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
 static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
     if (entry == NULL) return m_value_unit();
 
-    static_assert(M_T_COUNT == 257, "__builtin_mca_map_get");
+    static_assert(M_T_COUNT == 257, "__builtin_mca_map_parse_m_map_node_entry_helper");
     switch (entry->type) {
         case M_T_STRING:
             return (M_Value){
@@ -1726,38 +1760,6 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
     assert(0 && "should never happen");
 }
 
-static M_Value __builtin_mca_map_get(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
-
-    // for now, we will be able to have only integers and strings as keys
-    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
-
-    int key_type = a1.value.type;
-    void *key;
-    size_t key_size = 0;
-
-    switch (a1.value.type) {
-        case M_T_INT:
-            key = &a1.value.as.integer;
-            key_size = sizeof(int64_t);
-            break;
-        case M_T_STRING:
-            key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length + 1; // include the null-byte
-            break;
-        default:
-            assert(0 && "should never happen");
-            break;
-    }
-
-    M_Map_Node_Entry *entry = mca_map_find(a0.value.as.map, key, key_size, key_type);
-
-    return __builtin_mca_map_parse_m_map_node_entry_helper(entry);
-}
-
 static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -1765,7 +1767,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
 
     // for now, we will be able to have only integers and strings as keys
-    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
+    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), ACCEPTABLE_MAP_KEY_TYPES);
 
     static_assert(M_T_COUNT == 257, "mca_map_value");
     M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
@@ -2086,7 +2088,6 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("ord",       1, __builtin_mca_ord),
     BIND_FN("format",   -1, __builtin_mca_format), // format strings
     // First map implementation
-    BIND_FN("map_get",   2, __builtin_mca_map_get),
     BIND_FN("map_set",   3, __builtin_mca_map_set),
     BIND_FN("map_del",   2, __builtin_mca_map_del),
     BIND_FN("map_clear", 1, __builtin_mca_map_clear),
