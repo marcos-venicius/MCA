@@ -915,6 +915,17 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             expression->Fn.closure_env = interpreter->current_environment;
             acquire_environment(expression->Fn.closure_env);
             return m_result_normal(m_value_fn(expression));
+        case M_EK_MAP: {
+            M_Map *map = mca_map_init();
+
+            M_Value value = (M_Value){
+                .allocated = true,
+                .type = M_T_MAP,
+                .as.map = map
+            };
+
+            return m_result_normal(value);
+        }
     }
 
     assert(0 && "should never happen");
@@ -1715,20 +1726,6 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
     assert(0 && "should never happen");
 }
 
-static M_Value __builtin_mca_map_init(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
-    (void)caller;
-    (void)arguments;
-    (void)arguments_count;
-
-    M_Map *map = mca_map_init();
-
-    return (M_Value){
-        .allocated = true,
-        .type = M_T_MAP,
-        .as.map = map
-    };
-}
-
 static M_Value __builtin_mca_map_get(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -2089,7 +2086,6 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("ord",       1, __builtin_mca_ord),
     BIND_FN("format",   -1, __builtin_mca_format), // format strings
     // First map implementation
-    BIND_FN("map_init",  0, __builtin_mca_map_init),
     BIND_FN("map_get",   2, __builtin_mca_map_get),
     BIND_FN("map_set",   3, __builtin_mca_map_set),
     BIND_FN("map_del",   2, __builtin_mca_map_del),

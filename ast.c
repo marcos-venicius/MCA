@@ -729,6 +729,30 @@ static M_Expression *parse_string_literal_expression(M_Ast *ast) {
     return expr;
 }
 
+static M_Expression *parse_map_expression(M_Ast *ast) {
+    // TODO: for now we do not allow map initialization
+
+    next_token(ast); // skip '}'
+
+    if (!expect(ast, M_RCURLY)) {
+        ast_error(ast, ast->last_consumed_token, "unclosed curly expression '{...'");
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '}'
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+    expr->kind = M_EK_MAP;
+    expr->location = (M_Location){
+        .line = token(ast)->loc.line,
+        .col = token(ast)->loc.col,
+        .filename = ast->filename
+    };
+
+    return expr;
+}
+
 static M_Expression *parse_primary_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
@@ -819,6 +843,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
         return parse_function_declaration_expression(ast);
     } else if (token(ast)->kind == M_LBRACKET) {
         return parse_array_literal_expression(ast);
+    } else if (token(ast)->kind == M_LCURLY) {
+        return parse_map_expression(ast);
     } else {
         ast_error(ast, token(ast), "expected number literal, function call or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
         synchronize(ast);

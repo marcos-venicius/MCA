@@ -44,6 +44,7 @@ typedef enum {
     M_EK_WHILE,
     M_EK_BREAK,
     M_EK_IF,
+    M_EK_MAP,
     M_EK_ARRAY,
     M_EK_INDEX,
     M_EK_RETURN,

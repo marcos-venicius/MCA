@@ -1,6 +1,6 @@
 #!/usr/local/bin/mca
 
-m = map_init()
+m = {}
 
 map_set(m, 1, 'Hello, World')
 map_set(m, 1, 'Hello, World updated!')
@@ -49,7 +49,7 @@ i = 0; while i < 50 {
 }
 println('\n')
 
-root = map_init()
+root = {}
 map_set(root, 'width', '100%')
 map_set(root, 'height', '100%')
 map_set(root, 'box-sizing', 'border-box')

@@ -489,29 +489,29 @@ int main(void) {
 
     TEST_CASE_LABEL("Hashmaps");
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "len(m);",
         T_INT(0)
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 1, 'Hello, World');"
         "map_get(m, 1)",
         T_STRING("Hello, World")
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 1, 'Hello, World');"
         "map_get(m, 2)",
         T_UNIT()
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 1, 'Hello, World');",
         T_STRING("Hello, World")
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 'width', '3rem');"
         "map_set(m, 'height', '3rem');"
         "map_set(m, 'z-index', 999);"
@@ -519,7 +519,7 @@ int main(void) {
         T_BOOL(true)
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 'width', '3rem');"
         "map_set(m, 'height', '3rem');"
         "map_set(m, 'z-index', 999);"
@@ -527,7 +527,7 @@ int main(void) {
         T_BOOL(false)
     );
     TEST_CASE(
-        "m = map_init();"
+        "m = {};"
         "map_set(m, 'width', '3rem');"
         "map_set(m, 'height', '3rem');"
         "map_set(m, 'z-index', 999);"
@@ -535,8 +535,8 @@ int main(void) {
         "len(m)",
         T_INT(0)
     );
-    TEST_CASE("m = map_init();map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_del(m, 'Height')", T_BOOL(false));
-    TEST_CASE("m = map_init();map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_clear(m);len(m)", T_INT(0));
+    TEST_CASE("m = {};map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_del(m, 'Height')", T_BOOL(false));
+    TEST_CASE("m = {};map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_clear(m);len(m)", T_INT(0));
 
     TEST_CASE_LABEL("Arrays");
     TEST_CASE("a = []; len(a)", T_INT(0));
