@@ -35,6 +35,7 @@ M_Map            *mca_map_init();
 void              mca_map_set(M_Map *m, void *key, size_t key_size, int key_type, void *value, size_t value_size, int value_type);
 bool              mca_map_del(M_Map *m, void *key, size_t key_size, int key_type);
 M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_type);
+void              mca_map_clear(M_Map *m);
 void              mca_map_free(M_Map *m);
 
 M_Map_Iterator *mca_map_iterator(M_Map *m);

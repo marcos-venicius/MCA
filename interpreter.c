@@ -47,6 +47,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression);
 
 #define m_result_normal(v) (M_Eval_Result){ .flow = M_CTRL_NORMAL, .value = (v) }
 #define m_result_break(v) (M_Eval_Result){ .flow = M_CTRL_BREAK, .value = (v) }
+#define m_result_return(v) (M_Eval_Result){ .flow = M_CTRL_RETURN, .value = (v) }
 
 #define PUBLIC
 
@@ -879,6 +880,10 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     // quiting the loop block
                     destroy_current_environment();
 
+                    if (last_evaluated_expression.flow == M_CTRL_RETURN) {
+                        return last_evaluated_expression;
+                    }
+
                     if (last_evaluated_expression.flow == M_CTRL_BREAK) {
                         last_evaluated_expression = m_result_normal(last_evaluated_expression.value);
                         break;
@@ -896,6 +901,15 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             }
 
             return m_result_break(m_value_unit());
+        };
+        case M_EK_RETURN: {
+            if (expression->Return != NULL) {
+                M_Eval_Result result = evaluate_expression(expression->Return);
+
+                return m_result_return(result.value);
+            }
+
+            return m_result_return(m_value_unit());
         };
         case M_EK_FN:
             expression->Fn.closure_env = interpreter->current_environment;
@@ -920,6 +934,7 @@ PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char 
     interpreter->global_environment = malloc(sizeof(M_Environment));
     interpreter->global_environment->variables = ht_init(sizeof(M_Value));
     interpreter->global_environment->parent = NULL;
+    interpreter->global_environment->ref_count = 1;
     interpreter->current_environment = interpreter->global_environment;
 
     return interpreter;
@@ -949,6 +964,7 @@ PUBLIC M_Value m_interpreter_run(M_Interpreter *interpreter) {
             M_Eval_Result r = evaluate_expression(expr);
 
             if (r.flow == M_CTRL_BREAK) m_interpreter_error(expr, "cannot use 'break' outside of a loop");
+            if (r.flow == M_CTRL_RETURN) m_interpreter_error(expr, "cannot use 'return' outside of a function");
 
             last_evaluated_expression = r.value;
         }
@@ -1844,9 +1860,7 @@ static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *argum
     (void)arguments_count;
     M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
 
-    mca_map_free(a0.value.as.map);
-
-    a0.value.as.map = mca_map_init();
+    mca_map_clear(a0.value.as.map);
 
     return m_value_unit();
 }

@@ -46,6 +46,7 @@ typedef enum {
     M_EK_IF,
     M_EK_ARRAY,
     M_EK_INDEX,
+    M_EK_RETURN,
 } M_Expression_Kind;
 
 typedef enum {
@@ -187,6 +188,7 @@ struct M_Expression {
         M_Expression             *Break;  // M_EK_BREAK (can be null)
         m_array_expression_t      Array;  // M_EK_ARRAY
         m_index_expression_t      Index;  // M_EK_INDEX
+        M_Expression             *Return; // M_EK_RETURN
     };
 };
 

@@ -8,6 +8,7 @@
 #include "./ast.h"
 #include "./arena.h"
 #include "./lexer.h"
+#include "./colors.h"
 
 static M_Expression *parse_expression_impl(M_Ast *ast);
 static M_Expression *parse_array_literal_expression(M_Ast *ast);
@@ -496,6 +497,37 @@ static M_Expression *parse_break_expression(M_Ast *ast) {
     return loop_break;
 }
 
+static M_Expression *parse_return_expression(M_Ast *ast) {
+    M_Token *first_token = token(ast);
+
+    next_token(ast); // jump 'return'
+
+    M_Expression *return_value = NULL;
+
+    if (token(ast) != NULL && token(ast)->kind != M_SEMI && token(ast)->kind != M_RCURLY) {
+        return_value = parse_expression_impl(ast);
+
+        if (return_value == NULL) {
+            ast_error(ast, first_token, "invalid return expression. Isn't it missing a ';'? 'return"C_MAGENTA";"C_RESET"'");
+            ast_info(ast, first_token, "all return expressions that doesn't have a value should be terminated with a ';'");
+            synchronize(ast);
+            return NULL;
+        }
+    }
+
+    M_Expression *fn_return = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+    fn_return->location = (M_Location){
+        .line = first_token->loc.line,
+        .col = first_token->loc.col,
+        .filename = ast->filename
+    };
+    fn_return->kind = M_EK_RETURN;
+    fn_return->Return = return_value;
+
+    return fn_return;
+}
+
 static M_Expression *parse_while_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
@@ -746,6 +778,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
             return parse_while_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
+        } else if (token(ast)->size == 6 && strncmp(token(ast)->value, "return", 6) == 0) {
+            return parse_return_expression(ast);
         } else if (token(ast)->size == 2 && strncmp(token(ast)->value, "if", 2) == 0) {
             return parse_if_expression(ast);
         } else if (token(ast)->size == 4 && strncmp(token(ast)->value, "true", 4) == 0) {

@@ -53,7 +53,7 @@ builtins/map.o: ./builtins/map.c ./builtins/map.h
 lexer.o: lexer.c lexer.h
 	$(CC) $(CC_FLAGS) -c lexer.c $(CC_LIBS)
 
-ast.o: ast.c ast.h lexer.h lexer.c
+ast.o: ast.c ast.h lexer.h lexer.c colors.h
 	$(CC) $(CC_FLAGS) -c ast.c $(CC_LIBS)
 
 interpreter.o: interpreter.c interpreter.h colors.h

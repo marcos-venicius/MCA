@@ -139,6 +139,22 @@ M_Map_Node_Entry *mca_map_find(M_Map *m, void *key, size_t key_size, int key_typ
     return NULL;
 }
 
+void mca_map_clear(M_Map *m) {
+    for (int i = 0; i < __MCA_MAP_CAP; i++) {
+        M_Map_Node *head = m->nodes[i];
+
+        while (head) {
+            M_Map_Node *next = head->next;
+            free_node(head);
+            head = next;
+        }
+
+        m->nodes[i] = NULL;
+    }
+
+    m->size = 0;
+}
+
 void mca_map_free(M_Map *m) {
     // TODO: use arena?
 

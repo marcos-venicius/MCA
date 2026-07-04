@@ -546,6 +546,14 @@ int main(void) {
     TEST_CASE("a = [1]; append(a, 2); len(a)", T_INT(2));
     TEST_CASE("a = [1]; append(a, 2); a[1]", T_INT(2));
 
+    TEST_CASE_LABEL("Return");
+    TEST_CASE("f = \\() -> { return 42; 100 }; f()", T_INT(42));
+    TEST_CASE("f = \\(x) -> { if x == 1 { return 10 } return 20 }; f(1)", T_INT(10));
+    TEST_CASE("f = \\(x) -> { if x == 1 { return 10 } return 20 }; f(2)", T_INT(20));
+    TEST_CASE("f = \\(x) -> { while x < 10 { if x == 5 { return x } x += 1 } return 0 }; f(0)", T_INT(5));
+    TEST_CASE("f = \\(x) -> { while x < 10 { if x == 5 { return x } x += 1 } return 0 }; f(6)", T_INT(0));
+    TEST_CASE("f = \\() -> { return; 100 }; f()", T_UNIT());
+
     TEST_CASE_LABEL("Strings");
     TEST_CASE("a = 'Hello World'; a[0]", T_STRING("H"));
     TEST_CASE("'Hello World'[6]", T_STRING("W"));

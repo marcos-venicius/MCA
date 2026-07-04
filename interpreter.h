@@ -69,6 +69,7 @@ struct M_Value {
 typedef enum {
     M_CTRL_NORMAL,
     M_CTRL_BREAK,
+    M_CTRL_RETURN,
 } M_Control_Flow;
 
 typedef struct {
