@@ -2,7 +2,7 @@
 
 MCA is a dynamic expression-oriented toy scripting language. Originally born as a math calculator, it has evolved into a fully-fledged, expression-centric scripting language featuring functions, closures, dynamic data types, and more. In MCA, almost every construct evaluates to a value.
 
-<img width="1907" height="905" alt="image" src="https://github.com/user-attachments/assets/a318b160-337a-4c10-9a54-3e36096e27a8" />
+<img width="1924" height="1050" alt="image" src="https://github.com/user-attachments/assets/6a5277b1-28b5-48ce-ad45-70655aff3032" />
 
 ## 1. Key Features
 
