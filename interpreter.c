@@ -924,7 +924,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
 
                     void *key = NULL;
-                    size_t key_size = __get_map_key_data_and_size_helper(&idx, &key, false);
+                    size_t key_size = __get_map_key_data_and_size_helper(&idx, &key, true);
 
                     M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, idx.type);
 
