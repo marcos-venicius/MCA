@@ -675,21 +675,21 @@ static size_t __get_map_key_data_and_size_helper(M_Value *value, void **out, boo
     return 0;
 }
 
-static size_t __get_map_value_data_and_size_helper(M_Value value, void **out, bool keep_nullbyte) {
+static size_t __get_map_value_data_and_size_helper(M_Value *value, void **out, bool keep_nullbyte) {
     static_assert((ACCETABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCETABLE_MAP_VALUE_TYPES has changed");
 
-    switch (value.type) {
+    switch (value->type) {
         case M_T_STRING:
-            *out = value.as.string.value;
-            return value.as.string.value_length + (keep_nullbyte ? 1 : 0);
+            *out = value->as.string.value;
+            return value->as.string.value_length + (keep_nullbyte ? 1 : 0);
         case M_T_INT:
-            *out = &value.as.integer;
+            *out = &value->as.integer;
             return sizeof(M_Int);
         case M_T_BOOL:
-            *out = &value.as.boolean;
+            *out = &value->as.boolean;
             return sizeof(M_Bool);
         case M_T_FLOAT:
-            *out = &value.as.floating;
+            *out = &value->as.floating;
             return sizeof(M_Float);
         case M_T_MAP:
         case M_T_MAP_IT:
@@ -769,7 +769,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
                 size_t key_size = __get_map_key_data_and_size_helper(&index.value, &key, true);
 
                 void *value = NULL;
-                size_t value_size = __get_map_value_data_and_size_helper(right_side_value.value, &value, true);
+                size_t value_size = __get_map_value_data_and_size_helper(&right_side_value.value, &value, true);
                 
                 mca_map_set(left.value.as.map, key, key_size, index.value.type, value, value_size, right_side_value.value.type);
 
@@ -1869,7 +1869,7 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
 
     void *value       = NULL;
     int value_type    = a2.value.type;
-    size_t value_size = __get_map_value_data_and_size_helper(a2.value, &value, true);
+    size_t value_size = __get_map_value_data_and_size_helper(&a2.value, &value, true);
 
     mca_map_set(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
 
