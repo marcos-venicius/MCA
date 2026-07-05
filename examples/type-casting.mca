@@ -1,16 +1,16 @@
 #!/usr/local/bin/mca
 
-m = {}
-
-map_set(m, '-23456',  'as_int')
-map_set(m, '23456',   'as_int')
-map_set(m, '32',      'as_float')
-map_set(m, '32.235',  'as_float')
-map_set(m, '-32.235', 'as_float')
-map_set(m, -32,       'as_float')
-map_set(m, 32,        'as_float')
-map_set(m, 1,         'as_string')
-map_set(m, -1,        'as_string')
+m = {
+  '-23456': 'as_int',
+  '23456': 'as_int',
+  '32': 'as_float',
+  '32.235': 'as_float',
+  '-32.235': 'as_float',
+  -32: 'as_float',
+  32: 'as_float',
+  1: 'as_string',
+  -1: 'as_string',
+}
 
 i = 0; it = map_it(m); while !map_it_done(it) {
   k = map_it_key(it)

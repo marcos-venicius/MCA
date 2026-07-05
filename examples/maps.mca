@@ -2,10 +2,10 @@
 
 m = {}
 
-map_set(m, 1, 'Hello, World')
-map_set(m, 1, 'Hello, World updated!')
-map_set(m, 'Hey', 1337)
-map_set(m, 'hey', 'This is a completely different key')
+m[1] = 'Hello, World'
+m[1] = 'Hello, World updated!'
+m['Hey'] = 1337
+m['hey'] = 'This is a completely different key'
 
 println(m)
 println()
@@ -49,32 +49,40 @@ i = 0; while i < 50 {
 }
 println('\n')
 
-root = {}
-map_set(root, 'width', '100%')
-map_set(root, 'height', '100%')
-map_set(root, 'box-sizing', 'border-box')
-map_set(root, 'font-size', '16px')
-map_set(root, 'z-index', 50)
-map_set(root, 'background-color', '#1A1A1A')
-map_set(root, 'fake-property', true)
-
-println('html {')
-it = map_it(root); while !map_it_done(it) {
-	key   = map_it_key(it)
-	value = map_it_value(it)
-
-	print('    ', key, ': ')
-
-	if type(value) == 'string' {
-		print('"', value, '";\n')
-	} elif type(value) == 'int' {
-		print(value, ';\n')
-	} else {
-		print('/* what is \'', value, '\' */;\n')
-	}
-	
-	map_it_next(it);
+root = {
+  'width': '100%',
+  'height': '100%',
+  'box-sizing': 'border-box',
+  'font-size': '16px',
+  'z-index': 50,
+  'background-color': '#1A1A1A',
+  'fake-property': true,
 }
-println('}\n')
+
+print_root = \(clear) -> {
+  println('html {')
+  it = map_it(root); while !map_it_done(it) {
+    key   = map_it_key(it)
+    value = map_it_value(it)
+
+    print('    ', key, ': ')
+
+    if type(value) == 'string' {
+      print('"', value, '";\n')
+    } elif type(value) == 'int' {
+      print(value, ';\n')
+    } else {
+      print('/* what is \'', value, '\' */;\n')
+    }
+
+    if (clear) root[key] = '<empty>'
+    
+    map_it_next(it);
+  }
+  println('}\n')
+}
+
+print_root(true)
+print_root(false)
 
 # vim: set syntax=r :

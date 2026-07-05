@@ -6,7 +6,6 @@
 #include "./lexer.h"
 #include "./ast.h"
 #include "./interpreter.h"
-#include "./arena.h"
 #include "./builtins/map.h"
 
 #ifndef M_PI
@@ -492,54 +491,66 @@ int main(void) {
 
     TEST_CASE_LABEL("Hashmaps");
     TEST_CASE(
+        "m = {"
+        "'name': 'John Doe',"
+        "'age': 32,"
+        "'weight': 67.56,"
+        "'is_dead': false,"
+        "10: 'test'"
+        "};"
+        "format(len(m), ';', m['name'], ';', m['age'], ';', m['weight'], ';', m['is_dead'], ';', m[10])"
+        ,
+        T_STRING("5;John Doe;32;67.56;false;test")
+    );
+    TEST_CASE(
         "m = {};"
         "len(m);",
         T_INT(0)
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 1, 'Hello, World');"
+        "m[1] = 'Hello, World';"
         "m[1]",
         T_STRING("Hello, World")
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 1, 'Hello, World');"
+        "m[1] = 'Hello, World';"
         "m[2]",
         T_UNIT()
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 1, 'Hello, World');",
+        "m[1] = 'Hello, World';",
         T_STRING("Hello, World")
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 'width', '3rem');"
-        "map_set(m, 'height', '3rem');"
-        "map_set(m, 'z-index', 999);"
+        "m['width'] = '3rem';"
+        "m['height'] = '3rem';"
+        "m['z-index'] = 999;"
         "map_del(m, 'height')",
         T_BOOL(true)
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 'width', '3rem');"
-        "map_set(m, 'height', '3rem');"
-        "map_set(m, 'z-index', 999);"
+        "m['width'] = '3rem';"
+        "m['height'] = '3rem';"
+        "m['z-index'] = 999;"
         "map_del(m, 'Height')",
         T_BOOL(false)
     );
     TEST_CASE(
         "m = {};"
-        "map_set(m, 'width', '3rem');"
-        "map_set(m, 'height', '3rem');"
-        "map_set(m, 'z-index', 999);"
+        "m['width'] = '3rem';"
+        "m['height'] = '3rem';"
+        "m['z-index'] = 999;"
         "map_clear(m);"
         "len(m)",
         T_INT(0)
     );
-    TEST_CASE("m = {};map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_del(m, 'Height')", T_BOOL(false));
-    TEST_CASE("m = {};map_set(m, 'width', '3rem');map_set(m, 'height', '3rem');map_set(m, 'z-index', 999);map_clear(m);len(m)", T_INT(0));
+    TEST_CASE("m = {};m['width'] = '3rem';m['height'] = '3rem';m['z-index'] = 999;map_del(m, 'Height')", T_BOOL(false));
+    TEST_CASE("m = {};m['width'] = '3rem';m['height'] = '3rem';m['z-index'] = 999;map_clear(m);len(m)", T_INT(0));
 
     TEST_CASE_LABEL("Arrays");
     TEST_CASE("a = []; len(a)", T_INT(0));

@@ -14,6 +14,7 @@
 static M_Expression *parse_expression_impl(M_Ast *ast);
 static M_Expression *parse_array_literal_expression(M_Ast *ast);
 static M_Expression *parse_primary_expression(M_Ast *ast);
+static M_Expression *parse_unary_expression(M_Ast *ast);
 
 static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
@@ -756,7 +757,7 @@ static M_Expression *parse_map_expression(M_Ast *ast) {
 
     while (!check(ast, M_RCURLY)) {
         M_Token *key_start_token = token(ast);
-        M_Expression *key = parse_primary_expression(ast);
+        M_Expression *key = parse_unary_expression(ast);
 
         if (!check(ast, M_COLON)) {
             free(temp_items);
@@ -767,7 +768,7 @@ static M_Expression *parse_map_expression(M_Ast *ast) {
 
         next_token(ast); // skip ':'
 
-        M_Expression *value = parse_primary_expression(ast);
+        M_Expression *value = parse_unary_expression(ast);
 
         if (value == NULL) {
             free(temp_items);

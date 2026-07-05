@@ -1872,31 +1872,6 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
     };
 }
 
-static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
-
-    // for now, we will be able to have only integers and strings as keys
-    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), ACCEPTABLE_MAP_KEY_TYPES);
-
-    static_assert(M_T_COUNT == 257, "mca_map_value");
-    M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
-
-    void *key       = NULL;
-    int key_type    = a1.value.type;
-    size_t key_size = __get_map_key_data_and_size_helper(&a1.value, &key, true);
-
-    void *value       = NULL;
-    int value_type    = a2.value.type;
-    size_t value_size = __get_map_value_data_and_size_helper(&a2.value, &value, true);
-
-    mca_map_set(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
-
-    return a2.value;
-}
-
 static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -2148,7 +2123,6 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("ord",       1, __builtin_mca_ord),
     BIND_FN("format",   -1, __builtin_mca_format), // format strings
     // First map implementation
-    BIND_FN("map_set",   3, __builtin_mca_map_set),
     BIND_FN("map_del",   2, __builtin_mca_map_del),
     BIND_FN("map_clear", 1, __builtin_mca_map_clear),
     // map iterators (TODO: I may improve the use experience later when we have more data structures)
