@@ -161,9 +161,9 @@ static void m_interpreter_warn(M_Expression *expr, const char *fmt, ...) {
     va_start(args, fmt);
 
     if (expr->location.filename) {
-        fprintf(stderr, "%s:%d:%d: \033[1;33mwarn\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
+        fprintf(stderr, "%s:%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
     } else {
-        fprintf(stderr, "%d:%d: \033[1;33mwarn\033[0m: ", expr->location.line, expr->location.col);
+        fprintf(stderr, "%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.line, expr->location.col);
     }
 
     vfprintf(stderr, fmt, args);
@@ -1808,26 +1808,6 @@ static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[
     return (M_Value){ .type = M_T_STRING, .allocated = true, .as.string.value = strndup(interpreter->argv[index], length), .as.string.value_length = length };
 }
 
-static M_Value __builtin_mca_at(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
-    (void)caller;
-    (void)arguments_count;
-
-    m_interpreter_warn(caller, "deprecated function 'at'. use index operator "C_MAGENTA"[0]"C_RESET);
-
-    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
-    M_Eval_Result index = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
-
-    if (index.value.as.integer < 0 || index.value.as.integer >= data.value.as.string.value_length)
-        m_interpreter_error(arguments[1], "index %d is out of range. The size of the string is %d", index.value.as.integer, data.value.as.string.value_length);
-
-    return (M_Value){
-        .type = M_T_STRING,
-        .allocated = false,
-        .as.string.value_length = 1,
-        .as.string.value = data.value.as.string.value + index.value.as.integer,
-    };
-}
-
 static M_Value __builtin_mca_select(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -2118,7 +2098,6 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("is_string", 1, __builtin_mca_is_string),
     BIND_FN("is_unit",   1, __builtin_mca_is_unit),
     BIND_FN("len",       1, __builtin_mca_len),
-    BIND_FN("at",        2, __builtin_mca_at),
     BIND_FN("select",    3, __builtin_mca_select),
     BIND_FN("ord",       1, __builtin_mca_ord),
     BIND_FN("format",   -1, __builtin_mca_format), // format strings
