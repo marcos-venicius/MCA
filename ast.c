@@ -982,8 +982,8 @@ static M_Expression *parse_postfix_expression(M_Ast *ast) {
     M_Expression *left = parse_primary_expression(ast);
     if (left == NULL) return NULL;
 
-    if (check(ast, M_LBRACKET)) {
-        while (check(ast, M_LBRACKET)) {
+    while (check(ast, M_LBRACKET) || check(ast, M_DOT)) {
+        if (check(ast, M_LBRACKET)) {
             M_Token *bracket_token = token(ast);
             next_token(ast); // skip '['
 
@@ -1003,13 +1003,16 @@ static M_Expression *parse_postfix_expression(M_Ast *ast) {
             expr->Index.index = index;
 
             left = expr;
-        }
-    } else if (check(ast, M_DOT)) {
-        while (check(ast, M_DOT)) {
+        } else if (check(ast, M_DOT)) {
             M_Token *dot_token = token(ast);
             next_token(ast); // skip '.'
 
-            M_Expression *index = parse_expression_impl(ast);
+            M_Expression *index = parse_primary_expression(ast);
+            if (index == NULL || (index->kind != M_EK_ID && index->kind != M_EK_CALL)) {
+                ast_error(ast, dot_token, "expected identifier or function call after '.'");
+                synchronize(ast);
+                return NULL;
+            }
 
             M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
             expr->kind = M_EK_INDEX;

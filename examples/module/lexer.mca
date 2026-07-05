@@ -1,18 +1,18 @@
 utils = import('utils.mca')
 
-get_char = \(lexer) -> lexer['content'][lexer['cursor']]
+get_char = \(lexer) -> lexer.content[lexer.cursor]
 
 next_char = \(lexer) -> {
-  if lexer['cursor'] >= 0 and lexer['cursor'] < lexer['size'] {
+  if lexer.cursor >= 0 and lexer.cursor < lexer.size {
     if get_char(lexer) == '\n' {
-      lexer['line'] += 1
-      lexer['col']   = 1
+      lexer.line += 1
+      lexer.col   = 1
     } else {
-      lexer['col'] += 1
+      lexer.col += 1
     }
   }
 
-  lexer['cursor'] += 1
+  lexer.cursor += 1
 }
 
 pub_create_lexer = \(content) -> {
@@ -29,18 +29,18 @@ pub_run_lexer = \(lexer) -> {
   out    = []
   errors = 0
 
-  while next_char(lexer) < lexer['size'] {
+  while next_char(lexer) < lexer.size {
     char = get_char(lexer)
 
     if !(char == ' ' or char == '\n' or char == ',') {
-      bot = lexer['cursor']
+      bot = lexer.cursor
 
-      if (utils.is_digit(get_char(lexer))) {
-        while (next_char(lexer) < lexer['size'] and utils.is_digit(get_char(lexer)));
+      if utils.is_digit(get_char(lexer)) {
+        while (next_char(lexer) < lexer.size and utils.is_digit(get_char(lexer)));
 
-        append(out, as_int(select(lexer['content'], bot, lexer['cursor'])))
+        append(out, as_int(select(lexer.content, bot, lexer.cursor)))
       } else {
-        print('error:', lexer['line'], ':', lexer['col'], ': unrecognized symbol ', get_char(lexer), '\n')
+        print('error:', lexer.line, ':', lexer.col, ': unrecognized symbol ', get_char(lexer), '\n')
         errors += 1
       }
     }

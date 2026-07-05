@@ -768,15 +768,19 @@ static M_Eval_Result evaluate_assignment_expression(M_Interpreter *interpreter, 
                 // ensure the correct type
                 m_value_expect_type(expression->Assign.right, right_side_value.value, ACCEPTABLE_MAP_VALUE_TYPES);
 
-                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(interpreter, expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
-
-                void *key = NULL;
-                size_t key_size = __get_map_key_data_and_size_helper(&index.value, &key, true);
-
                 void *value = NULL;
                 size_t value_size = __get_map_value_data_and_size_helper(&right_side_value.value, &value, true);
-                
-                mca_map_set(left.value.as.map, key, key_size, index.value.type, value, value_size, right_side_value.value.type);
+
+                if (expression->Assign.left->Index.index->kind == M_EK_ID) {
+                    mca_map_set(left.value.as.map, expression->Assign.left->Index.index->Id.value, expression->Assign.left->Index.index->Id.value_length + 1, M_T_STRING, value, value_size, right_side_value.value.type);
+                } else {
+                    M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(interpreter, expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
+
+                    void *key = NULL;
+                    size_t key_size = __get_map_key_data_and_size_helper(&index.value, &key, true);
+
+                    mca_map_set(left.value.as.map, key, key_size, index.value.type, value, value_size, right_side_value.value.type);
+                }
 
                 return right_side_value;
             }

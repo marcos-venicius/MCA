@@ -572,6 +572,12 @@ int main(void) {
     TEST_CASE("a = 'Hello World'; a[0]", T_STRING("H"));
     TEST_CASE("'Hello World'[6]", T_STRING("W"));
 
+    TEST_CASE_LABEL("Postfix Chains and Method Calls");
+    TEST_CASE("m = {'fn': \\(x) -> x * 2}; m.fn(10)", T_INT(20));
+    TEST_CASE("m = {}; m.cursor = 0; m.cursor += 1; m.cursor", T_INT(1));
+    TEST_CASE("m = {}; m.cursor = 0; m.cursor -= 1; m.cursor", T_INT(-1));
+    TEST_CASE("f = \\() -> [10, 20, 30]; f()[1]", T_INT(20));
+
     if (errors >= 1) {
         fprintf(stderr, "\n\033[0;31mfailed\033[0m with \033[1;31m%ld\033[0m errors; \033[1;34m%ld/%ld\033[0m passed\n", errors, success, tests_count);
     } else {

@@ -1,19 +1,17 @@
 #!/usr/local/bin/mca
 
-utils = import('utils.mca')
 lexer = import('lexer.mca')
 
 PROGRAM_NAME = argv(0)
 
 if argc() != 2 {
-  utils.help(PROGRAM_NAME)
+  import('utils.mca').help(PROGRAM_NAME)
   exit(1)
 }
 
 l       = lexer.create(argv(1))
 numbers = lexer.run(l)
 
-println()
 if numbers[1]
   print('extracted ', len(numbers[0]), ' numbers (with errors): ')
 else
