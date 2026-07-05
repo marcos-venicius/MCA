@@ -22,9 +22,9 @@ print_array = \(level, arr) -> {
       pad(level + PAD)
 
       if type(value) == 'string' {
-        println('"', value, '",')
+        print('\'', value, '\',\n')
       } else {
-        println(value, ',')
+        print(value, ',\n')
       }
     }
   }
