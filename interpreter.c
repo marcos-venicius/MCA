@@ -1275,27 +1275,19 @@ static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[]
     return x.value;
 }
 
+static void __print_map_helper(M_Map *map);
+static void __print_value_helper(M_Value value, bool wrap_strings);
 
-static void __print_array_helper(FILE *out, M_Array *array) {
-    fprintf(out, "[");
+static void __print_array_helper(M_Array *array) {
+    fprintf(interpreter->io_out, "[");
     for (int i = 0; i < array->length; i++) {
-        if (i > 0) fprintf(out, ", ");
-        switch(array->items[i].type) {
-            case M_T_INT: fprintf(out, "%ld", array->items[i].as.integer); break;
-            case M_T_FLOAT: fprintf(out, "%f", array->items[i].as.floating); break;
-            case M_T_BOOL: fprintf(out, "%s", array->items[i].as.boolean ? "true" : "false"); break;
-            case M_T_STRING: fprintf(out, "'%.*s'", array->items[i].as.string.value_length, array->items[i].as.string.value); break;
-            case M_T_UNIT: fprintf(out, "(unit)"); break;
-            case M_T_ARRAY: __print_array_helper(out, array->items[i].as.array); break;
-            default: fprintf(out, "%s", m_value_type_name(array->items[i].type)); break;
-        }
+        if (i > 0) fprintf(interpreter->io_out, ", ");
+        __print_value_helper(array->items[i], true);
     }
-    fprintf(out, "]");
+    fprintf(interpreter->io_out, "]");
 }
 
-static void __print_map_helper(M_Map *map);
-
-static void __print_value_helper(M_Value value) {
+static void __print_value_helper(M_Value value, bool wrap_strings) {
     switch (value.type) {
         case M_T_INT:
             fprintf(interpreter->io_out, "%ld", value.as.integer);
@@ -1310,21 +1302,23 @@ static void __print_value_helper(M_Value value) {
             fprintf(interpreter->io_out, "(unit)");
             break;
         case M_T_STRING:
-            fprintf(interpreter->io_out, "%.*s", value.as.string.value_length, value.as.string.value);
+            if (wrap_strings)
+                fprintf(interpreter->io_out, "'%.*s'", value.as.string.value_length, value.as.string.value);
+            else
+                fprintf(interpreter->io_out, "%.*s", value.as.string.value_length, value.as.string.value);
             break;
         case M_T_MAP:
             __print_map_helper(value.as.map);
             break;
         case M_T_MAP_IT:
-            fprintf(interpreter->io_out, "iter<"); 
+            fprintf(interpreter->io_out, "*"); 
             __print_map_helper(value.as.map_it->map);
-            fprintf(interpreter->io_out, ">");
             break;
         case M_T_FN:
             fprintf(interpreter->io_out, "fn(...%d)", value.as.fn->Fn.arguments_length);
             break;
         case M_T_ARRAY:
-            __print_array_helper(interpreter->io_out, value.as.array);
+            __print_array_helper(value.as.array);
             break;
         case M_T_COUNT:
             assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
@@ -1343,13 +1337,9 @@ static void __print_map_helper(M_Map *map) {
 
         if (i > 0) fprintf(interpreter->io_out, ", ");
 
-        if (key.type == M_T_STRING) fprintf(interpreter->io_out, "'");
-        __print_value_helper(key);
-        if (key.type == M_T_STRING) fprintf(interpreter->io_out, "'");
+        __print_value_helper(key, true);
         fprintf(interpreter->io_out, ": ");
-        if (value.type == M_T_STRING) fprintf(interpreter->io_out, "'");
-        __print_value_helper(value);
-        if (value.type == M_T_STRING) fprintf(interpreter->io_out, "'");
+        __print_value_helper(value, true);
 
         mca_map_iterator_next(it);
     }
@@ -1366,7 +1356,7 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
     for (int i = 0; i < arguments_count; i++) {
         last_value = evaluate_expression(arguments[i]).value;
 
-        __print_value_helper(last_value);
+        __print_value_helper(last_value, false);
     }
 
     return last_value;
@@ -1381,7 +1371,7 @@ static M_Value __builtin_mca_println(M_Expression *caller, M_Expression *argumen
 
         last_value = evaluate_expression(arguments[i]).value;
 
-        __print_value_helper(last_value);
+        __print_value_helper(last_value, false);
     }
 
     fprintf(interpreter->io_out, "\n");

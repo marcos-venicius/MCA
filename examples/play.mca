@@ -2,15 +2,14 @@
 
 m = {}
 
-map_set(m, 1, 'Hello, World');
+m[1] = 'Hello, World';
+m['name'] = 'Marcos'
+m['age'] = 32
 
-it = map_it(m)
-
-while !map_it_done(it) {
-  println(map_it_key(it))
-  println(map_it_value(it))
-
-  map_it_next(it);
-}
+println(m['name'])
+println(m['age'])
+println(m)
+println(1, 'hello', 'me')
+println([1, 2.3, 'Hello'])
 
 # vim: set syntax=r :
