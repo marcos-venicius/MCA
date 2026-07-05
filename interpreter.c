@@ -143,9 +143,9 @@ static void m_interpreter_error(M_Expression *expr, const char *fmt, ...) {
     va_start(args, fmt);
 
     if (expr->location.filename) {
-        fprintf(stderr, "%s:%d:%d: \033[1;31merror\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
+        fprintf(stderr, "%s:%d:%d: \033[1;31mruntime error\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
     } else {
-        fprintf(stderr, "%d:%d: \033[1;31merror\033[0m: ", expr->location.line, expr->location.col);
+        fprintf(stderr, "%d:%d: \033[1;31mruntime error\033[0m: ", expr->location.line, expr->location.col);
     }
 
     vfprintf(stderr, fmt, args);
@@ -676,7 +676,7 @@ static size_t __get_map_key_data_and_size_helper(M_Value *value, void **out, boo
 }
 
 static size_t __get_map_value_data_and_size_helper(M_Value *value, void **out, bool keep_nullbyte) {
-    static_assert((ACCETABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCETABLE_MAP_VALUE_TYPES has changed");
+    static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
 
     switch (value->type) {
         case M_T_STRING:
@@ -761,7 +761,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
                 static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
 
                 // ensure the correct type
-                m_value_expect_type(expression->Assign.right, right_side_value.value, ACCETABLE_MAP_VALUE_TYPES);
+                m_value_expect_type(expression->Assign.right, right_side_value.value, ACCEPTABLE_MAP_VALUE_TYPES);
 
                 M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
 
@@ -1053,7 +1053,26 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             acquire_environment(expression->Fn.closure_env);
             return m_result_normal(m_value_fn(expression));
         case M_EK_MAP: {
+            static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
+            static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
+
             M_Map *map = mca_map_init();
+
+            for (int i = 0; i < expression->Map.items_length; i += 2) {
+                M_Expression *key_expr = expression->Map.items[i];
+                M_Expression *value_expr = expression->Map.items[i+1];
+
+                M_Eval_Result key_result = m_result_expect_type(key_expr, evaluate_expression(key_expr), ACCEPTABLE_MAP_KEY_TYPES);
+                M_Eval_Result value_result = m_result_expect_type(value_expr, evaluate_expression(value_expr), ACCEPTABLE_MAP_VALUE_TYPES);
+
+                void *key = NULL;
+                size_t key_size = __get_map_key_data_and_size_helper(&key_result.value, &key, true);
+
+                void *value = NULL;
+                size_t value_size = __get_map_value_data_and_size_helper(&value_result.value, &value, true);
+
+                mca_map_set(map, key, key_size, key_result.value.type, value, value_size, value_result.value.type);
+            }
 
             M_Value value = (M_Value){
                 .allocated = true,

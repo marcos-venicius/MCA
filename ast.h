@@ -1,10 +1,12 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "./lexer.h"
 #include "./arena.h"
 #include "./location.h"
-#include <stdint.h>
 #include "./env.h"
+#include "./builtins/map.h"
 
 // @Leak @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
@@ -167,6 +169,14 @@ typedef struct {
     M_Expression *index;
 } m_index_expression_t;
 
+// TODO: This is the same structure as the array
+// I'm gonna keep it separated because we may have some
+// new fields here or there in the future
+typedef struct {
+    M_Expression **items;
+    int            items_length;
+} m_map_expression_t;
+
 struct M_Expression {
     M_Expression_Kind kind;
     M_Location        location;
@@ -186,6 +196,7 @@ struct M_Expression {
         m_while_loop_expression_t While;  // M_EK_WHILE
         m_if_expression_t         If;     // M_EK_IF
         M_Expression             *Break;  // M_EK_BREAK (can be null)
+        m_map_expression_t        Map;    // M_EK_MAP
         m_array_expression_t      Array;  // M_EK_ARRAY
         m_index_expression_t      Index;  // M_EK_INDEX
         M_Expression             *Return; // M_EK_RETURN

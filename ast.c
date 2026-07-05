@@ -13,6 +13,7 @@
 
 static M_Expression *parse_expression_impl(M_Ast *ast);
 static M_Expression *parse_array_literal_expression(M_Ast *ast);
+static M_Expression *parse_primary_expression(M_Ast *ast);
 
 static inline M_Token *token(M_Ast *ast) {
     return ast->current_token;
@@ -94,6 +95,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_FLOAT:
         case M_STRING:
         case M_EXCLAMATION:
+        case M_COLON:
         case M_BACKSLASH:
         case M_ARROW:
         case M_LPAREN:
@@ -169,6 +171,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_ID:
         case M_INT:
         case M_FLOAT:
+        case M_COLON:
         case M_BACKSLASH:
         case M_ARROW:
         case M_LPAREN:
@@ -735,16 +738,6 @@ static M_Expression *parse_string_literal_expression(M_Ast *ast) {
 }
 
 static M_Expression *parse_map_expression(M_Ast *ast) {
-    // TODO: for now we do not allow map initialization
-
-    next_token(ast); // skip '}'
-
-    if (!expect(ast, M_RCURLY)) {
-        ast_error(ast, ast->last_consumed_token, "unclosed curly expression '{...'");
-        synchronize(ast);
-        return NULL;
-    }
-
     next_token(ast); // skip '}'
 
     M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
@@ -754,6 +747,67 @@ static M_Expression *parse_map_expression(M_Ast *ast) {
         .col = token(ast)->loc.col,
         .filename = ast->filename
     };
+    expr->Map.items_length = 0;
+    expr->Map.items = NULL;
+
+    int capacity = 8;
+    M_Expression **temp_items = malloc(sizeof(M_Expression *) * capacity);
+    int length = 0;
+
+    while (!check(ast, M_RCURLY)) {
+        M_Token *key_start_token = token(ast);
+        M_Expression *key = parse_primary_expression(ast);
+
+        if (!check(ast, M_COLON)) {
+            free(temp_items);
+            ast_error(ast, key_start_token, "missing value for key inside the map");
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip ':'
+
+        M_Expression *value = parse_primary_expression(ast);
+
+        if (value == NULL) {
+            free(temp_items);
+            return NULL;
+        }
+
+        if (check(ast, M_COMMA)) {
+            next_token(ast);
+        } else if (!check(ast, M_RCURLY)) {
+            free(temp_items);
+            ast_error(ast, ast->last_consumed_token, "expected ',' but got unexpected '%s'", m_lexer_token_kind_display_name(ast->last_consumed_token->kind));
+            synchronize(ast);
+            return NULL;
+        }
+
+        if (length >= capacity) {
+            capacity *= 2;
+            temp_items = realloc(temp_items, sizeof(M_Expression *) * capacity);
+        }
+
+        temp_items[length++] = key;
+        temp_items[length++] = value;
+    }
+
+    if (!check(ast, M_RCURLY)) {
+        free(temp_items);
+        ast_error(ast, ast->last_consumed_token, "unclosed curly expression '{...'");
+        synchronize(ast);
+        return NULL;
+    }
+
+    next_token(ast); // skip '}'
+
+    if (length > 0) {
+        expr->Map.items = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression *) * length);
+        memcpy(expr->Map.items, temp_items, sizeof(M_Expression *) * length);
+    }
+    expr->Map.items_length = length;
+
+    free(temp_items);
 
     return expr;
 }
@@ -1280,12 +1334,14 @@ static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_K
 }
 
 static M_Expression *parse_assignment_expression(M_Ast *ast) {
+    M_Token *first_token = token(ast);
+
     if (token(ast) == NULL) return NULL;
 
     M_Expression *left = parse_logical_operators(ast);
 
     if (left != NULL && (left->kind & (ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS)) && (check(ast, M_ASSIGN) || check(ast, M_PLUS_EQUAL) || check(ast, M_MINUS_EQUAL))) {
-        M_Token *first_token = token(ast);
+        M_Token *op_token = token(ast);
 
         static M_Expression_Kind op[M_ASSIGN + M_MINUS_EQUAL + M_PLUS_EQUAL + 1] = {
             [M_ASSIGN]      = M_EK_ASSIGN,
@@ -1299,10 +1355,10 @@ static M_Expression *parse_assignment_expression(M_Ast *ast) {
             [M_MINUS_EQUAL] = "missing right operand for subtraction assignment '%.*s -= ...'"
         };
 
-        M_Expression *expr = parse_assignment_expression_impl(ast, op[first_token->kind], left);
+        M_Expression *expr = parse_assignment_expression_impl(ast, op[op_token->kind], left);
 
         if (expr == NULL) {
-            ast_error(ast, first_token, messages[first_token->kind], first_token->size, first_token->value);
+            ast_error(ast, first_token, messages[op_token->kind], first_token->size, first_token->value);
             synchronize(ast);
             return NULL;
         }

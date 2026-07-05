@@ -78,6 +78,7 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
         case M_GTE: return ">=";
         case M_LTE: return "<=";
 
+        case M_COLON: return ":";
         case M_BACKSLASH: return "\\";
         case M_ARROW: return "->";
         case M_LPAREN: return "(";
@@ -281,6 +282,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case '^':  advance_cursor(lexer); save_token(lexer, M_POW); break;
         case '!':  advance_cursor(lexer); save_token(lexer, M_EXCLAMATION); break;
         case ';':  advance_cursor(lexer); save_token(lexer, M_SEMI); break;
+        case ':':  advance_cursor(lexer); save_token(lexer, M_COLON); break;
         case ',':  advance_cursor(lexer); save_token(lexer, M_COMMA); break;
         case '?':  advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); break;
         case '\\': advance_cursor(lexer); save_token(lexer, M_BACKSLASH); break;
@@ -341,6 +343,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case '%':
             case '^':
             case ';':
+            case ':':
             case ',':
             case '?':
             case '\\':

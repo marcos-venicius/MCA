@@ -12,22 +12,23 @@ H = hour(TIMEZONE_OFFSET)
 M = minute(TIMEZONE_OFFSET)
 S = second(TIMEZONE_OFFSET)
 
-months = {}
-
-# @MCA introduce the concept of map initialization
-months[1]  = 'Janeiro'
-months[2]  = 'Fevereiro'
-months[3]  = 'Março'
-months[4]  = 'Abril'
-months[5]  = 'Maio'
-months[6]  = 'Junho'
-months[7]  = 'Julho'
-months[8]  = 'Agosto'
-months[9]  = 'Setembro'
-months[10] = 'Outubro'
-months[11] = 'Novembro'
-months[12] = 'Dezembro'
+months = {
+  1: 'Janeiro',
+  2: 'Fevereiro',
+  3: 'Março',
+  4: 'Abril',
+  5: 'Maio',
+  6: 'Junho',
+  7: 'Julho',
+  8: 'Agosto',
+  9: 'Setembro',
+  10: 'Outubro',
+  11: 'Novembro',
+  12: 'Dezembro'
+}
 
 print(d, ' de ', months[m], ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET, '\n')
+
+println(months)
 
 # vim: set syntax=r :
