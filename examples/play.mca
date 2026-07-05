@@ -1,4 +1,16 @@
 #!/usr/local/bin/mca
 
+m = {}
+
+map_set(m, 1, 'Hello, World');
+
+it = map_it(m)
+
+while !map_it_done(it) {
+  println(map_it_key(it))
+  println(map_it_value(it))
+
+  map_it_next(it);
+}
 
 # vim: set syntax=r :

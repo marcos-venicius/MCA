@@ -14,20 +14,19 @@ S = second(TIMEZONE_OFFSET)
 
 months = {}
 
-map_set(months, 1, 'janeiro')
-map_set(months, 2, 'fevereiro')
-map_set(months, 3, 'março')
-map_set(months, 4, 'abril')
-map_set(months, 5, 'maio')
-map_set(months, 6, 'junho')
-map_set(months, 7, 'julho')
-map_set(months, 8, 'agosto')
-map_set(months, 9, 'setembro')
-map_set(months, 1, 'outubro')
-map_set(months, 1, 'novembro')
-map_set(months, 1, 'dezembro')
+months[1]  = 'Janeiro'
+months[2]  = 'Fevereiro'
+months[3]  = 'Março'
+months[4]  = 'Abril'
+months[5]  = 'Maio'
+months[6]  = 'Junho'
+months[7]  = 'Julho'
+months[8]  = 'Agosto'
+months[9]  = 'Setembro'
+months[10] = 'Outubro'
+months[11] = 'Novembro'
+months[12] = 'Dezembro'
 
-
-println(d, ' de ', map_get(months, m), ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET)
+println(d, ' de ', months[m], ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET)
 
 # vim: set syntax=r :

@@ -26,6 +26,8 @@ exec_examples:
 	./examples/is-leap-year-utc.mca || :
 	./examples/logical-operators.mca
 	./examples/math.mca
+	./examples/maps.mca
+	./examples/arrays.mca
 	./examples/pascals-triangle.mca 5
 	./examples/play.mca
 	./examples/sleep.mca
@@ -53,10 +55,10 @@ builtins/map.o: ./builtins/map.c ./builtins/map.h
 lexer.o: lexer.c lexer.h
 	$(CC) $(CC_FLAGS) -c lexer.c $(CC_LIBS)
 
-ast.o: ast.c ast.h lexer.h lexer.c colors.h
+ast.o: ast.c ast.h lexer.h lexer.c colors.h constraints.h
 	$(CC) $(CC_FLAGS) -c ast.c $(CC_LIBS)
 
-interpreter.o: interpreter.c interpreter.h colors.h
+interpreter.o: interpreter.c interpreter.h colors.h constraints.h
 	$(CC) $(CC_FLAGS) -c interpreter.c $(CC_LIBS)
 
 main.o: main.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c ht.h ht.c builtins/map.h builtins/map.c

@@ -15,6 +15,7 @@
 #include "./builtins/map.h"
 #include "env.h"
 #include "./colors.h"
+#include "./constraints.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -45,9 +46,6 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
 #define m_value_map_it(it) ((M_Value){ .type = M_T_MAP_IT, .as.map_it = it })
 #define m_value_fn(f) ((M_Value){ .type = M_T_FN, .as.fn = f })
 #define m_string(s) ((M_String){ .value = s, .value_length = strlen(s) })
-
-#define ACCEPTABLE_MAP_KEY_TYPES M_T_INT | M_T_STRING
-#define ACCEPTABLE_ARRAY_KEY_TYPES M_T_INT
 
 #define m_result_normal(v) (M_Eval_Result){ .flow = M_CTRL_NORMAL, .value = (v) }
 #define m_result_break(v) (M_Eval_Result){ .flow = M_CTRL_BREAK, .value = (v) }
@@ -623,61 +621,179 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
     return m_result_normal(m_value_int((int64_t)result));
 }
 
-static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
-    assert((expression->kind == M_EK_ASSIGN || expression->kind == M_EK_ADD_ASSIGN || expression->kind == M_EK_SUB_ASSIGN) && "evaluate_assignment_expression: cannot handle this kind of expression");
+static M_Eval_Result evaluate_assignment_right_side(M_Expression *expression) {
+    M_Eval_Result right = evaluate_expression(expression->Assign.right);
 
-    char *key = strndup(expression->Assign.name.value, expression->Assign.name.value_length);
+    if (expression->kind == M_EK_ASSIGN) return right;
 
-    if (expression->kind == M_EK_ASSIGN) {
-        M_Eval_Result result = evaluate_expression(expression->Assign.right);
+    M_Eval_Result left_result = evaluate_expression(expression->Assign.left);
 
-        set_variable_on_environment(interpreter->current_environment, key, result.value);
-
-        free(key);
-
-        return result;
-    }
-
-    M_Value *current_value = get_variable_from_environment(interpreter->current_environment, key);
-
-    if (current_value == NULL)
-        m_interpreter_error(expression, "the variable '%s' does not exists", key);
-
-    M_Value left = m_value_expect_type(expression, *current_value, M_T_INT | M_T_FLOAT);
-    M_Eval_Result right = m_result_expect_type(expression->Assign.right, evaluate_expression(expression->Assign.right), M_T_INT | M_T_FLOAT);
+    M_Value left = m_value_expect_type(expression->Assign.left, left_result.value, M_T_INT | M_T_FLOAT);
 
     M_Value_Type l_type = left.type;
     M_Value_Type r_type = right.value.type;
-    M_Value new_value;
 
     if (l_type == M_T_FLOAT || r_type == M_T_FLOAT) {
         double l_value = l_type == M_T_FLOAT ? left.as.floating : (double)left.as.integer;
         double r_value = r_type == M_T_FLOAT ? right.value.as.floating : (double)right.value.as.integer;
 
         if (expression->kind == M_EK_ADD_ASSIGN) {
-            new_value = m_value_float(l_value + r_value);
+            return m_result_normal(m_value_float(l_value + r_value));
         } else if (expression->kind == M_EK_SUB_ASSIGN) {
-            new_value = m_value_float(l_value - r_value);
+            return m_result_normal(m_value_float(l_value - r_value));
         } else {
             assert(0 && "unreacheable");
         }
     } else {
         if (expression->kind == M_EK_ADD_ASSIGN) {
-            new_value = m_value_int(left.as.integer + right.value.as.integer);
+            return m_result_normal(m_value_int(left.as.integer + right.value.as.integer));
         } else if (expression->kind == M_EK_SUB_ASSIGN) {
-            new_value = m_value_int(left.as.integer - right.value.as.integer);
+            return m_result_normal(m_value_int(left.as.integer - right.value.as.integer));
         } else {
             assert(0 && "unreacheable");
         }
     }
 
-    right.value = new_value;
+    return m_result_normal(m_value_unit());
+}
 
-    set_variable_on_environment(interpreter->current_environment, key, new_value);
+static size_t __get_map_key_data_and_size_helper(M_Value *value, void **out, bool keep_nullbyte) {
+    static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
 
-    free(key);
+    switch (value->type) {
+        case M_T_INT:
+            *out = &value->as.integer;
+            return sizeof(M_Int);
+        case M_T_STRING:
+            *out = value->as.string.value;
+            return value->as.string.value_length + (keep_nullbyte ? 1 : 0);
+        default:
+            assert(0 && "should never happen");
+            break;
+    }
 
-    return right;
+    return 0;
+}
+
+static size_t __get_map_value_data_and_size_helper(M_Value value, void **out, bool keep_nullbyte) {
+    static_assert((ACCETABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCETABLE_MAP_VALUE_TYPES has changed");
+
+    switch (value.type) {
+        case M_T_STRING:
+            *out = value.as.string.value;
+            return value.as.string.value_length + (keep_nullbyte ? 1 : 0);
+        case M_T_INT:
+            *out = &value.as.integer;
+            return sizeof(M_Int);
+        case M_T_BOOL:
+            *out = &value.as.boolean;
+            return sizeof(M_Bool);
+        case M_T_FLOAT:
+            *out = &value.as.floating;
+            return sizeof(M_Float);
+        case M_T_MAP:
+        case M_T_MAP_IT:
+        case M_T_ARRAY:
+        case M_T_UNIT:
+        case M_T_COUNT:
+        case M_T_FN: // accept later
+            assert(0 && "should never happen");
+            break;
+    }
+
+    return 0;
+}
+
+static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
+    if (entry == NULL) return m_value_unit();
+
+    static_assert(M_T_COUNT == 257, "__builtin_mca_map_parse_m_map_node_entry_helper");
+    switch (entry->type) {
+        case M_T_STRING:
+            return (M_Value){
+                .allocated = true,
+                .type = M_T_STRING,
+                .as.string.value = entry->data,
+                .as.string.value_length = entry->size - 1 // ignore the null-byte on counting length
+            };
+        case M_T_INT:
+            return (M_Value){
+                .type = M_T_INT,
+                .as.integer = *(M_Int*)entry->data,
+            };
+        case M_T_BOOL:
+            return (M_Value){
+                .type = M_T_BOOL,
+                .as.boolean = *(M_Bool*)entry->data,
+            };
+        case M_T_FLOAT:
+            return (M_Value){
+                .type = M_T_FLOAT,
+                .as.floating = *(M_Float*)entry->data,
+            };
+        case M_T_UNIT:
+        case M_T_MAP_IT:
+        case M_T_MAP:
+        case M_T_FN: // accept later
+            assert(0 && "TODO: for now, we don't accept nested hashmaps nor iterators or unit as value");
+            break;
+    }
+
+    assert(0 && "should never happen");
+}
+
+static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
+    M_Eval_Result right_side_value = evaluate_assignment_right_side(expression);
+
+    static_assert((ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS) == (M_EK_ID | M_EK_INDEX), "ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS has changed");
+
+    if (expression->Assign.left->kind == M_EK_ID) {
+        set_variable_on_environment(interpreter->current_environment, expression->Assign.left->Id.value, right_side_value.value);
+
+        return right_side_value;
+    }
+
+    if (expression->Assign.left->kind == M_EK_INDEX) {
+        M_Eval_Result left = m_result_expect_type(expression->Assign.left->Index.left, evaluate_expression(expression->Assign.left->Index.left), M_T_ARRAY | M_T_MAP);
+
+        switch (left.value.type) {
+            case M_T_MAP: {
+                static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
+
+                // ensure the correct type
+                m_value_expect_type(expression->Assign.right, right_side_value.value, ACCETABLE_MAP_VALUE_TYPES);
+
+                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
+
+                void *key = NULL;
+                size_t key_size = __get_map_key_data_and_size_helper(&index.value, &key, true);
+
+                void *value = NULL;
+                size_t value_size = __get_map_value_data_and_size_helper(right_side_value.value, &value, true);
+                
+                mca_map_set(left.value.as.map, key, key_size, index.value.type, value, value_size, right_side_value.value.type);
+
+                return right_side_value;
+            }
+            case M_T_ARRAY: {
+                static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
+
+                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(expression->Assign.left->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
+                M_Int idx = index.value.as.integer;
+
+                if (idx < 0 || idx >= left.value.as.array->length)
+                    m_interpreter_error(expression, "array index out of bounds");
+
+                left.value.as.array->items[idx] = right_side_value.value;
+
+                return right_side_value;
+            }
+            default:
+                assert(0 && "should never happen");
+        }
+    }
+
+    return right_side_value;
 }
 
 static M_Eval_Result evaluate_expression(M_Expression *expression) {
@@ -781,13 +897,11 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         }
         case M_EK_INDEX: {
             M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(expression->Index.left), M_T_ARRAY | M_T_STRING | M_T_MAP);
-            M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES | ACCEPTABLE_ARRAY_KEY_TYPES);
-
-            static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
-            static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
 
             switch (left.value.type) {
                 case M_T_ARRAY: {
+                    static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
                     M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
 
                     if (idx < 0 || idx >= left.value.as.array->length)
@@ -796,6 +910,8 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     return m_result_normal(left.value.as.array->items[idx]);
                 };
                 case M_T_STRING: {
+                    static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
                     M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
 
                     if (idx < 0 || idx >= left.value.as.string.value_length)
@@ -803,27 +919,14 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     return m_result_normal(m_value_sized_string(left.value.as.string.value + idx, 1));
                 }
                 case M_T_MAP: {
+                    static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
                     M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
 
-                    int key_type = idx.type;
-                    void *key;
-                    size_t key_size = 0;
+                    void *key = NULL;
+                    size_t key_size = __get_map_key_data_and_size_helper(&idx, &key, false);
 
-                    switch (idx.type) {
-                        case M_T_INT:
-                            key = &idx.as.integer;
-                            key_size = sizeof(M_Int);
-                            break;
-                        case M_T_STRING:
-                            key = idx.as.string.value;
-                            key_size = idx.as.string.value_length;
-                            break;
-                        default:
-                            assert(0 && "should never happen");
-                            break;
-                    }
-
-                    M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, key_type);
+                    M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, idx.type);
 
                     M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(entry);
 
@@ -1182,15 +1285,74 @@ static void __print_array_helper(FILE *out, M_Array *array) {
             case M_T_FLOAT: fprintf(out, "%f", array->items[i].as.floating); break;
             case M_T_BOOL: fprintf(out, "%s", array->items[i].as.boolean ? "true" : "false"); break;
             case M_T_STRING: fprintf(out, "'%.*s'", array->items[i].as.string.value_length, array->items[i].as.string.value); break;
+            case M_T_UNIT: fprintf(out, "(unit)"); break;
+            case M_T_ARRAY: __print_array_helper(out, array->items[i].as.array); break;
             default: fprintf(out, "%s", m_value_type_name(array->items[i].type)); break;
         }
     }
     fprintf(out, "]");
 }
 
-static void __print_map_helper(FILE *out, M_Map *map) {
-    // TODO: implement iterator and really print the map
-    fprintf(out, "map(size: %d)", map->size);
+static void __print_map_helper(M_Map *map);
+
+static void __print_value_helper(M_Value value) {
+    switch (value.type) {
+        case M_T_INT:
+            fprintf(interpreter->io_out, "%ld", value.as.integer);
+            break;
+        case M_T_FLOAT:
+            fprintf(interpreter->io_out, "%f", value.as.floating);
+            break;
+        case M_T_BOOL:
+            fprintf(interpreter->io_out, "%s", value.as.boolean ? "true" : "false");
+            break;
+        case M_T_UNIT:
+            fprintf(interpreter->io_out, "(unit)");
+            break;
+        case M_T_STRING:
+            fprintf(interpreter->io_out, "%.*s", value.as.string.value_length, value.as.string.value);
+            break;
+        case M_T_MAP:
+            __print_map_helper(value.as.map);
+            break;
+        case M_T_MAP_IT:
+            fprintf(interpreter->io_out, "iter<"); 
+            __print_map_helper(value.as.map_it->map);
+            fprintf(interpreter->io_out, ">");
+            break;
+        case M_T_FN:
+            fprintf(interpreter->io_out, "fn(...%d)", value.as.fn->Fn.arguments_length);
+            break;
+        case M_T_ARRAY:
+            __print_array_helper(interpreter->io_out, value.as.array);
+            break;
+        case M_T_COUNT:
+            assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
+            break;
+    }
+}
+
+static void __print_map_helper(M_Map *map) {
+    fprintf(interpreter->io_out, "{");
+
+    M_Map_Iterator *it = mca_map_iterator(map);
+    
+    for (int i = 0; !mca_map_iterator_finished(it); i++) {
+        M_Value key = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
+        M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
+
+        if (i > 0) fprintf(interpreter->io_out, ", ");
+
+        __print_value_helper(key);
+        fprintf(interpreter->io_out, ":");
+        __print_value_helper(value);
+
+        mca_map_iterator_next(it);
+    }
+
+    mca_map_iterator_free(it);
+
+    fprintf(interpreter->io_out, "}");
 }
 
 static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
@@ -1200,40 +1362,7 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
     for (int i = 0; i < arguments_count; i++) {
         last_value = evaluate_expression(arguments[i]).value;
 
-        switch (last_value.type) {
-            case M_T_INT:
-                fprintf(interpreter->io_out, "%ld", last_value.as.integer);
-                break;
-            case M_T_FLOAT:
-                fprintf(interpreter->io_out, "%f", last_value.as.floating);
-                break;
-            case M_T_BOOL:
-                fprintf(interpreter->io_out, "%s", last_value.as.boolean ? "true" : "false");
-                break;
-            case M_T_UNIT:
-                fprintf(interpreter->io_out, "(unit)");
-                break;
-            case M_T_STRING:
-                fprintf(interpreter->io_out, "%.*s", last_value.as.string.value_length, last_value.as.string.value);
-                break;
-            case M_T_MAP:
-                __print_map_helper(interpreter->io_out, last_value.as.map);
-                break;
-            case M_T_MAP_IT:
-                fprintf(interpreter->io_out, "iter<"); 
-                __print_map_helper(interpreter->io_out, last_value.as.map_it->map);
-                fprintf(interpreter->io_out, ">");
-                break;
-            case M_T_FN:
-                fprintf(interpreter->io_out, "fn(...%d)", last_value.as.fn->Fn.arguments_length);
-                break;
-            case M_T_ARRAY:
-                __print_array_helper(interpreter->io_out, last_value.as.array);
-                break;
-            case M_T_COUNT:
-                assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
-                break;
-        }
+        __print_value_helper(last_value);
     }
 
     return last_value;
@@ -1722,44 +1851,6 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
     };
 }
 
-static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry) {
-    if (entry == NULL) return m_value_unit();
-
-    static_assert(M_T_COUNT == 257, "__builtin_mca_map_parse_m_map_node_entry_helper");
-    switch (entry->type) {
-        case M_T_STRING:
-            return (M_Value){
-                .allocated = true,
-                .type = M_T_STRING,
-                .as.string.value = entry->data,
-                .as.string.value_length = entry->size - 1 // ignore the null-byte on counting length
-            };
-        case M_T_INT:
-            return (M_Value){
-                .type = M_T_INT,
-                .as.integer = *(int64_t*)entry->data,
-            };
-        case M_T_BOOL:
-            return (M_Value){
-                .type = M_T_BOOL,
-                .as.boolean = *(bool*)entry->data,
-            };
-        case M_T_FLOAT:
-            return (M_Value){
-                .type = M_T_FLOAT,
-                .as.floating = *(double*)entry->data,
-            };
-        case M_T_UNIT:
-        case M_T_MAP_IT:
-        case M_T_MAP:
-        case M_T_FN: // accept later
-            assert(0 && "TODO: for now, we don't accept nested hashmaps nor iterators or unit as value");
-            break;
-    }
-
-    assert(0 && "should never happen");
-}
-
 static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
     (void)arguments_count;
@@ -1773,52 +1864,12 @@ static M_Value __builtin_mca_map_set(M_Expression *caller, M_Expression *argumen
     M_Eval_Result a2 = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL);
 
     void *key       = NULL;
-    size_t key_size = 0;
     int key_type    = a1.value.type;
+    size_t key_size = __get_map_key_data_and_size_helper(&a1.value, &key, true);
 
     void *value       = NULL;
-    size_t value_size = 0;
     int value_type    = a2.value.type;
-
-    switch (a1.value.type) {
-        case M_T_INT:
-            key = &a1.value.as.integer;
-            key_size = sizeof(int64_t);
-            break;
-        case M_T_STRING:
-            key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length + 1; // save the null-byte
-        default:
-            break;
-    }
-
-    static_assert(M_T_COUNT == 257, "__builtin_mca_map_set");
-    switch (a2.value.type) {
-        case M_T_STRING:
-            value = a2.value.as.string.value;
-            value_size = a2.value.as.string.value_length + 1; // save the null-byte
-            break;
-        case M_T_INT:
-            value = &a2.value.as.integer;
-            value_size = sizeof(int64_t);
-            break;
-        case M_T_BOOL:
-            value = &a2.value.as.boolean;
-            value_size = sizeof(bool);
-            break;
-        case M_T_FLOAT:
-            value = &a2.value.as.floating;
-            value_size = sizeof(double);
-            break;
-        case M_T_MAP:
-        case M_T_MAP_IT:
-        case M_T_ARRAY:
-        case M_T_UNIT:
-        case M_T_COUNT:
-        case M_T_FN: // accept later
-            assert(0 && "should never happen");
-            break;
-    }
+    size_t value_size = __get_map_value_data_and_size_helper(a2.value, &value, true);
 
     mca_map_set(a0.value.as.map, key, key_size, key_type, value, value_size, value_type);
 
@@ -1834,20 +1885,8 @@ static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *argumen
     M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
 
     void *key       = NULL;
-    size_t key_size = 0;
     int key_type    = a1.value.type;
-
-    switch (a1.value.type) {
-        case M_T_INT:
-            key = &a1.value.as.integer;
-            key_size = sizeof(int64_t);
-            break;
-        case M_T_STRING:
-            key = a1.value.as.string.value;
-            key_size = a1.value.as.string.value_length + 1; // null-byte
-        default:
-            break;
-    }
+    size_t key_size = __get_map_key_data_and_size_helper(&a1.value, &key, true);
 
     bool deleted = mca_map_del(a0.value.as.map, key, key_size, key_type);
 

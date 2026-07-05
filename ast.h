@@ -28,26 +28,26 @@ typedef struct {
 typedef struct M_Expression M_Expression;
 
 typedef enum {
-    M_EK_UNIT = 0,
-    M_EK_INT,
-    M_EK_FLOAT,
-    M_EK_BOOL,
-    M_EK_STRING,
-    M_EK_ID,
-    M_EK_BINARY,
-    M_EK_ASSIGN,
-    M_EK_ADD_ASSIGN,
-    M_EK_SUB_ASSIGN,
-    M_EK_UNARY,
-    M_EK_FN,
-    M_EK_CALL,
-    M_EK_WHILE,
-    M_EK_BREAK,
-    M_EK_IF,
-    M_EK_MAP,
-    M_EK_ARRAY,
-    M_EK_INDEX,
-    M_EK_RETURN,
+    M_EK_UNIT        = 1 << 0,
+    M_EK_INT         = 1 << 1,
+    M_EK_FLOAT       = 1 << 2,
+    M_EK_BOOL        = 1 << 3,
+    M_EK_STRING      = 1 << 4,
+    M_EK_ID          = 1 << 5,
+    M_EK_BINARY      = 1 << 6,
+    M_EK_ASSIGN      = 1 << 7,
+    M_EK_ADD_ASSIGN  = 1 << 8,
+    M_EK_SUB_ASSIGN  = 1 << 9,
+    M_EK_UNARY       = 1 << 10,
+    M_EK_FN          = 1 << 11,
+    M_EK_CALL        = 1 << 12,
+    M_EK_WHILE       = 1 << 13,
+    M_EK_BREAK       = 1 << 14,
+    M_EK_IF          = 1 << 15,
+    M_EK_MAP         = 1 << 16,
+    M_EK_ARRAY       = 1 << 17,
+    M_EK_INDEX       = 1 << 18,
+    M_EK_RETURN      = 1 << 19,
 } M_Expression_Kind;
 
 typedef enum {
@@ -141,8 +141,7 @@ typedef struct {
 } m_call_expression_t;
 
 typedef struct {
-    M_Const_String name;
-
+    M_Expression *left;
     M_Expression *right;
 } m_assign_expression_t;
 

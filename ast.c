@@ -9,6 +9,7 @@
 #include "./arena.h"
 #include "./lexer.h"
 #include "./colors.h"
+#include "constraints.h"
 
 static M_Expression *parse_expression_impl(M_Ast *ast);
 static M_Expression *parse_array_literal_expression(M_Ast *ast);
@@ -18,6 +19,10 @@ static inline M_Token *token(M_Ast *ast) {
 }
 static inline M_Token *ntoken(M_Ast *ast) {
     return ast->current_token->next;
+}
+
+static inline bool check(M_Ast *ast, M_Token_Kind kind) {
+    return ast->current_token != NULL && ast->current_token->kind == kind;
 }
 
 static inline bool checkahead(M_Ast *ast, M_Token_Kind kind) {
@@ -1251,14 +1256,10 @@ static M_Expression *parse_logical_operators(M_Ast *ast) {
     return left;
 }
 
-static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_Kind kind) {
+static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_Kind kind, M_Expression *left) {
     M_Token *first_token = token(ast);
 
-    const char *name = token(ast)->value;
-    int name_length = token(ast)->size;
-
-    next_token(ast); // <kind>
-    next_token(ast); // jumped <kind>
+    next_token(ast); // skip '=', '-=', '+='
 
     M_Expression *right = parse_expression_impl(ast);
 
@@ -1272,8 +1273,7 @@ static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_K
         .col = first_token->loc.col,
         .filename = ast->filename
     };
-    assignment_expr->Assign.name.value = name;
-    assignment_expr->Assign.name.value_length = name_length;
+    assignment_expr->Assign.left  = left;
     assignment_expr->Assign.right = right;
 
     return assignment_expr;
@@ -1282,9 +1282,10 @@ static M_Expression *parse_assignment_expression_impl(M_Ast *ast, M_Expression_K
 static M_Expression *parse_assignment_expression(M_Ast *ast) {
     if (token(ast) == NULL) return NULL;
 
-    if (token(ast)->kind == M_ID && (checkahead(ast, M_ASSIGN) || checkahead(ast, M_PLUS_EQUAL) || checkahead(ast, M_MINUS_EQUAL))) {
+    M_Expression *left = parse_logical_operators(ast);
+
+    if (left != NULL && (left->kind & (ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS)) && (check(ast, M_ASSIGN) || check(ast, M_PLUS_EQUAL) || check(ast, M_MINUS_EQUAL))) {
         M_Token *first_token = token(ast);
-        M_Token *second_token = ntoken(ast);
 
         static M_Expression_Kind op[M_ASSIGN + M_MINUS_EQUAL + M_PLUS_EQUAL + 1] = {
             [M_ASSIGN]      = M_EK_ASSIGN,
@@ -1298,10 +1299,10 @@ static M_Expression *parse_assignment_expression(M_Ast *ast) {
             [M_MINUS_EQUAL] = "missing right operand for subtraction assignment '%.*s -= ...'"
         };
 
-        M_Expression *expr = parse_assignment_expression_impl(ast, op[second_token->kind]);
+        M_Expression *expr = parse_assignment_expression_impl(ast, op[first_token->kind], left);
 
         if (expr == NULL) {
-            ast_error(ast, first_token, messages[second_token->kind], first_token->size, first_token->value);
+            ast_error(ast, first_token, messages[first_token->kind], first_token->size, first_token->value);
             synchronize(ast);
             return NULL;
         }
@@ -1309,7 +1310,7 @@ static M_Expression *parse_assignment_expression(M_Ast *ast) {
         return expr;
     }
 
-    return parse_logical_operators(ast);
+    return left;
 }
 
 static inline M_Expression *parse_expression_impl(M_Ast *ast) {

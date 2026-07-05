@@ -1,0 +1,49 @@
+#!/usr/local/bin/mca
+
+PAD = 4
+
+dynamic_array = [
+  1, 'Hello, World', 3.4, true, false, ?,
+  [0, 0, 0],
+  [1, 0, 1]
+]
+
+pad = \(p) ->  while (p -= 1) > 0  print(' ')
+
+print_array = \(level, arr) -> {
+  pad(level)
+  println('[')
+  i = -1; while (i += 1) < len(arr) {
+    value = arr[i]
+
+    if type(value) == 'array' {
+      print_array(level + PAD, value)
+    } else {
+      pad(level + PAD)
+
+      if type(value) == 'string' {
+        println('"', value, '",')
+      } else {
+        println(value, ',')
+      }
+    }
+  }
+  pad(level)
+  println(']')
+}
+
+print_array(PAD, dynamic_array)
+
+println()
+
+println(dynamic_array)
+
+println('length: ', len(dynamic_array))
+
+i = -1; while ((i += 1) < len(dynamic_array)) dynamic_array[i] = 0;
+println('zeroing array...')
+
+print_array(PAD, dynamic_array)
+println(dynamic_array)
+
+# vim: set syntax=r :

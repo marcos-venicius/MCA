@@ -226,10 +226,6 @@ clear_test_case:
     m_argc = 0;
 }
 
-static inline void TEST_CASE_LABEL(const char *label) {
-    fprintf(stderr, "%s:\n", label);
-}
-
 #define T_UNIT() (M_Value){ .type = M_T_UNIT }
 #define T_INT(v) (M_Value){ .type = M_T_INT, .as.integer = v }
 #define T_FLOAT(v) (M_Value){ .type = M_T_FLOAT, .as.floating = v }
@@ -238,9 +234,15 @@ static inline void TEST_CASE_LABEL(const char *label) {
 
 #if 1
 #define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, false)
+static inline void TEST_CASE_LABEL(const char *label) {
+    fprintf(stderr, "%s:\n", label);
+}
 #else
 #define TEST_CASE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, true)
 #define TEST_CASE_SINGLE(expr, expected) RUN_TEST_CASE(expr, expected, __FILE__, __LINE__, false)
+static inline void TEST_CASE_LABEL(const char *label) {
+    (void)label;
+}
 #endif
 
 int main(void) {
