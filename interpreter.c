@@ -1343,9 +1343,13 @@ static void __print_map_helper(M_Map *map) {
 
         if (i > 0) fprintf(interpreter->io_out, ", ");
 
+        if (key.type == M_T_STRING) fprintf(interpreter->io_out, "'");
         __print_value_helper(key);
-        fprintf(interpreter->io_out, ":");
+        if (key.type == M_T_STRING) fprintf(interpreter->io_out, "'");
+        fprintf(interpreter->io_out, ": ");
+        if (value.type == M_T_STRING) fprintf(interpreter->io_out, "'");
         __print_value_helper(value);
+        if (value.type == M_T_STRING) fprintf(interpreter->io_out, "'");
 
         mca_map_iterator_next(it);
     }
@@ -1370,7 +1374,15 @@ static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments
 
 static M_Value __builtin_mca_println(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
     (void)caller;
-    M_Value last_value = __builtin_mca_print(caller, arguments, arguments_count);
+    M_Value last_value = m_value_unit();
+
+    for (int i = 0; i < arguments_count; i++) {
+        if (i > 0) fprintf(interpreter->io_out, " ");
+
+        last_value = evaluate_expression(arguments[i]).value;
+
+        __print_value_helper(last_value);
+    }
 
     fprintf(interpreter->io_out, "\n");
 

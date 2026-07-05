@@ -390,6 +390,7 @@ int main(void) {
     TEST_CASE("i = 10; i += 2; i", T_INT(12));
     TEST_CASE("i = 10; i -= 2", T_INT(8));
     TEST_CASE("i = 10; i -= 2; i", T_INT(8));
+    TEST_CASE("m = {}; m['name'] = 'Fred'; m['age'] = 32; format(m['name'], ' is ', m['age'], ' years old')", T_STRING("Fred is 32 years old"));
 
     TEST_CASE_LABEL("Loops");
     TEST_CASE("n = 10; while n < 20 { n = n + 1 }", T_INT(20));
