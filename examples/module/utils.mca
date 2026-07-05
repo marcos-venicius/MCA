@@ -1,0 +1,13 @@
+pub_is_digit = \(x) -> ord(x) >= ord('0') and ord(x) <= ord('9')
+
+pub_help = \(program_name) -> {
+  print('Usage: ', program_name, ' <input>\n')
+  println('  this program will receive an input and extract all the numbers from it.')
+  println('  if any error are encountered, it will display it')
+}
+
+#export
+{
+  'help':     pub_help,
+  'is_digit': pub_is_digit
+}

@@ -78,9 +78,10 @@ typedef struct {
 
     M_Token *head;
     M_Token *tail;
+
+    int errors;
 } M_Lexer;
 
-bool m_lexer_finished_with_errors();
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind);
 M_Lexer m_lexer_create(const char *filename, const char *content, const size_t content_size);
 M_Token *m_lexer_tokenize(M_Lexer *lexer);

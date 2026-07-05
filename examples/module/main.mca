@@ -1,0 +1,26 @@
+#!/usr/local/bin/mca
+
+utils_module = import('utils.mca')
+utils.help   = utils_module['help']
+
+lexer_module = import('lexer.mca')
+lexer.create = lexer_module['create']
+lexer.run    = lexer_module['run']
+
+PROGRAM_NAME = argv(0)
+
+if argc() != 2 {
+  utils.help(PROGRAM_NAME)
+  exit(1)
+}
+
+l       = lexer.create(argv(1))
+numbers = lexer.run(l)
+
+println()
+if numbers[1]
+  print('extracted numbers (with errors): ')
+else
+  print('extracted numbers: ')
+
+println(numbers[0])

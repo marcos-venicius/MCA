@@ -10,10 +10,8 @@
 static inline char chr(M_Lexer *lexer);
 static inline void advance_cursor(M_Lexer *lexer);
 
-static size_t errors = 0;
-
 static void m_lexer_error(M_Lexer *lexer, const char *fmt, ...) {
-    errors++;
+    lexer->errors++;
 
     va_list args;
     va_start(args, fmt);
@@ -42,10 +40,6 @@ static void invalid_floating_number_error(M_Lexer *lexer) {
     m_lexer_error(lexer, "invalid floating number \033[1;35m%.*s\033[0m", (int)(lexer->cursor - lexer->bot + 1), lexer->content + lexer->bot);
 
     advance_cursor(lexer);
-}
-
-bool m_lexer_finished_with_errors() {
-    return errors > 0;
 }
 
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
@@ -102,6 +96,7 @@ M_Lexer m_lexer_create(const char *filename, const char *content, const size_t c
         .line = 1,
         .col = 1,
         .bot = 0,
+        .errors = 0,
         .tail = NULL,
         .head = NULL
     };
@@ -112,7 +107,7 @@ static inline bool is_identifier_start(char c) {
 }
 
 static inline bool keep_being_identifier(char c) {
-    return is_identifier_start(c) || (c >= '0' && c <= '9');
+    return is_identifier_start(c) || (c >= '0' && c <= '9') || c == '.';
 }
 
 static inline char chr(M_Lexer *lexer) {
@@ -405,7 +400,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
         }
     }
 
-    if (errors > 0) {
+    if (lexer->errors > 0) {
         m_lexer_free(lexer);
 
         return NULL;

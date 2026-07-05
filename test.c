@@ -140,7 +140,7 @@ static void RUN_TEST_CASE(const char *expression, M_Value expected, const char *
     M_Lexer lexer = m_lexer_create(NULL, expression, strlen(expression));
     M_Token *tokens = m_lexer_tokenize(&lexer);
 
-    if (m_lexer_finished_with_errors()) {
+    if (lexer.errors > 0) {
         LOG_ERROR(expression, expected, NULL, file, line);
 
         m_argc = 0;

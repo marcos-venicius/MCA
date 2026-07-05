@@ -72,11 +72,7 @@ int main(int argc, char **argv) {
     M_Lexer lexer = m_lexer_create(p_arguments.input_file_name, input, size);
     M_Token *tokens_head = m_lexer_tokenize(&lexer);
 
-    if (m_lexer_finished_with_errors()) {
-        m_lexer_free(&lexer);
-
-        return 1;
-    }
+    if (lexer.errors) return 1;
 
     // Parsing
     M_Ast *ast = parse_expression(p_arguments.input_file_name, tokens_head);

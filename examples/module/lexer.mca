@@ -1,0 +1,57 @@
+utils_module   = import('utils.mca')
+utils.is_digit = utils_module['is_digit']
+
+get_char = \(lexer) -> lexer['content'][lexer['cursor']]
+
+next_char = \(lexer) -> {
+  if lexer['cursor'] >= 0 and lexer['cursor'] < lexer['size'] {
+    if get_char(lexer) == '\n' {
+      lexer['line'] += 1
+      lexer['col']   = 1
+    } else {
+      lexer['col'] += 1
+    }
+  }
+
+  lexer['cursor'] += 1
+}
+
+pub_create_lexer = \(content) -> {
+  {
+    'content': content,
+    'size':    len(content),
+    'cursor':  -1,
+    'line':    1,
+    'col':     1
+  }
+}
+
+pub_run_lexer = \(lexer) -> {
+  out    = []
+  errors = 0
+
+  while next_char(lexer) < lexer['size'] {
+    char = get_char(lexer)
+
+    if !(char == ' ' or char == '\n' or char == ',') {
+      bot = lexer['cursor']
+
+      if (utils.is_digit(get_char(lexer))) {
+        while (next_char(lexer) < lexer['size'] and utils.is_digit(get_char(lexer)));
+
+        append(out, as_int(select(lexer['content'], bot, lexer['cursor'])))
+      } else {
+        print('error:', lexer['line'], ':', lexer['col'], ': unrecognized symbol ', get_char(lexer), '\n')
+        errors += 1
+      }
+    }
+  }
+
+  return [out, errors > 0]
+} 
+
+#export
+{
+  'create': pub_create_lexer,
+  'run':    pub_run_lexer
+}

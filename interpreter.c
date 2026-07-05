@@ -16,6 +16,7 @@
 #include "env.h"
 #include "./colors.h"
 #include "./constraints.h"
+#include "lexer.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -27,11 +28,11 @@
 
 
 // [[typedefs]]
-typedef M_Value (*M_Fn_C_Impl)(M_Expression *caller, M_Expression *arguments[], int arguments_count);
+typedef M_Value (*M_Fn_C_Impl)(M_Interpreter *interpreter, M_Expression *caller, M_Expression *arguments[], int arguments_count);
 
 // [[forward declarations]]
 static M_Fn_C_Impl resolve_builtin_function(M_Expression *expr);
-static M_Eval_Result evaluate_expression(M_Expression *expression);
+static M_Eval_Result evaluate_expression(M_Interpreter *interpreter, M_Expression *expression);
 static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry *entry);
 
 // [[macros]]
@@ -52,15 +53,7 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
 #define m_result_return(v) (M_Eval_Result){ .flow = M_CTRL_RETURN, .value = (v) }
 
 #define PUBLIC
-
-// [[global variables]]
-
-//
-// Here is the whole state of the interpreter.
-// It's global, so, you cannot run, at this moment multiple programs.
-// For now, let's focuse in run at least one single program well.
-//
-static M_Interpreter *interpreter = NULL;
+#define BUILTIN(name)  static M_Value name(M_Interpreter *interpreter, M_Expression *caller, M_Expression *arguments[], int arguments_count)
 
 static M_Eval_Result calculate_factorial(M_Eval_Result r) {
     double val = 0.0;
@@ -156,21 +149,21 @@ static void m_interpreter_error(M_Expression *expr, const char *fmt, ...) {
     exit(1);
 }
 
-static void m_interpreter_warn(M_Expression *expr, const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
+// static void m_interpreter_warn(M_Expression *expr, const char *fmt, ...) {
+//     va_list args;
+//     va_start(args, fmt);
 
-    if (expr->location.filename) {
-        fprintf(stderr, "%s:%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
-    } else {
-        fprintf(stderr, "%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.line, expr->location.col);
-    }
+//     if (expr->location.filename) {
+//         fprintf(stderr, "%s:%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.filename, expr->location.line, expr->location.col);
+//     } else {
+//         fprintf(stderr, "%d:%d: \033[1;33mruntime warn\033[0m: ", expr->location.line, expr->location.col);
+//     }
 
-    vfprintf(stderr, fmt, args);
-    fprintf(stderr, "\n");
+//     vfprintf(stderr, fmt, args);
+//     fprintf(stderr, "\n");
 
-    va_end(args);
-}
+//     va_end(args);
+// }
 
 static inline M_Eval_Result m_result_expect_type(M_Expression *expr, M_Eval_Result result, M_Value_Type expected_type_mask) {
     if ((result.value.type & expected_type_mask) == 0)
@@ -261,7 +254,7 @@ static M_Environment *create_new_environment(M_Environment *parent) {
     return new_env;
 }
 
-static void enter_new_environment() {
+static void enter_new_environment(M_Interpreter *interpreter) {
     M_Environment *new_env = malloc(sizeof(M_Environment));
     new_env->variables = ht_init(sizeof(M_Value));
     new_env->parent = interpreter->current_environment;
@@ -270,7 +263,7 @@ static void enter_new_environment() {
     interpreter->current_environment = new_env;
 }
 
-static void destroy_current_environment() {
+static void destroy_current_environment(M_Interpreter *interpreter) {
     M_Environment *current_env = interpreter->current_environment;
 
     if (current_env == NULL) return;
@@ -298,7 +291,7 @@ static void define_variable_in_environment(M_Environment *env, const char *key, 
     ht_add(env->variables, key, &data);
 }
 
-static void set_variable_on_environment(M_Environment *env, const char *key, M_Value data) {
+static void set_variable_on_environment(M_Interpreter *interpreter, M_Environment *env, const char *key, M_Value data) {
     // the variable doesn't exists on upper scopes, so we create one in the current scope
     if (env == NULL) {
         ht_add(interpreter->current_environment->variables, key, &data);
@@ -316,17 +309,17 @@ static void set_variable_on_environment(M_Environment *env, const char *key, M_V
     }
 
     // we did not find the variable in this scope so we climb up
-    set_variable_on_environment(env->parent, key, data);
+    set_variable_on_environment(interpreter, env->parent, key, data);
 }
 
-static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
+static M_Eval_Result evaluate_block_expression(M_Interpreter *interpreter, M_Expression_Block *block) {
     M_Eval_Result last_result = m_result_normal(m_value_unit());
 
     M_Expression_Block *current = block;
 
     while (current != NULL) {
         if (current->expr != NULL) {
-            last_result = evaluate_expression(current->expr);
+            last_result = evaluate_expression(interpreter, current->expr);
 
             if (last_result.flow != M_CTRL_NORMAL) return last_result;
         }
@@ -337,7 +330,7 @@ static M_Eval_Result evaluate_block_expression(M_Expression_Block *block) {
     return last_result;
 }
 
-static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t call) {
+static M_Value evaluate_function_execution(M_Interpreter *interpreter, M_Expression *fn, m_call_expression_t call) {
     // creating a new environment pointing the parent to the captured
     // event in the scope the function was defined
     M_Environment *fn_env     = create_new_environment(fn->Fn.closure_env);
@@ -345,7 +338,7 @@ static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t
 
     // fill function parameters with given values
     for (int i = 0; i < fn->Fn.arguments_length; i++) {
-        M_Eval_Result evaluated_argument = evaluate_expression(call.arguments[i]);
+        M_Eval_Result evaluated_argument = evaluate_expression(interpreter, call.arguments[i]);
 
         define_variable_in_environment(fn_env, fn->Fn.arguments[i]->Id.value, evaluated_argument.value);
     }
@@ -355,7 +348,7 @@ static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t
     // code itself.
     interpreter->current_environment = fn_env;
 
-    M_Eval_Result return_value = evaluate_block_expression(fn->Fn.block);
+    M_Eval_Result return_value = evaluate_block_expression(interpreter, fn->Fn.block);
 
     // restoring the environment
     interpreter->current_environment = caller_env;
@@ -365,11 +358,11 @@ static M_Value evaluate_function_execution(M_Expression *fn, m_call_expression_t
     return return_value.value;
 }
 
-static M_Value evaluate_function_call_expression(M_Expression *expr) {
+static M_Value evaluate_function_call_expression(M_Interpreter *interpreter, M_Expression *expr) {
     M_Fn_C_Impl fn = resolve_builtin_function(expr);
 
     if (fn != NULL)
-        return fn(expr, expr->Call.arguments, expr->Call.arguments_length);
+        return fn(interpreter, expr, expr->Call.arguments, expr->Call.arguments_length);
 
     M_Value *var = get_variable_from_environment(interpreter->current_environment, expr->Call.fn_name.value);
 
@@ -385,14 +378,14 @@ static M_Value evaluate_function_call_expression(M_Expression *expr) {
         m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", expr->Call.fn_name.value, var->as.fn->Fn.arguments_length, expr->Call.arguments_length);
     }
 
-    return evaluate_function_execution(var->as.fn, expr->Call);
+    return evaluate_function_execution(interpreter, var->as.fn, expr->Call);
 }
 
-static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
+static M_Eval_Result evaluate_binary_expression(M_Interpreter *interpreter, M_Expression *expression) {
     switch (expression->Binary.op) {
         case M_BINARY_AND_OP:
             {
-                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(interpreter, expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (left.value.type) {
                     case M_T_BOOL:
@@ -411,7 +404,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
                         break;
                 }
 
-                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(interpreter, expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (right.value.type) {
                     case M_T_BOOL:
@@ -434,7 +427,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
             }
         case M_BINARY_OR_OP:
             {
-                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(interpreter, expression->Binary.left), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (left.value.type) {
                     case M_T_BOOL:
@@ -453,7 +446,7 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
                         break;
                 }
 
-                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
+                M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(interpreter, expression->Binary.right), M_T_BOOL | M_T_INT | M_T_FLOAT);
 
                 switch (right.value.type) {
                     case M_T_BOOL:
@@ -478,8 +471,8 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
             break;
     }
 
-    M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(expression->Binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
-    M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(expression->Binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
+    M_Eval_Result left = m_result_expect_type(expression->Binary.left, evaluate_expression(interpreter, expression->Binary.left), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
+    M_Eval_Result right = m_result_expect_type(expression->Binary.right, evaluate_expression(interpreter, expression->Binary.right), M_T_INT | M_T_FLOAT | M_T_BOOL | M_T_UNIT | M_T_STRING);
 
     M_Value_Type l_type = left.value.type;
     M_Value_Type r_type = right.value.type;
@@ -621,12 +614,12 @@ static M_Eval_Result evaluate_binary_expression(M_Expression *expression) {
     return m_result_normal(m_value_int((int64_t)result));
 }
 
-static M_Eval_Result evaluate_assignment_right_side(M_Expression *expression) {
-    M_Eval_Result right = evaluate_expression(expression->Assign.right);
+static M_Eval_Result evaluate_assignment_right_side(M_Interpreter *interpreter, M_Expression *expression) {
+    M_Eval_Result right = evaluate_expression(interpreter, expression->Assign.right);
 
     if (expression->kind == M_EK_ASSIGN) return right;
 
-    M_Eval_Result left_result = evaluate_expression(expression->Assign.left);
+    M_Eval_Result left_result = evaluate_expression(interpreter, expression->Assign.left);
 
     M_Value left = m_value_expect_type(expression->Assign.left, left_result.value, M_T_INT | M_T_FLOAT);
 
@@ -676,7 +669,7 @@ static size_t __get_map_key_data_and_size_helper(M_Value *value, void **out, boo
 }
 
 static size_t __get_map_value_data_and_size_helper(M_Value *value, void **out, bool keep_nullbyte) {
-    static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
+    static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT | M_T_FN), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
 
     switch (value->type) {
         case M_T_STRING:
@@ -691,12 +684,14 @@ static size_t __get_map_value_data_and_size_helper(M_Value *value, void **out, b
         case M_T_FLOAT:
             *out = &value->as.floating;
             return sizeof(M_Float);
+        case M_T_FN:
+            *out = &value->as.fn;
+            return sizeof(M_Expression*);
         case M_T_MAP:
         case M_T_MAP_IT:
         case M_T_ARRAY:
         case M_T_UNIT:
         case M_T_COUNT:
-        case M_T_FN: // accept later
             assert(0 && "should never happen");
             break;
     }
@@ -731,10 +726,14 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
                 .type = M_T_FLOAT,
                 .as.floating = *(M_Float*)entry->data,
             };
+        case M_T_FN:
+            return (M_Value){
+                .type = M_T_FN,
+                .as.fn = *(M_Expression**)entry->data
+            };
         case M_T_UNIT:
         case M_T_MAP_IT:
         case M_T_MAP:
-        case M_T_FN: // accept later
             assert(0 && "TODO: for now, we don't accept nested hashmaps nor iterators or unit as value");
             break;
     }
@@ -742,19 +741,19 @@ static M_Value __builtin_mca_map_parse_m_map_node_entry_helper(M_Map_Node_Entry 
     assert(0 && "should never happen");
 }
 
-static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
-    M_Eval_Result right_side_value = evaluate_assignment_right_side(expression);
+static M_Eval_Result evaluate_assignment_expression(M_Interpreter *interpreter, M_Expression *expression) {
+    M_Eval_Result right_side_value = evaluate_assignment_right_side(interpreter, expression);
 
     static_assert((ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS) == (M_EK_ID | M_EK_INDEX), "ACCEPTABLE_ASSIGNMENT_LEFT_SIDE_EXPRESSION_KINDS has changed");
 
     if (expression->Assign.left->kind == M_EK_ID) {
-        set_variable_on_environment(interpreter->current_environment, expression->Assign.left->Id.value, right_side_value.value);
+        set_variable_on_environment(interpreter, interpreter->current_environment, expression->Assign.left->Id.value, right_side_value.value);
 
         return right_side_value;
     }
 
     if (expression->Assign.left->kind == M_EK_INDEX) {
-        M_Eval_Result left = m_result_expect_type(expression->Assign.left->Index.left, evaluate_expression(expression->Assign.left->Index.left), M_T_ARRAY | M_T_MAP);
+        M_Eval_Result left = m_result_expect_type(expression->Assign.left->Index.left, evaluate_expression(interpreter, expression->Assign.left->Index.left), M_T_ARRAY | M_T_MAP);
 
         switch (left.value.type) {
             case M_T_MAP: {
@@ -763,7 +762,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
                 // ensure the correct type
                 m_value_expect_type(expression->Assign.right, right_side_value.value, ACCEPTABLE_MAP_VALUE_TYPES);
 
-                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
+                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(interpreter, expression->Assign.left->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
 
                 void *key = NULL;
                 size_t key_size = __get_map_key_data_and_size_helper(&index.value, &key, true);
@@ -778,7 +777,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
             case M_T_ARRAY: {
                 static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
 
-                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(expression->Assign.left->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
+                M_Eval_Result index = m_result_expect_type(expression->Assign.left->Index.index, evaluate_expression(interpreter, expression->Assign.left->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
                 M_Int idx = index.value.as.integer;
 
                 if (idx < 0 || idx >= left.value.as.array->length)
@@ -796,7 +795,7 @@ static M_Eval_Result evaluate_assignment_expression(M_Expression *expression) {
     return right_side_value;
 }
 
-static M_Eval_Result evaluate_expression(M_Expression *expression) {
+static M_Eval_Result evaluate_expression(M_Interpreter *interpreter, M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
     switch (expression->kind) {
@@ -817,13 +816,13 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
             return m_result_normal(*value);
         };
-        case M_EK_ASSIGN:     return evaluate_assignment_expression(expression);
-        case M_EK_ADD_ASSIGN: return evaluate_assignment_expression(expression);
-        case M_EK_SUB_ASSIGN: return evaluate_assignment_expression(expression);
+        case M_EK_ASSIGN:     return evaluate_assignment_expression(interpreter, expression);
+        case M_EK_ADD_ASSIGN: return evaluate_assignment_expression(interpreter, expression);
+        case M_EK_SUB_ASSIGN: return evaluate_assignment_expression(interpreter, expression);
         case M_EK_UNARY: {
             switch (expression->Unary.op) {
                 case M_UNARY_MINUS_OP: {
-                    M_Eval_Result result = evaluate_expression(expression->Unary.operand);
+                    M_Eval_Result result = evaluate_expression(interpreter, expression->Unary.operand);
                     M_Value_Union out = {0};
 
                     switch (result.value.type) {
@@ -847,7 +846,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                     };
                 } 
                 case M_UNARY_NOT_OP: {
-                    M_Eval_Result result = m_result_expect_type(expression, evaluate_expression(expression->Unary.operand), M_T_INT | M_T_FLOAT | M_T_BOOL);
+                    M_Eval_Result result = m_result_expect_type(expression, evaluate_expression(interpreter, expression->Unary.operand), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
                     switch (result.value.type) {
                         case M_T_BOOL:
@@ -876,7 +875,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                             break;
                     }
                 } break;
-                case M_UNARY_FACTORIAL_OP: return calculate_factorial(m_result_expect_type(expression, evaluate_expression(expression->Unary.operand), M_T_INT | M_T_FLOAT));
+                case M_UNARY_FACTORIAL_OP: return calculate_factorial(m_result_expect_type(expression, evaluate_expression(interpreter, expression->Unary.operand), M_T_INT | M_T_FLOAT));
             }
 
             assert(0 && "evaluate_expression_impl: invalid unary expression operator");
@@ -889,19 +888,19 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             array->items = malloc(sizeof(M_Value) * array->capacity);
 
             for (int i = 0; i < array->length; i++) {
-                array->items[i] = evaluate_expression(expression->Array.items[i]).value;
+                array->items[i] = evaluate_expression(interpreter, expression->Array.items[i]).value;
             }
 
             M_Value val = (M_Value){.allocated = true, .type = M_T_ARRAY, .as = {.array = array}};
             return m_result_normal(val);
         }
         case M_EK_INDEX: {
-            M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(expression->Index.left), M_T_ARRAY | M_T_STRING | M_T_MAP);
+            M_Eval_Result left = m_result_expect_type(expression->Index.left, evaluate_expression(interpreter, expression->Index.left), M_T_ARRAY | M_T_STRING | M_T_MAP);
 
             switch (left.value.type) {
                 case M_T_ARRAY: {
                     static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
-                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(interpreter, expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
                     M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
 
                     if (idx < 0 || idx >= left.value.as.array->length)
@@ -911,7 +910,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 };
                 case M_T_STRING: {
                     static_assert((ACCEPTABLE_ARRAY_KEY_TYPES) == (M_T_INT), "ACCEPTABLE_ARRAY_KEY_TYPES has changed");
-                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(interpreter, expression->Index.index), ACCEPTABLE_ARRAY_KEY_TYPES);
                     M_Int idx = m_value_expect_type(expression->Index.index, index.value, M_T_INT).as.integer;
 
                     if (idx < 0 || idx >= left.value.as.string.value_length)
@@ -920,7 +919,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 }
                 case M_T_MAP: {
                     static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
-                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
+                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(interpreter, expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
                     M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
 
                     void *key = NULL;
@@ -941,10 +940,10 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             assert(0 && "should never happen");
             break;
         }
-        case M_EK_CALL: return m_result_normal(evaluate_function_call_expression(expression));
-        case M_EK_BINARY: return evaluate_binary_expression(expression);
+        case M_EK_CALL: return m_result_normal(evaluate_function_call_expression(interpreter, expression));
+        case M_EK_BINARY: return evaluate_binary_expression(interpreter, expression);
         case M_EK_IF: {
-            M_Eval_Result condition = evaluate_expression(expression->If.condition);
+            M_Eval_Result condition = evaluate_expression(interpreter, expression->If.condition);
             M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
 
             int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
@@ -953,15 +952,15 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 m_interpreter_error(expression->If.condition, "failed to check truthiness of '%s' data type on that 'if'", m_value_type_name(condition.value.type));
 
             if (evaluated_condition) {
-                enter_new_environment(); // enter 'if' block
-                last_evaluated_expression = evaluate_block_expression(expression->If.then_block);
-                destroy_current_environment(); // quit 'if' block
+                enter_new_environment(interpreter); // enter 'if' block
+                last_evaluated_expression = evaluate_block_expression(interpreter, expression->If.then_block);
+                destroy_current_environment(interpreter); // quit 'if' block
             } else {
                 if (expression->If.elif_blocks != NULL) {
                     M_Expression_Elif_Block *current_elif = expression->If.elif_blocks;
 
                     while (current_elif != NULL) {
-                        M_Eval_Result elif_condition = evaluate_expression(current_elif->condition);
+                        M_Eval_Result elif_condition = evaluate_expression(interpreter, current_elif->condition);
 
                         int evaluated_elif_condition = evaluate_m_value_as_internal_boolean(elif_condition.value);
 
@@ -970,9 +969,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
                         if (evaluated_elif_condition) {
                             if (current_elif->block != NULL) {
-                                enter_new_environment(); // enter 'elif' block
-                                last_evaluated_expression = evaluate_block_expression(current_elif->block);
-                                destroy_current_environment(); // quit 'elif' block
+                                enter_new_environment(interpreter); // enter 'elif' block
+                                last_evaluated_expression = evaluate_block_expression(interpreter, current_elif->block);
+                                destroy_current_environment(interpreter); // quit 'elif' block
                             }
 
                             return last_evaluated_expression;
@@ -983,9 +982,9 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 }
 
                 if (expression->If.else_block != NULL) {
-                    enter_new_environment(); // enter 'else' block
-                    last_evaluated_expression = evaluate_block_expression(expression->If.else_block);
-                    destroy_current_environment(); // quit 'else' block
+                    enter_new_environment(interpreter); // enter 'else' block
+                    last_evaluated_expression = evaluate_block_expression(interpreter, expression->If.else_block);
+                    destroy_current_environment(interpreter); // quit 'else' block
                 }
             }
 
@@ -996,7 +995,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
             while (1) {
                 if (expression->While.condition != NULL) {
-                    M_Eval_Result condition = evaluate_expression(expression->While.condition);
+                    M_Eval_Result condition = evaluate_expression(interpreter, expression->While.condition);
 
                     int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
 
@@ -1010,12 +1009,12 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 
                 if (expression->While.block != NULL) {
                     // entering the loop block
-                    enter_new_environment();
+                    enter_new_environment(interpreter);
 
-                    last_evaluated_expression = evaluate_block_expression(expression->While.block);
+                    last_evaluated_expression = evaluate_block_expression(interpreter, expression->While.block);
 
                     // quiting the loop block
-                    destroy_current_environment();
+                    destroy_current_environment(interpreter);
 
                     if (last_evaluated_expression.flow == M_CTRL_RETURN) {
                         return last_evaluated_expression;
@@ -1032,7 +1031,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         } break;
         case M_EK_BREAK: {
             if (expression->Break != NULL) {
-                M_Eval_Result result = evaluate_expression(expression->Break);
+                M_Eval_Result result = evaluate_expression(interpreter, expression->Break);
 
                 return m_result_break(result.value);
             }
@@ -1041,7 +1040,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
         };
         case M_EK_RETURN: {
             if (expression->Return != NULL) {
-                M_Eval_Result result = evaluate_expression(expression->Return);
+                M_Eval_Result result = evaluate_expression(interpreter, expression->Return);
 
                 return m_result_return(result.value);
             }
@@ -1054,7 +1053,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
             return m_result_normal(m_value_fn(expression));
         case M_EK_MAP: {
             static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
-            static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
+            static_assert((ACCEPTABLE_MAP_VALUE_TYPES) == (M_T_STRING | M_T_INT | M_T_BOOL | M_T_FLOAT | M_T_FN), "ACCEPTABLE_MAP_VALUE_TYPES has changed");
 
             M_Map *map = mca_map_init();
 
@@ -1062,8 +1061,8 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
                 M_Expression *key_expr = expression->Map.items[i];
                 M_Expression *value_expr = expression->Map.items[i+1];
 
-                M_Eval_Result key_result = m_result_expect_type(key_expr, evaluate_expression(key_expr), ACCEPTABLE_MAP_KEY_TYPES);
-                M_Eval_Result value_result = m_result_expect_type(value_expr, evaluate_expression(value_expr), ACCEPTABLE_MAP_VALUE_TYPES);
+                M_Eval_Result key_result = m_result_expect_type(key_expr, evaluate_expression(interpreter, key_expr), ACCEPTABLE_MAP_KEY_TYPES);
+                M_Eval_Result value_result = m_result_expect_type(value_expr, evaluate_expression(interpreter, value_expr), ACCEPTABLE_MAP_VALUE_TYPES);
 
                 void *key = NULL;
                 size_t key_size = __get_map_key_data_and_size_helper(&key_result.value, &key, true);
@@ -1088,7 +1087,7 @@ static M_Eval_Result evaluate_expression(M_Expression *expression) {
 }
 
 PUBLIC M_Interpreter *m_interpreter_create(M_Ast *program, int argc, const char **argv) {
-    interpreter = malloc(sizeof(M_Interpreter));
+    M_Interpreter *interpreter = malloc(sizeof(M_Interpreter));
 
     interpreter->program = program;
     interpreter->io_in = stdin;
@@ -1128,7 +1127,7 @@ PUBLIC M_Value m_interpreter_run(M_Interpreter *interpreter) {
         M_Expression *expr = interpreter->program->expressions_array[i];
 
         if (expr != NULL) {
-            M_Eval_Result r = evaluate_expression(expr);
+            M_Eval_Result r = evaluate_expression(interpreter, expr);
 
             if (r.flow == M_CTRL_BREAK) m_interpreter_error(expr, "cannot use 'break' outside of a loop");
             if (r.flow == M_CTRL_RETURN) m_interpreter_error(expr, "cannot use 'return' outside of a function");
@@ -1149,23 +1148,100 @@ PUBLIC void m_interpreter_free(M_Interpreter *interpreter) {
     interpreter = NULL;
 }
 
+// HELPERS ----------------------------------------------------------------------------------------------------
+
+
+static void __print_map_helper(M_Interpreter *interpreter, M_Map *map);
+static void __print_value_helper(M_Interpreter *interpreter, M_Value value, bool wrap_strings);
+
+static void __print_array_helper(M_Interpreter *interpreter, M_Array *array) {
+    fprintf(interpreter->io_out, "[");
+    for (int i = 0; i < array->length; i++) {
+        if (i > 0) fprintf(interpreter->io_out, ", ");
+        __print_value_helper(interpreter, array->items[i], true);
+    }
+    fprintf(interpreter->io_out, "]");
+}
+
+static void __print_value_helper(M_Interpreter *interpreter, M_Value value, bool wrap_strings) {
+    switch (value.type) {
+        case M_T_INT:
+            fprintf(interpreter->io_out, "%ld", value.as.integer);
+            break;
+        case M_T_FLOAT:
+            fprintf(interpreter->io_out, "%f", value.as.floating);
+            break;
+        case M_T_BOOL:
+            fprintf(interpreter->io_out, "%s", value.as.boolean ? "true" : "false");
+            break;
+        case M_T_UNIT:
+            fprintf(interpreter->io_out, "(unit)");
+            break;
+        case M_T_STRING:
+            if (wrap_strings)
+                fprintf(interpreter->io_out, "'%.*s'", value.as.string.value_length, value.as.string.value);
+            else
+                fprintf(interpreter->io_out, "%.*s", value.as.string.value_length, value.as.string.value);
+            break;
+        case M_T_MAP:
+            __print_map_helper(interpreter, value.as.map);
+            break;
+        case M_T_MAP_IT:
+            fprintf(interpreter->io_out, "*"); 
+            __print_map_helper(interpreter, value.as.map_it->map);
+            break;
+        case M_T_FN:
+            fprintf(interpreter->io_out, "fn(...%d)", value.as.fn->Fn.arguments_length);
+            break;
+        case M_T_ARRAY:
+            __print_array_helper(interpreter, value.as.array);
+            break;
+        case M_T_COUNT:
+            assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
+            break;
+    }
+}
+
+static void __print_map_helper(M_Interpreter *interpreter, M_Map *map) {
+    fprintf(interpreter->io_out, "{");
+
+    M_Map_Iterator *it = mca_map_iterator(map);
+    
+    for (int i = 0; !mca_map_iterator_finished(it); i++) {
+        M_Value key = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
+        M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
+
+        if (i > 0) fprintf(interpreter->io_out, ", ");
+
+        __print_value_helper(interpreter, key, true);
+        fprintf(interpreter->io_out, ": ");
+        __print_value_helper(interpreter, value, true);
+
+        mca_map_iterator_next(it);
+    }
+
+    mca_map_iterator_free(it);
+
+    fprintf(interpreter->io_out, "}");
+}
+
 // BUILTIN FUNCTION IMPLEMENTATIONS ----------------------------------------------------------------------------------------------------
 
 typedef struct {
-    const char *name;
-    int         name_length;
-    int         arguments_count;
-    M_Fn_C_Impl c_impl;
+    const char    *name;
+    int            name_length;
+    int            arguments_count;
+    M_Fn_C_Impl    c_impl;
 } M_Fn_Binding;
 
 #define BIND_FN(fn_name, args, impl) { .name = fn_name, .name_length = sizeof(fn_name) - 1, .arguments_count = args, .c_impl = &impl }
 
 #define DEFINE_MATH_BUILTIN(func_name, c_math_function) \
-    static M_Value __builtin_mca_##func_name(M_Expression *caller, M_Expression *arguments[], int arguments_count) { \
+    static M_Value __builtin_mca_##func_name(M_Interpreter *interpreter, M_Expression *caller, M_Expression *arguments[], int arguments_count) { \
         (void)caller; \
         (void)arguments_count; \
         \
-        M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL); \
+        M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL); \
         \
         double input_val = (arg.value.type == M_T_FLOAT) \
                          ? arg.value.as.floating \
@@ -1183,10 +1259,10 @@ typedef struct {
     }
 
 #define DEFINE_IS_TYPE_BUILTIN(name, dtype) \
-static M_Value __builtin_mca_is_##name(M_Expression *caller, M_Expression *arguments[], int arguments_count) { \
+static M_Value __builtin_mca_is_##name(M_Interpreter *interpreter, M_Expression *caller, M_Expression *arguments[], int arguments_count) { \
     (void)caller; \
     (void)arguments_count; \
-    M_Eval_Result result = evaluate_expression(arguments[0]); \
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]); \
     return m_value_bool(result.value.type == dtype); \
 }
 
@@ -1219,7 +1295,8 @@ DEFINE_IS_TYPE_BUILTIN(float, M_T_FLOAT)
 DEFINE_IS_TYPE_BUILTIN(string, M_T_STRING)
 DEFINE_IS_TYPE_BUILTIN(bool, M_T_BOOL)
 
-static M_Value __builtin_mca_pi(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_pi) {
+    (void)interpreter;
     (void)caller;
     (void)arguments;
     (void)arguments_count;
@@ -1227,7 +1304,8 @@ static M_Value __builtin_mca_pi(M_Expression *caller, M_Expression *arguments[],
     return m_value_float(M_PI);
 }
 
-static M_Value __builtin_mca_e(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_e) {
+    (void)interpreter;
     (void)caller;
     (void)arguments;
     (void)arguments_count;
@@ -1235,11 +1313,11 @@ static M_Value __builtin_mca_e(M_Expression *caller, M_Expression *arguments[], 
     return m_value_float(M_E);
 }
 
-static M_Value __builtin_mca_abs(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_abs) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
+    M_Eval_Result arg = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
     if (arg.value.type == M_T_INT || arg.value.type == M_T_BOOL) {
         return m_value_int(llabs(arg.value.type == M_T_INT ? arg.value.as.integer : (int)arg.value.as.boolean));
@@ -1248,14 +1326,14 @@ static M_Value __builtin_mca_abs(M_Expression *caller, M_Expression *arguments[]
     }
 }
 
-static M_Value __builtin_mca_max(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_max) {
     if (arguments_count < 1)
         m_interpreter_error(caller, "this function expects at least one argument");
 
-    M_Eval_Result x = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
+    M_Eval_Result x = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
     for (int i = 1; i < arguments_count; i++) {
-        M_Eval_Result y = m_result_expect_type(arguments[i], evaluate_expression(arguments[i]), M_T_INT | M_T_FLOAT | M_T_BOOL);
+        M_Eval_Result y = m_result_expect_type(arguments[i], evaluate_expression(interpreter, arguments[i]), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
         if (x.value.type == M_T_INT && y.value.type == M_T_INT) {
             if (y.value.as.integer > x.value.as.integer) {
@@ -1272,14 +1350,14 @@ static M_Value __builtin_mca_max(M_Expression *caller, M_Expression *arguments[]
     return x.value;
 }
 
-static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_min) {
     if (arguments_count < 1)
         m_interpreter_error(caller, "this function expects at least one argument");
 
-    M_Eval_Result x = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
+    M_Eval_Result x = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
     for (int i = 1; i < arguments_count; i++) {
-        M_Eval_Result y = m_result_expect_type(arguments[i], evaluate_expression(arguments[i]), M_T_INT | M_T_FLOAT | M_T_BOOL);
+        M_Eval_Result y = m_result_expect_type(arguments[i], evaluate_expression(interpreter, arguments[i]), M_T_INT | M_T_FLOAT | M_T_BOOL);
 
         if (x.value.type == M_T_INT && y.value.type == M_T_INT) {
             if (y.value.as.integer < x.value.as.integer) x = y;
@@ -1294,103 +1372,29 @@ static M_Value __builtin_mca_min(M_Expression *caller, M_Expression *arguments[]
     return x.value;
 }
 
-static void __print_map_helper(M_Map *map);
-static void __print_value_helper(M_Value value, bool wrap_strings);
-
-static void __print_array_helper(M_Array *array) {
-    fprintf(interpreter->io_out, "[");
-    for (int i = 0; i < array->length; i++) {
-        if (i > 0) fprintf(interpreter->io_out, ", ");
-        __print_value_helper(array->items[i], true);
-    }
-    fprintf(interpreter->io_out, "]");
-}
-
-static void __print_value_helper(M_Value value, bool wrap_strings) {
-    switch (value.type) {
-        case M_T_INT:
-            fprintf(interpreter->io_out, "%ld", value.as.integer);
-            break;
-        case M_T_FLOAT:
-            fprintf(interpreter->io_out, "%f", value.as.floating);
-            break;
-        case M_T_BOOL:
-            fprintf(interpreter->io_out, "%s", value.as.boolean ? "true" : "false");
-            break;
-        case M_T_UNIT:
-            fprintf(interpreter->io_out, "(unit)");
-            break;
-        case M_T_STRING:
-            if (wrap_strings)
-                fprintf(interpreter->io_out, "'%.*s'", value.as.string.value_length, value.as.string.value);
-            else
-                fprintf(interpreter->io_out, "%.*s", value.as.string.value_length, value.as.string.value);
-            break;
-        case M_T_MAP:
-            __print_map_helper(value.as.map);
-            break;
-        case M_T_MAP_IT:
-            fprintf(interpreter->io_out, "*"); 
-            __print_map_helper(value.as.map_it->map);
-            break;
-        case M_T_FN:
-            fprintf(interpreter->io_out, "fn(...%d)", value.as.fn->Fn.arguments_length);
-            break;
-        case M_T_ARRAY:
-            __print_array_helper(value.as.array);
-            break;
-        case M_T_COUNT:
-            assert(0 && "__builtin_mca_print: unreachable M_T_COUNT");
-            break;
-    }
-}
-
-static void __print_map_helper(M_Map *map) {
-    fprintf(interpreter->io_out, "{");
-
-    M_Map_Iterator *it = mca_map_iterator(map);
-    
-    for (int i = 0; !mca_map_iterator_finished(it); i++) {
-        M_Value key = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
-        M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
-
-        if (i > 0) fprintf(interpreter->io_out, ", ");
-
-        __print_value_helper(key, true);
-        fprintf(interpreter->io_out, ": ");
-        __print_value_helper(value, true);
-
-        mca_map_iterator_next(it);
-    }
-
-    mca_map_iterator_free(it);
-
-    fprintf(interpreter->io_out, "}");
-}
-
-static M_Value __builtin_mca_print(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_print) {
     (void)caller;
     M_Value last_value = m_value_unit();
 
     for (int i = 0; i < arguments_count; i++) {
-        last_value = evaluate_expression(arguments[i]).value;
+        last_value = evaluate_expression(interpreter, arguments[i]).value;
 
-        __print_value_helper(last_value, false);
+        __print_value_helper(interpreter, last_value, false);
     }
 
     return last_value;
 }
 
-static M_Value __builtin_mca_println(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_println) {
     (void)caller;
     M_Value last_value = m_value_unit();
 
     for (int i = 0; i < arguments_count; i++) {
         if (i > 0) fprintf(interpreter->io_out, " ");
 
-        last_value = evaluate_expression(arguments[i]).value;
+        last_value = evaluate_expression(interpreter, arguments[i]).value;
 
-        __print_value_helper(last_value, false);
+        __print_value_helper(interpreter, last_value, false);
     }
 
     fprintf(interpreter->io_out, "\n");
@@ -1398,18 +1402,18 @@ static M_Value __builtin_mca_println(M_Expression *caller, M_Expression *argumen
     return last_value;
 }
 
-static M_Value __builtin_mca_exit(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_exit) {
     (void)caller;
     (void)arguments_count;
 
-    exit((int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer);
+    exit((int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer);
 }
 
-static M_Value __builtin_mca_read_entire_file(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_read_entire_file) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING);
 
     const char *filename = a0.value.as.string.value;
 
@@ -1440,7 +1444,8 @@ static M_Value __builtin_mca_read_entire_file(M_Expression *caller, M_Expression
     };
 }
 
-static M_Value __builtin_mca_time(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_time) {
+    (void)interpreter;
     (void)caller;
     (void)arguments;
     (void)arguments_count;
@@ -1448,11 +1453,11 @@ static M_Value __builtin_mca_time(M_Expression *caller, M_Expression *arguments[
     return m_value_int(time(NULL));
 }
 
-static M_Value __builtin_mca_year(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_year) {
     (void)caller;
     (void)arguments_count;
 
-    int64_t offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int64_t offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1462,11 +1467,11 @@ static M_Value __builtin_mca_year(M_Expression *caller, M_Expression *arguments[
     return m_value_int(time_info->tm_year + 1900);
 }
 
-static M_Value __builtin_mca_month(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_month) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1476,11 +1481,11 @@ static M_Value __builtin_mca_month(M_Expression *caller, M_Expression *arguments
     return m_value_int(time_info->tm_mon + 1);
 }
 
-static M_Value __builtin_mca_date(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_date) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1490,11 +1495,11 @@ static M_Value __builtin_mca_date(M_Expression *caller, M_Expression *arguments[
     return m_value_int(time_info->tm_mday);
 }
 
-static M_Value __builtin_mca_day(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_day) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1504,11 +1509,11 @@ static M_Value __builtin_mca_day(M_Expression *caller, M_Expression *arguments[]
     return m_value_int(time_info->tm_wday);
 }
 
-static M_Value __builtin_mca_hour(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_hour) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1518,11 +1523,11 @@ static M_Value __builtin_mca_hour(M_Expression *caller, M_Expression *arguments[
     return m_value_int(time_info->tm_hour);
 }
 
-static M_Value __builtin_mca_minute(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_minute) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1532,11 +1537,11 @@ static M_Value __builtin_mca_minute(M_Expression *caller, M_Expression *argument
     return m_value_int(time_info->tm_min);
 }
 
-static M_Value __builtin_mca_second(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_second) {
     (void)caller;
     (void)arguments_count;
 
-    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT).value.as.integer;
+    int offset = (int)m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT).value.as.integer;
 
     time_t current_time = time(NULL);
     time_t adjusted_time = current_time + (offset * 3600);
@@ -1546,7 +1551,8 @@ static M_Value __builtin_mca_second(M_Expression *caller, M_Expression *argument
     return m_value_int(time_info->tm_sec);
 }
 
-static M_Value __builtin_mca_millisecond(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_millisecond) {
+    (void)interpreter;
     (void)caller;
     (void)arguments;
     (void)arguments_count;
@@ -1562,11 +1568,11 @@ static M_Value __builtin_mca_millisecond(M_Expression *caller, M_Expression *arg
     return m_value_int(milliseconds);
 }
 
-static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_type) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = evaluate_expression(arguments[0]);
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]);
 
     switch (result.value.type) {
         case M_T_INT:
@@ -1595,11 +1601,11 @@ static M_Value __builtin_mca_type(M_Expression *caller, M_Expression *arguments[
     assert(0 && "should never happen");
 }
 
-static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_int) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = evaluate_expression(arguments[0]);
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]);
 
     switch (result.value.type) {
         case M_T_INT:   return result.value;
@@ -1633,11 +1639,11 @@ static M_Value __builtin_mca_as_int(M_Expression *caller, M_Expression *argument
     return result.value;
 }
 
-static M_Value __builtin_mca_as_float(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_float) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = evaluate_expression(arguments[0]);
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]);
 
     switch (result.value.type) {
         case M_T_INT:   return m_value_float((double)result.value.as.integer);
@@ -1668,11 +1674,11 @@ static M_Value __builtin_mca_as_float(M_Expression *caller, M_Expression *argume
     return result.value;
 }
 
-static M_Value __builtin_mca_as_bool(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_bool) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = evaluate_expression(arguments[0]);
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]);
 
     switch (result.value.type) {
         case M_T_INT:   return m_value_bool(result.value.as.integer != 0);
@@ -1684,11 +1690,11 @@ static M_Value __builtin_mca_as_bool(M_Expression *caller, M_Expression *argumen
     return result.value;
 }
 
-static M_Value __builtin_mca_as_string(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_string) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = evaluate_expression(arguments[0]);
+    M_Eval_Result result = evaluate_expression(interpreter, arguments[0]);
 
     switch (result.value.type) {
         case M_T_INT: {
@@ -1731,11 +1737,11 @@ static M_Value __builtin_mca_as_string(M_Expression *caller, M_Expression *argum
     return result.value;
 }
 
-static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_len) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING | M_T_MAP | M_T_ARRAY);
+    M_Eval_Result result = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING | M_T_MAP | M_T_ARRAY);
 
     switch (result.value.type) {
         case M_T_STRING: return m_value_int(result.value.as.string.value_length);
@@ -1755,23 +1761,23 @@ static M_Value __builtin_mca_len(M_Expression *caller, M_Expression *arguments[]
     return m_value_unit(); // unreacheable
 }
 
-static M_Value __builtin_mca_as_srand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_srand) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result seed = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
+    M_Eval_Result seed = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT);
 
     srand((unsigned int)seed.value.as.integer);
 
     return m_value_unit();
 }
 
-static M_Value __builtin_mca_as_rand(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_as_rand) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result min_r = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
-    M_Eval_Result max_r = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
+    M_Eval_Result min_r = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT);
+    M_Eval_Result max_r = m_result_expect_type(arguments[1], evaluate_expression(interpreter, arguments[1]), M_T_INT);
 
     int64_t min = min_r.value.as.integer;
     int64_t max = max_r.value.as.integer;
@@ -1784,7 +1790,7 @@ static M_Value __builtin_mca_as_rand(M_Expression *caller, M_Expression *argumen
     return m_value_int(random);
 }
 
-static M_Value __builtin_mca_argc(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_argc) {
     (void)caller;
     (void)arguments;
     (void)arguments_count;
@@ -1792,11 +1798,11 @@ static M_Value __builtin_mca_argc(M_Expression *caller, M_Expression *arguments[
     return m_value_int(interpreter->argc);
 }
 
-static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_argv) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result r = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_INT);
+    M_Eval_Result r = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_INT);
 
     int64_t index = r.value.as.integer;
 
@@ -1808,13 +1814,13 @@ static M_Value __builtin_mca_argv(M_Expression *caller, M_Expression *arguments[
     return (M_Value){ .type = M_T_STRING, .allocated = true, .as.string.value = strndup(interpreter->argv[index], length), .as.string.value_length = length };
 }
 
-static M_Value __builtin_mca_select(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_select) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
-    M_Eval_Result from = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT);
-    M_Eval_Result to = m_result_expect_type(arguments[2], evaluate_expression(arguments[2]), M_T_INT);
+    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING);
+    M_Eval_Result from = m_result_expect_type(arguments[1], evaluate_expression(interpreter, arguments[1]), M_T_INT);
+    M_Eval_Result to = m_result_expect_type(arguments[2], evaluate_expression(interpreter, arguments[2]), M_T_INT);
 
     if (from.value.as.integer < 0 || from.value.as.integer >= data.value.as.string.value_length)
         m_interpreter_error(arguments[1], "from '%d' is out of range. The size of the string is %d", from.value.as.integer, data.value.as.string.value_length);
@@ -1836,11 +1842,11 @@ static M_Value __builtin_mca_select(M_Expression *caller, M_Expression *argument
     };
 }
 
-static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_ord) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_STRING);
+    M_Eval_Result data = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING);
 
     if (data.value.as.string.value_length != 1)
         m_interpreter_error(arguments[0], "ord() expects a string of length 1, got a string of length %d", data.value.as.string.value_length);
@@ -1852,13 +1858,13 @@ static M_Value __builtin_mca_ord(M_Expression *caller, M_Expression *arguments[]
     };
 }
 
-static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_del) {
     (void)caller;
     (void)arguments_count;
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP);
 
     // for now, we will be able to have only integers and strings as keys
-    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(arguments[1]), M_T_INT | M_T_STRING);
+    M_Eval_Result a1 = m_result_expect_type(arguments[1], evaluate_expression(interpreter, arguments[1]), M_T_INT | M_T_STRING);
 
     void *key       = NULL;
     int key_type    = a1.value.type;
@@ -1869,39 +1875,39 @@ static M_Value __builtin_mca_map_del(M_Expression *caller, M_Expression *argumen
     return m_value_bool(deleted);
 }
 
-static M_Value __builtin_mca_map_clear(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_clear) {
     (void)caller;
     (void)arguments_count;
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP);
 
     mca_map_clear(a0.value.as.map);
 
     return m_value_unit();
 }
 
-static M_Value __builtin_mca_map_it(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP);
 
     M_Map_Iterator *it = mca_map_iterator(a0.value.as.map);
 
     return m_value_map_it(it);
 }
 
-static M_Value __builtin_mca_append(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_append) {
     (void)caller;
     (void)arguments_count;
 
-    M_Value arr = evaluate_expression(arguments[0]).value;
+    M_Value arr = evaluate_expression(interpreter, arguments[0]).value;
 
     if (arr.type != M_T_ARRAY) {
         m_interpreter_error(arguments[0], "first argument to append must be an array");
         return m_value_unit();
     }
 
-    M_Value val = evaluate_expression(arguments[1]).value;
+    M_Value val = evaluate_expression(interpreter, arguments[1]).value;
     M_Array *a = arr.as.array;
 
     if (a->length >= a->capacity) {
@@ -1914,11 +1920,11 @@ static M_Value __builtin_mca_append(M_Expression *caller, M_Expression *argument
     return arr;
 }
 
-static M_Value __builtin_mca_map_it_close(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it_close) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
 
     if (mca_map_iterator_finished(a0.value.as.map_it)) return m_value_unit();
 
@@ -1927,11 +1933,11 @@ static M_Value __builtin_mca_map_it_close(M_Expression *caller, M_Expression *ar
     return m_value_unit();
 }
 
-static M_Value __builtin_mca_map_it_next(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it_next) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
 
     M_Map_Iterator *it = a0.value.as.map_it;
 
@@ -1944,20 +1950,20 @@ static M_Value __builtin_mca_map_it_next(M_Expression *caller, M_Expression *arg
     return m_value_bool(true);
 }
 
-static M_Value __builtin_mca_map_it_done(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it_done) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
 
     return m_value_bool(mca_map_iterator_finished(a0.value.as.map_it));
 }
 
-static M_Value __builtin_mca_map_it_key(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it_key) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
 
     M_Map_Iterator *it = a0.value.as.map_it;
 
@@ -1967,11 +1973,11 @@ static M_Value __builtin_mca_map_it_key(M_Expression *caller, M_Expression *argu
     return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
 }
 
-static M_Value __builtin_mca_map_it_value(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_map_it_value) {
     (void)caller;
     (void)arguments_count;
 
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(arguments[0]), M_T_MAP_IT);
+    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
 
     M_Map_Iterator *it = a0.value.as.map_it;
 
@@ -1981,7 +1987,7 @@ static M_Value __builtin_mca_map_it_value(M_Expression *caller, M_Expression *ar
     return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
 }
 
-static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *arguments[], int arguments_count) {
+BUILTIN(__builtin_mca_format) {
     if (arguments_count <= 0) {
         m_interpreter_error(caller, "expected at least one argument but received %d", arguments_count);
     }
@@ -1998,7 +2004,7 @@ static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *argument
     for (int i = 0; i < arguments_count; i++) {
         M_Eval_Result result = m_result_expect_type(
             arguments[i],
-            evaluate_expression(arguments[i]),
+            evaluate_expression(interpreter, arguments[i]),
             M_T_INT | M_T_STRING | M_T_FLOAT | M_T_BOOL
         );
 
@@ -2055,6 +2061,51 @@ static M_Value __builtin_mca_format(M_Expression *caller, M_Expression *argument
     return final_result;
 }
 
+BUILTIN(__builtin_mca_import) {
+    (void)arguments_count;
+
+    // TODO: later, cache the imported modules
+
+    M_Eval_Result path_arg = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING);
+
+    const char *filepath = path_arg.value.as.string.value;
+
+    char *content = NULL;
+
+    int size = read_entire_file_builtin(filepath, &content);
+
+    // TODO: how are going to deal with error handling?
+    switch (size) {
+        case -1:
+            m_interpreter_error(caller, "coult not open file '%s' due to: '%s'", filepath, strerror(errno));
+            break;
+        case -2:
+            m_interpreter_error(caller, "could not allocate memory enough to read file %s due to: %s", filepath, strerror(errno));
+            break;
+        case -3:
+            m_interpreter_error(caller, "could not read data from file '%s' due to: %s", filepath, strerror(errno));
+            break;
+        default:
+            break;
+    }
+
+    M_Lexer lexer = m_lexer_create(filepath, content, size);
+
+    if (lexer.errors > 0) m_interpreter_error(caller, "could not read module %s", lexer.filename);
+
+    M_Token *tokens = m_lexer_tokenize(&lexer);
+    M_Ast *ast = parse_expression(filepath, tokens);
+
+    if (ast->errors) m_interpreter_error(caller, "could not parse module %s", ast->filename);
+
+    M_Interpreter *module_interpreter = m_interpreter_create(ast, 0, NULL);
+    M_Value exported_module = m_interpreter_run(module_interpreter);
+
+    // TODO: cleanup
+
+    return exported_module;
+}
+
 // TODO: add a 'help' function that prints out the help for any builtin function
 static M_Fn_Binding builtin_functions_bindings[] = {
     // Math related
@@ -2085,6 +2136,8 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("exit",              1, __builtin_mca_exit),
 
     // language specifics
+    BIND_FN("import",    1, __builtin_mca_import),
+
     BIND_FN("type",      1, __builtin_mca_type),
     BIND_FN("argc",      0, __builtin_mca_argc),
     BIND_FN("argv",      1, __builtin_mca_argv),
