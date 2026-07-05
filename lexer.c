@@ -44,19 +44,19 @@ static void invalid_floating_number_error(M_Lexer *lexer) {
 
 const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     switch (kind) {
-        case M_INT: return "int";
-        case M_FLOAT: return "float";
+        case M_INT:    return "int";
+        case M_FLOAT:  return "float";
         case M_STRING: return "string";
 
         case M_ID: return "identifier";
 
-        case M_PLUS: return "+";
-        case M_PLUS_EQUAL: return "+=";
-        case M_DIVIDE: return "/";
-        case M_TIMES: return "*";
-        case M_MOD: return "%";
-        case M_POW: return "^";
-        case M_MINUS: return "-";
+        case M_PLUS:        return "+";
+        case M_PLUS_EQUAL:  return "+=";
+        case M_DIVIDE:      return "/";
+        case M_TIMES:       return "*";
+        case M_MOD:         return "%";
+        case M_POW:         return "^";
+        case M_MINUS:       return "-";
         case M_MINUS_EQUAL: return "-=";
 
         case M_EXCLAMATION: return "!";
@@ -65,24 +65,25 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
 
         case M_ASSIGN: return "=";
 
-        case M_EQUAL: return "==";
+        case M_EQUAL:     return "==";
         case M_NOT_EQUAL: return "!=";
-        case M_GT: return ">";
-        case M_LT: return "<";
-        case M_GTE: return ">=";
-        case M_LTE: return "<=";
+        case M_GT:        return ">";
+        case M_LT:        return "<";
+        case M_GTE:       return ">=";
+        case M_LTE:       return "<=";
 
-        case M_COLON: return ":";
+        case M_COLON:     return ":";
+        case M_DOT:       return ".";
         case M_BACKSLASH: return "\\";
-        case M_ARROW: return "->";
-        case M_LPAREN: return "(";
-        case M_RPAREN: return ")";
-        case M_LBRACKET: return "[";
-        case M_RBRACKET: return "]";
-        case M_LCURLY: return "{";
-        case M_RCURLY: return "}";
-        case M_COMMA: return ",";
-        case M_SEMI: return ";";
+        case M_ARROW:     return "->";
+        case M_LPAREN:    return "(";
+        case M_RPAREN:    return ")";
+        case M_LBRACKET:  return "[";
+        case M_RBRACKET:  return "]";
+        case M_LCURLY:    return "{";
+        case M_RCURLY:    return "}";
+        case M_COMMA:     return ",";
+        case M_SEMI:      return ";";
     }
 
     assert(0 && "m_lexer_token_kind_display_name: unhandled M_Token_Kind case");
@@ -107,7 +108,7 @@ static inline bool is_identifier_start(char c) {
 }
 
 static inline bool keep_being_identifier(char c) {
-    return is_identifier_start(c) || (c >= '0' && c <= '9') || c == '.';
+    return is_identifier_start(c) || (c >= '0' && c <= '9');
 }
 
 static inline char chr(M_Lexer *lexer) {
@@ -280,6 +281,7 @@ static void tokenize_single(M_Lexer *lexer) {
         case ':':  advance_cursor(lexer); save_token(lexer, M_COLON); break;
         case ',':  advance_cursor(lexer); save_token(lexer, M_COMMA); break;
         case '?':  advance_cursor(lexer); save_token(lexer, M_QUESTION_MARK); break;
+        case '.':  advance_cursor(lexer); save_token(lexer, M_DOT); break;
         case '\\': advance_cursor(lexer); save_token(lexer, M_BACKSLASH); break;
         default:   m_lexer_error(lexer, "unrecognized single token %c\n", chr(lexer)); return;
     }
@@ -341,6 +343,7 @@ M_Token *m_lexer_tokenize(M_Lexer *lexer) {
             case ':':
             case ',':
             case '?':
+            case '.':
             case '\\':
                 tokenize_single(lexer);
                 break;

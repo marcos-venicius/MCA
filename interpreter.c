@@ -330,7 +330,13 @@ static M_Eval_Result evaluate_block_expression(M_Interpreter *interpreter, M_Exp
     return last_result;
 }
 
-static M_Value evaluate_function_execution(M_Interpreter *interpreter, M_Expression *fn, m_call_expression_t call) {
+static M_Value evaluate_function_execution(M_Interpreter *interpreter, M_Expression *fn, M_Expression *call) {
+    if (call->Call.arguments_length > fn->Fn.arguments_length) {
+        m_interpreter_error(call, "too many arguments %s(...). expected %d but got %d", call->Call.fn_name.value, fn->Fn.arguments_length, call->Call.arguments_length);
+    } else if (call->Call.arguments_length < fn->Fn.arguments_length) {
+        m_interpreter_error(call, "too few arguments %s(...). expected %d but got %d", call->Call.fn_name.value, fn->Fn.arguments_length, call->Call.arguments_length);
+    }
+
     // creating a new environment pointing the parent to the captured
     // event in the scope the function was defined
     M_Environment *fn_env     = create_new_environment(fn->Fn.closure_env);
@@ -338,7 +344,7 @@ static M_Value evaluate_function_execution(M_Interpreter *interpreter, M_Express
 
     // fill function parameters with given values
     for (int i = 0; i < fn->Fn.arguments_length; i++) {
-        M_Eval_Result evaluated_argument = evaluate_expression(interpreter, call.arguments[i]);
+        M_Eval_Result evaluated_argument = evaluate_expression(interpreter, call->Call.arguments[i]);
 
         define_variable_in_environment(fn_env, fn->Fn.arguments[i]->Id.value, evaluated_argument.value);
     }
@@ -378,7 +384,7 @@ static M_Value evaluate_function_call_expression(M_Interpreter *interpreter, M_E
         m_interpreter_error(expr, "too few arguments %s(...). expected %d but got %d", expr->Call.fn_name.value, var->as.fn->Fn.arguments_length, expr->Call.arguments_length);
     }
 
-    return evaluate_function_execution(interpreter, var->as.fn, expr->Call);
+    return evaluate_function_execution(interpreter, var->as.fn, expr);
 }
 
 static M_Eval_Result evaluate_binary_expression(M_Interpreter *interpreter, M_Expression *expression) {
@@ -919,17 +925,34 @@ static M_Eval_Result evaluate_expression(M_Interpreter *interpreter, M_Expressio
                 }
                 case M_T_MAP: {
                     static_assert((ACCEPTABLE_MAP_KEY_TYPES) == (M_T_INT | M_T_STRING), "ACCEPTABLE_MAP_KEY_TYPES has changed");
-                    M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(interpreter, expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
-                    M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
 
-                    void *key = NULL;
-                    size_t key_size = __get_map_key_data_and_size_helper(&idx, &key, true);
+                    if (expression->Index.index->kind == M_EK_CALL) {
+                        M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, expression->Index.index->Call.fn_name.value, expression->Index.index->Call.fn_name.value_length + 1, M_T_STRING);
 
-                    M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, idx.type);
+                        M_Value value = m_value_expect_type(expression->Index.index, __builtin_mca_map_parse_m_map_node_entry_helper(entry), M_T_FN);
 
-                    M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(entry);
+                        M_Value call_value = evaluate_function_execution(interpreter, value.as.fn, expression->Index.index);
 
-                    return m_result_normal(value);
+                        return m_result_normal(call_value);
+                    } else if (expression->Index.index->kind == M_EK_ID) {
+                        M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, expression->Index.index->Id.value, expression->Index.index->Id.value_length + 1, M_T_STRING);
+
+                        M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(entry);
+
+                        return m_result_normal(value);
+                    } else {
+                        M_Eval_Result index = m_result_expect_type(expression->Index.index, evaluate_expression(interpreter, expression->Index.index), ACCEPTABLE_MAP_KEY_TYPES);
+                        M_Value idx = m_value_expect_type(expression->Index.index, index.value, ACCEPTABLE_MAP_KEY_TYPES);
+
+                        void *key = NULL;
+                        size_t key_size = __get_map_key_data_and_size_helper(&idx, &key, true);
+
+                        M_Map_Node_Entry *entry = mca_map_find(left.value.as.map, key, key_size, idx.type);
+
+                        M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(entry);
+
+                        return m_result_normal(value);
+                    }
                 };
                 default: {
                     static_assert(M_T_COUNT == 257, "handle index type");

@@ -41,6 +41,7 @@ typedef enum {
     M_QUESTION_MARK,
 
     // symbols
+    M_DOT, // '.'
     M_COLON, // ':'
     M_BACKSLASH, // '\'
     M_ARROW, // '->'

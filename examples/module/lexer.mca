@@ -1,5 +1,4 @@
-utils_module   = import('utils.mca')
-utils.is_digit = utils_module['is_digit']
+utils = import('utils.mca')
 
 get_char = \(lexer) -> lexer['content'][lexer['cursor']]
 

@@ -1,11 +1,7 @@
 #!/usr/local/bin/mca
 
-utils_module = import('utils.mca')
-utils.help   = utils_module['help']
-
-lexer_module = import('lexer.mca')
-lexer.create = lexer_module['create']
-lexer.run    = lexer_module['run']
+utils = import('utils.mca')
+lexer = import('lexer.mca')
 
 PROGRAM_NAME = argv(0)
 

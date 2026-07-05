@@ -97,6 +97,7 @@ static M_Binary_Expression_Operator token_kind_as_binary_expression_operator(M_T
         case M_STRING:
         case M_EXCLAMATION:
         case M_COLON:
+        case M_DOT:
         case M_BACKSLASH:
         case M_ARROW:
         case M_LPAREN:
@@ -173,6 +174,7 @@ static M_Unary_Expression_Operator token_kind_as_unary_expression_operator(M_Tok
         case M_INT:
         case M_FLOAT:
         case M_COLON:
+        case M_DOT:
         case M_BACKSLASH:
         case M_ARROW:
         case M_LPAREN:
@@ -980,27 +982,49 @@ static M_Expression *parse_postfix_expression(M_Ast *ast) {
     M_Expression *left = parse_primary_expression(ast);
     if (left == NULL) return NULL;
 
-    while (token(ast) != NULL && token(ast)->kind == M_LBRACKET) {
-        M_Token *bracket_token = token(ast);
-        next_token(ast); // skip '['
+    if (check(ast, M_LBRACKET)) {
+        while (check(ast, M_LBRACKET)) {
+            M_Token *bracket_token = token(ast);
+            next_token(ast); // skip '['
 
-        M_Expression *index = parse_expression_impl(ast);
+            M_Expression *index = parse_expression_impl(ast);
 
-        if (!expect(ast, M_RBRACKET)) return NULL;
-        next_token(ast); // skip ']'
+            if (!expect(ast, M_RBRACKET)) return NULL;
+            next_token(ast); // skip ']'
 
-        M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
-        expr->kind = M_EK_INDEX;
-        expr->location = (M_Location){
-            .line = bracket_token->loc.line,
-            .col = bracket_token->loc.col,
-            .filename = ast->filename
-        };
-        expr->Index.left = left;
-        expr->Index.index = index;
+            M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+            expr->kind = M_EK_INDEX;
+            expr->location = (M_Location){
+                .line = bracket_token->loc.line,
+                .col = bracket_token->loc.col,
+                .filename = ast->filename
+            };
+            expr->Index.left = left;
+            expr->Index.index = index;
 
-        left = expr;
+            left = expr;
+        }
+    } else if (check(ast, M_DOT)) {
+        while (check(ast, M_DOT)) {
+            M_Token *dot_token = token(ast);
+            next_token(ast); // skip '.'
+
+            M_Expression *index = parse_expression_impl(ast);
+
+            M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+            expr->kind = M_EK_INDEX;
+            expr->location = (M_Location){
+                .line = dot_token->loc.line,
+                .col = dot_token->loc.col,
+                .filename = ast->filename
+            };
+            expr->Index.left = left;
+            expr->Index.index = index;
+
+            left = expr;
+        }
     }
+
     return left;
 }
 
@@ -1416,7 +1440,7 @@ parse_expression_loop:
     }
 
     if (ast->errors > 0)
-        fprintf(stderr, "compilation failed with \033[1;31m%ld\033[0m errors\n", ast->errors);
+        fprintf(stderr, "parsing failed with \033[1;31m%ld\033[0m errors\n", ast->errors);
 
     return ast;
 }
