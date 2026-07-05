@@ -19,8 +19,8 @@ numbers = lexer.run(l)
 
 println()
 if numbers[1]
-  print('extracted numbers (with errors): ')
+  print('extracted ', len(numbers[0]), ' numbers (with errors): ')
 else
-  print('extracted numbers: ')
+  print('extracted ', len(numbers[0]), ' numbers: ')
 
 println(numbers[0])

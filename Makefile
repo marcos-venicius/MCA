@@ -39,6 +39,7 @@ exec_examples:
 	./examples/type-inspect.mca
 	./examples/unit.mca
 	./examples/user-defined-functions.mca
+	cd ./examples/module && ./main.mca '$(shell echo -e '1, 2,      3, \n456    ')' && cd ../../
 
 io.o: io.c io.h
 	$(CC) $(CC_FLAGS) -c io.c $(CC_LIBS)
