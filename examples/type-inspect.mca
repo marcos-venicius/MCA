@@ -3,29 +3,29 @@
 # You can inspect data type by using 'type(x)' function
 # This function will print to default stdout the data type like 'type(value)'
 
-println(0, ' ', type(0))
-println(0.1, ' ', type(0.1))
+println(0, type(0))
+println(0.1, type(0.1))
 
 a = 10
 b = 10
 c = PI()
 d = E()
 
-println(a / b, ' ', type(a / b))
+println(a / b, type(a / b))
 
 X = type(a / (b + 1))
 
-println(c, ' ', type(c))
-println(d, ' ', type(d))
+println(c, type(c))
+println(d, type(d))
 
-println(X, ' ', type(X))
+println(X, type(X))
 
-println(true, ' ', type(true))
+println(true, type(true))
 
-println(false, ' ', type(false))
+println(false, type(false))
 
-println(1 == 1, ' ', type(1 == 1))
-println(?, ' ', type(?))
-println('Hello \'World\' \\\\//', ' ', type('Hello \'World\' \\\\//'))
+println(1 == 1, type(1 == 1))
+println(?, type(?))
+println('Hello \'World\' \\\\//', type('Hello \'World\' \\\\//'))
 
 # vim: set syntax=r :

@@ -4,13 +4,13 @@ A = 1 and 2
 B = 10 or 0
 C = 0 or 0
 
-println(A, ' ', B, ' ', C)
+println(A, B, C)
 
 n    = 0
 year = year(0)
 
 while n < 15 {
-  text = if ((year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)) ' is a lap year' else ' is not a lap year'
+  text = if ((year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)) 'is a lap year' else 'is not a lap year'
 
   println(year, text)
 

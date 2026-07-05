@@ -29,11 +29,11 @@ if !map_del(m, 'Hey') {
 
 println(m['hey'])
 
-println('map len: ', len(m))
+println('map len:', len(m))
 
 map_clear(m)
 
-println('map len: ', len(m))
+println('map len:', len(m))
 
 if len(m) {
 	println('You shoudl not see this print call #3')
@@ -66,11 +66,11 @@ it = map_it(root); while !map_it_done(it) {
 	print('    ', key, ': ')
 
 	if type(value) == 'string' {
-		println('"', value, '";')
+		print('"', value, '";\n')
 	} elif type(value) == 'int' {
-		println(value, ';')
+		print(value, ';\n')
 	} else {
-		println('/* what is \'', value, '\' */;')
+		print('/* what is \'', value, '\' */;\n')
 	}
 	
 	map_it_next(it);

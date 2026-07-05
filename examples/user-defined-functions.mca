@@ -7,7 +7,7 @@ d = \(x1, y1, x2, y2) -> sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
 
 distance = d(10, 10, 20, 20)
 
-println('Distance between 10x10 & 20x20 is: ', distance)
+println('Distance between 10x10 & 20x20 is:', distance)
 
 # You can define a function with a body that accepts other functions
 # param(message):     is a string
@@ -20,7 +20,7 @@ display_message = \(message, transformer) -> {
   M  = minute(TZ)
   S  = second(TZ)
 
-  println(y, '-', m, '-', d, ' ', H, ':', M, ':', S, ' [MESSAGE] ', transformer(message))
+  print(y, '-', m, '-', d, ' ', H, ':', M, ':', S, ' [MESSAGE] ', transformer(message), '\n')
 }
 
 if true {

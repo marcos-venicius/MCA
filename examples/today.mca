@@ -14,6 +14,7 @@ S = second(TIMEZONE_OFFSET)
 
 months = {}
 
+# @MCA introduce the concept of map initialization
 months[1]  = 'Janeiro'
 months[2]  = 'Fevereiro'
 months[3]  = 'Março'
@@ -27,6 +28,6 @@ months[10] = 'Outubro'
 months[11] = 'Novembro'
 months[12] = 'Dezembro'
 
-println(d, ' de ', months[m], ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET)
+print(d, ' de ', months[m], ' de ', y, ' - ', H, ':', M, ':', S, ' T', TIMEZONE_OFFSET, '\n')
 
 # vim: set syntax=r :

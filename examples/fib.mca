@@ -18,6 +18,6 @@ LAST_FIB_VALUE = while n < M {
 
 println();
 println();
-println('iterations: ', n, '. last fib value: ', LAST_FIB_VALUE)
+print('iterations: ', n, '. last fib value: ', LAST_FIB_VALUE, '\n')
 
 # vim: set syntax=r :
