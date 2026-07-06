@@ -1,6 +1,6 @@
 #!/usr/local/bin/mca
 
-lexer = import('lexer.mca')
+lexer = import('./lexer.mca')
 
 PROGRAM_NAME = argv(0)
 

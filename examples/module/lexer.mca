@@ -1,4 +1,4 @@
-utils = import('utils.mca')
+utils = import('./utils.mca')
 
 get_char = \(lexer) -> lexer.content[lexer.cursor]
 

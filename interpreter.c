@@ -7,6 +7,8 @@
 #include <time.h>
 #include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <libgen.h>
 
 #include "./interpreter.h"
 #include "./ast.h"
@@ -2095,35 +2097,64 @@ BUILTIN(__builtin_mca_import) {
 
     M_Eval_Result path_arg = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_STRING);
 
-    const char *filepath = path_arg.value.as.string.value;
+    const char *raw_filepath = path_arg.value.as.string.value;
+
+    if (path_arg.value.as.string.value_length == 0)
+        m_interpreter_error(arguments[0], "invalid module path '%.*s'", path_arg.value.as.string.value_length, path_arg.value.as.string.value);
+
+    char resolved_filepath[PATH_MAX];
+
+    // if starts with a dot, it'll be considered as a relative local import
+    if (strncmp(raw_filepath, ".", 1) == 0) {
+        const char *caller_file = caller->location.filename;
+
+        if (caller_file) {
+            char *caller_file_copy = strdup(caller_file);
+            char *base_dir = dirname(caller_file_copy);
+
+            char combined_path[PATH_MAX];
+            snprintf(combined_path, sizeof(combined_path), "%s/%s", base_dir, raw_filepath);
+
+            if (realpath(combined_path, resolved_filepath) == NULL) {
+                strncpy(resolved_filepath, combined_path, sizeof(resolved_filepath));
+            }
+
+            free(caller_file_copy);
+        } else {
+            strncpy(resolved_filepath, raw_filepath, sizeof(resolved_filepath));
+        }
+    } else {
+        // may handle stdlib paths
+        strncpy(resolved_filepath, raw_filepath, sizeof(resolved_filepath));
+    }
 
     char *content = NULL;
 
-    int size = read_entire_file_builtin(filepath, &content);
+    int size = read_entire_file_builtin(resolved_filepath, &content);
 
     // TODO: how are going to deal with error handling?
     switch (size) {
         case -1:
-            m_interpreter_error(caller, "coult not open file '%s' due to: '%s'", filepath, strerror(errno));
+            m_interpreter_error(caller, "coult not open file '%s' due to: '%s'", resolved_filepath, strerror(errno));
             break;
         case -2:
-            m_interpreter_error(caller, "could not allocate memory enough to read file %s due to: %s", filepath, strerror(errno));
+            m_interpreter_error(caller, "could not allocate memory enough to read file %s due to: %s", resolved_filepath, strerror(errno));
             break;
         case -3:
-            m_interpreter_error(caller, "could not read data from file '%s' due to: %s", filepath, strerror(errno));
+            m_interpreter_error(caller, "could not read data from file '%s' due to: %s", resolved_filepath, strerror(errno));
             break;
         default:
             break;
     }
 
-    M_Lexer lexer = m_lexer_create(filepath, content, size);
+    M_Lexer lexer = m_lexer_create(resolved_filepath, content, size);
 
-    if (lexer.errors > 0) m_interpreter_error(caller, "could not read module %s", lexer.filename);
+    if (lexer.errors > 0) m_interpreter_error(caller, "could not read module %s", resolved_filepath);
 
     M_Token *tokens = m_lexer_tokenize(&lexer);
-    M_Ast *ast = parse_expression(filepath, tokens);
+    M_Ast *ast = parse_expression(resolved_filepath, tokens);
 
-    if (ast->errors) m_interpreter_error(caller, "could not parse module %s", ast->filename);
+    if (ast->errors) m_interpreter_error(caller, "could not parse module %s", resolved_filepath);
 
     M_Interpreter *module_interpreter = m_interpreter_create(ast, 0, NULL);
     M_Value exported_module = m_interpreter_run(module_interpreter);
