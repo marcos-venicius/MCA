@@ -11,12 +11,12 @@
 #include "./interpreter.h"
 #include "./ast.h"
 #include "./ht.h"
-#include "./io.h"
+#include "./builtins/io.h"
 #include "./builtins/map.h"
-#include "env.h"
+#include "./env.h"
 #include "./colors.h"
 #include "./constraints.h"
-#include "lexer.h"
+#include "./lexer.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846

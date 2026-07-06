@@ -1,13 +1,14 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <stdlib.h>
 
-int read_file_content(const char *filename, char **output) {
+#include "./io.h"
+
+int read_entire_file_builtin(const char *filename, char **output) {
     FILE *fptr = fopen(filename, "r");
 
     if (fptr == NULL) {
-        fprintf(stderr, "ERROR: could not open file %s due to: %s\n", filename, strerror(errno));
         return -1;
     }
 
@@ -22,7 +23,7 @@ int read_file_content(const char *filename, char **output) {
 
         fprintf(stderr, "ERROR: could not allocate memory enough to read the file %s due to: %s\n", filename, strerror(errno));
 
-        return -1;
+        return -2;
     }
 
     size_t read_bytes = fread(*output, sizeof(char), file_size, fptr);
@@ -33,7 +34,7 @@ int read_file_content(const char *filename, char **output) {
 
         fprintf(stderr, "ERROR: coult not read data from file: %s\n", strerror(errno));
 
-        return -1;
+        return -3;
     }
 
     fclose(fptr);

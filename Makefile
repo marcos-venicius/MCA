@@ -9,13 +9,25 @@ else
 	CC_FLAGS += -ggdb
 endif
 
-bin/mca: main.o lexer.o ast.o io.o interpreter.o builtins/map.o ht.o arena.o
+SRCS = $(shell find . -type f -name '*.c')
+COMMON_SRCS = $(filter-out ./main.c ./test.c, $(SRCS))
+COMMON_OBJS = $(COMMON_SRCS:.c=.o)
+
+bin/mca: main.o $(COMMON_OBJS)
 	$(CC) $(CC_FLAGS) -o ./bin/mca $^ $(CC_LIBS)
 
-bin/test: test.o lexer.o ast.o io.o interpreter.o builtins/map.o ht.o arena.o
+bin/test: test.o $(COMMON_OBJS)
 	$(CC) $(CC_FLAGS) -o ./bin/test $^ $(CC_LIBS)
 
 all: bin/mca bin/test
+
+# Generic rule for compiling C files to object files
+# -MMD -MP automatically generates header dependency files (.d)
+%.o: %.c
+	$(CC) $(CC_FLAGS) -MMD -MP -c $< -o $@ $(CC_LIBS)
+
+# Include generated dependency files
+-include $(SRCS:.c=.d)
 
 exec_examples:
 	./examples/empty.mca
@@ -41,34 +53,7 @@ exec_examples:
 	./examples/user-defined-functions.mca
 	cd ./examples/module && ./main.mca '$(shell echo -e '1, 2,      3, \n456    ')' && cd ../../
 
-io.o: io.c io.h
-	$(CC) $(CC_FLAGS) -c io.c $(CC_LIBS)
-
-ht.o: ht.c ht.h
-	$(CC) $(CC_FLAGS) -c ht.c $(CC_LIBS)
-
-arena.o: arena.c arena.h
-	$(CC) $(CC_FLAGS) -c arena.c $(CC_LIBS)
-
-builtins/map.o: ./builtins/map.c ./builtins/map.h
-	$(CC) $(CC_FLAGS) -c ./builtins/map.c -o ./builtins/map.o $(CC_LIBS)
-
-lexer.o: lexer.c lexer.h
-	$(CC) $(CC_FLAGS) -c lexer.c $(CC_LIBS)
-
-ast.o: ast.c ast.h lexer.h lexer.c colors.h constraints.h
-	$(CC) $(CC_FLAGS) -c ast.c $(CC_LIBS)
-
-interpreter.o: interpreter.c interpreter.h colors.h constraints.h
-	$(CC) $(CC_FLAGS) -c interpreter.c $(CC_LIBS)
-
-main.o: main.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c ht.h ht.c builtins/map.h builtins/map.c
-	$(CC) $(CC_FLAGS) -c main.c $(CC_LIBS)
-
-test.o: test.c lexer.h lexer.c ast.h ast.c interpreter.h interpreter.c ht.h ht.c builtins/map.h builtins/map.c
-	$(CC) $(CC_FLAGS) -c test.c $(CC_LIBS)
-
 clean:
-	rm -rf $(shell find . -type f -iname '*.o') bin/mca bin/test
+	rm -rf $(shell find . -type f -name '*.o') $(shell find . -type f -name '*.d') bin/mca bin/test
 
 .PHONY: all clean
