@@ -603,7 +603,7 @@ static M_Expression *parse_for_expression(M_Ast *ast) {
         if (check(ast, M_LBRACKET)) {
             next_token(ast); // skip ':'
 
-            from = parse_unary_expression(ast);
+            from = parse_expression_impl(ast);
 
             // propagating the errors
             if (from == NULL) {
@@ -626,7 +626,7 @@ static M_Expression *parse_for_expression(M_Ast *ast) {
 
             next_token(ast); // skip ','
 
-            to = parse_unary_expression(ast);
+            to = parse_expression_impl(ast);
 
             if (to == NULL) {
                 ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
@@ -636,7 +636,7 @@ static M_Expression *parse_for_expression(M_Ast *ast) {
             if (check(ast, M_COMMA)) {
                 next_token(ast); // skip ','
 
-                by = parse_unary_expression(ast);
+                by = parse_expression_impl(ast);
 
                 if (by == NULL) {
                     ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
@@ -652,7 +652,7 @@ static M_Expression *parse_for_expression(M_Ast *ast) {
 
             next_token(ast); // skip ']'
         } else {
-            from = parse_unary_expression(ast);
+            from = parse_expression_impl(ast);
 
             // propagating the errors
             if (from == NULL) {
@@ -679,7 +679,7 @@ static M_Expression *parse_for_expression(M_Ast *ast) {
 
         next_token(ast); // skip ':'
 
-        target = parse_unary_expression(ast);
+        target = parse_expression_impl(ast);
 
         if (target == NULL) {
             ast_error(ast, ast->last_consumed_token, "invalid for loop expression. expected a primary expression");
