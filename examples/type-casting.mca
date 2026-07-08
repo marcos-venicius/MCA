@@ -12,18 +12,12 @@ m = {
   -1: 'as_string',
 }
 
-i = 0; it = map_it(m); while !map_it_done(it) {
-  k = map_it_key(it)
-  v = map_it_value(it)
+for k, v : m {
   c = if v == 'as_int' as_int(k) elif v == 'as_float' as_float(k) elif v == 'as_string' as_string(k)
 
   print(v, '(', type(k), '(', k, ')) > ', type(c), '(', c, ')\n')
-
-  map_it_next(it)
-  i += 1
 }
 
-map_it_close(it)
 map_clear(m)
 
 # vim: set syntax=r :

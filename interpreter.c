@@ -807,6 +807,199 @@ static M_Eval_Result evaluate_assignment_expression(M_Interpreter *interpreter, 
     return right_side_value;
 }
 
+static M_Eval_Result evaluate_while_loop_expression(M_Interpreter *interpreter, M_Expression *expression) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    while (1) {
+        if (expression->While.condition != NULL) {
+            M_Eval_Result condition = evaluate_expression(interpreter, expression->While.condition);
+
+            int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
+
+            if (evaluated_condition == -1) {
+                m_interpreter_error(expression->While.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
+            }
+
+            if (!evaluated_condition) break;
+        }
+
+
+        if (expression->While.block != NULL) {
+            // entering the loop block
+            enter_new_environment(interpreter);
+
+            last_evaluated_expression = evaluate_block_expression(interpreter, expression->While.block);
+
+            // quiting the loop block
+            destroy_current_environment(interpreter);
+
+            if (last_evaluated_expression.flow == M_CTRL_RETURN) {
+                return last_evaluated_expression;
+            }
+
+            if (last_evaluated_expression.flow == M_CTRL_BREAK) {
+                last_evaluated_expression = m_result_normal(last_evaluated_expression.value);
+                break;
+            }
+        }
+    }
+
+    return last_evaluated_expression;
+}
+
+static M_Eval_Result evaluate_for_of_loop_for_map_expression(M_Interpreter *interpreter, M_Expression *expression, M_Value target) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    M_Map_Iterator *it = mca_map_iterator(target.as.map);
+
+    while (!mca_map_iterator_finished(it)) {
+        if (expression->ForOf.block != NULL) {
+            enter_new_environment(interpreter);
+
+            M_Value key   = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
+            M_Value value = __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
+
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.key->Id.value, key);
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.value->Id.value, value);
+
+            last_evaluated_expression = evaluate_block_expression(interpreter, expression->ForOf.block);
+
+            destroy_current_environment(interpreter);
+
+            if (last_evaluated_expression.flow != M_CTRL_NORMAL) {
+                mca_map_iterator_free(it);
+
+                return last_evaluated_expression;
+            }
+        }
+
+        mca_map_iterator_next(it);
+    }
+
+    return last_evaluated_expression;
+}
+
+static M_Eval_Result evaluate_for_of_loop_for_array_expression(M_Interpreter *interpreter, M_Expression *expression, M_Value target) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    for (int i = 0; i < target.as.array->length; i++) {
+        if (expression->ForOf.block != NULL) {
+            enter_new_environment(interpreter);
+
+            M_Value key = { .as.integer = i,.type = M_T_INT };
+            M_Value value = target.as.array->items[i];
+
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.key->Id.value, key);
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.value->Id.value, value);
+
+            last_evaluated_expression = evaluate_block_expression(interpreter, expression->ForOf.block);
+
+            destroy_current_environment(interpreter);
+
+            if (last_evaluated_expression.flow != M_CTRL_NORMAL) {
+                return last_evaluated_expression;
+            }
+        }
+    }
+
+    return last_evaluated_expression;
+}
+
+static M_Eval_Result evaluate_for_of_loop_for_string_expression(M_Interpreter *interpreter, M_Expression *expression, M_Value target) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    for (int i = 0; i < target.as.string.value_length; i++) {
+        if (expression->ForOf.block != NULL) {
+            enter_new_environment(interpreter);
+
+            M_Value key = { .as.integer = i, .type = M_T_INT };
+            M_Value value = { .as.string.value = target.as.string.value + i, .as.string.value_length = 1, .allocated = false, .type = M_T_STRING };
+
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.key->Id.value, key);
+            define_variable_in_environment(interpreter->current_environment, expression->ForOf.value->Id.value, value);
+
+            last_evaluated_expression = evaluate_block_expression(interpreter, expression->ForOf.block);
+
+            destroy_current_environment(interpreter);
+
+            if (last_evaluated_expression.flow != M_CTRL_NORMAL) {
+                return last_evaluated_expression;
+            }
+        }
+    }
+
+    return last_evaluated_expression;
+}
+
+static M_Eval_Result evaluate_for_of_loop_expression(M_Interpreter *interpreter, M_Expression *expression) {
+    static_assert((ACCEPTABLE_FOR_OF_TARGET_VALUE_TYPES) == (M_T_ARRAY | M_T_STRING | M_T_MAP), "ACCEPTABLE_FOR_OF_TARGET_VALUE_TYPES has changed");
+
+    M_Eval_Result target = m_result_expect_type(expression->ForOf.target, evaluate_expression(interpreter, expression->ForOf.target), ACCEPTABLE_FOR_OF_TARGET_VALUE_TYPES);
+
+    switch (target.value.type) {
+        case M_T_MAP: return evaluate_for_of_loop_for_map_expression(interpreter, expression, target.value);
+        case M_T_ARRAY: return evaluate_for_of_loop_for_array_expression(interpreter, expression, target.value);
+        case M_T_STRING: return evaluate_for_of_loop_for_string_expression(interpreter, expression, target.value);
+        default: assert(0 && "should never happen");
+    }
+}
+
+static M_Eval_Result evaluate_for_range_loop_expression_base(M_Interpreter *interpreter, M_Expression *expression, M_Int from, M_Int to, M_Int by) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    int is_negative = from * to < 0 ? 1 : 0;
+
+    for (int i = from; is_negative ? i > to : i < to; i += by) {
+        if (expression->ForRange.block != NULL) {
+            enter_new_environment(interpreter);
+
+            M_Value key = { .as.integer = i, .type = M_T_INT };
+
+            define_variable_in_environment(interpreter->current_environment, expression->ForRange.index->Id.value, key);
+
+            last_evaluated_expression = evaluate_block_expression(interpreter, expression->ForRange.block);
+
+            destroy_current_environment(interpreter);
+
+            if (last_evaluated_expression.flow != M_CTRL_NORMAL) {
+                return last_evaluated_expression;
+            }
+        }
+    }
+
+    return last_evaluated_expression;
+}
+
+
+static M_Eval_Result evaluate_simple_for_range_loop(M_Interpreter *interpreter, M_Expression *expression, M_Value from) {
+    return evaluate_for_range_loop_expression_base(interpreter, expression, 0, from.as.integer, 1);
+}
+
+static M_Eval_Result evaluate_default_for_range_loop(M_Interpreter *interpreter, M_Expression *expression, M_Value from) {
+    M_Value to = m_result_expect_type(expression->ForRange.to, evaluate_expression(interpreter, expression->ForRange.to), M_T_INT).value;
+
+    return evaluate_for_range_loop_expression_base(interpreter, expression, from.as.integer, to.as.integer, 1);
+}
+
+static M_Eval_Result evaluate_complex_for_range_loop(M_Interpreter *interpreter, M_Expression *expression, M_Value from) {
+    M_Value to = m_result_expect_type(expression->ForRange.to, evaluate_expression(interpreter, expression->ForRange.to), M_T_INT).value;
+    M_Value by = m_result_expect_type(expression->ForRange.by, evaluate_expression(interpreter, expression->ForRange.by), M_T_INT).value;
+
+    return evaluate_for_range_loop_expression_base(interpreter, expression, from.as.integer, to.as.integer, by.as.integer);
+}
+
+static M_Eval_Result evaluate_for_range_loop_expression(M_Interpreter *interpreter, M_Expression *expression) {
+    M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
+
+    M_Value from = m_result_expect_type(expression->ForRange.from, evaluate_expression(interpreter, expression->ForRange.from), M_T_INT).value;
+
+    if (expression->ForRange.to == NULL) return evaluate_simple_for_range_loop(interpreter, expression, from);
+    if (expression->ForRange.by == NULL) return evaluate_default_for_range_loop(interpreter, expression, from);
+    else                                 return evaluate_complex_for_range_loop(interpreter, expression, from);
+
+    return last_evaluated_expression;
+}
+
 static M_Eval_Result evaluate_expression(M_Interpreter *interpreter, M_Expression *expression) {
     assert(expression != NULL && "evaluate_expression_impl: expression cannot be null");
 
@@ -1019,45 +1212,9 @@ static M_Eval_Result evaluate_expression(M_Interpreter *interpreter, M_Expressio
 
             return last_evaluated_expression;
         } break;
-        case M_EK_WHILE: {
-            M_Eval_Result last_evaluated_expression = m_result_normal(m_value_unit());
-
-            while (1) {
-                if (expression->While.condition != NULL) {
-                    M_Eval_Result condition = evaluate_expression(interpreter, expression->While.condition);
-
-                    int evaluated_condition = evaluate_m_value_as_internal_boolean(condition.value);
-
-                    if (evaluated_condition == -1) {
-                        m_interpreter_error(expression->While.condition, "failed to check truthiness of '%s' data type on that 'loop'", m_value_type_name(condition.value.type));
-                    }
-
-                    if (!evaluated_condition) break;
-                }
-
-
-                if (expression->While.block != NULL) {
-                    // entering the loop block
-                    enter_new_environment(interpreter);
-
-                    last_evaluated_expression = evaluate_block_expression(interpreter, expression->While.block);
-
-                    // quiting the loop block
-                    destroy_current_environment(interpreter);
-
-                    if (last_evaluated_expression.flow == M_CTRL_RETURN) {
-                        return last_evaluated_expression;
-                    }
-
-                    if (last_evaluated_expression.flow == M_CTRL_BREAK) {
-                        last_evaluated_expression = m_result_normal(last_evaluated_expression.value);
-                        break;
-                    }
-                }
-            }
-
-            return last_evaluated_expression;
-        } break;
+        case M_EK_FOR_RANGE: return evaluate_for_range_loop_expression(interpreter, expression);
+        case M_EK_FOR_OF: return evaluate_for_of_loop_expression(interpreter, expression);
+        case M_EK_WHILE: return evaluate_while_loop_expression(interpreter, expression);
         case M_EK_BREAK: {
             if (expression->Break != NULL) {
                 M_Eval_Result result = evaluate_expression(interpreter, expression->Break);
@@ -1914,17 +2071,6 @@ BUILTIN(__builtin_mca_map_clear) {
     return m_value_unit();
 }
 
-BUILTIN(__builtin_mca_map_it) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP);
-
-    M_Map_Iterator *it = mca_map_iterator(a0.value.as.map);
-
-    return m_value_map_it(it);
-}
-
 BUILTIN(__builtin_mca_append) {
     (void)caller;
     (void)arguments_count;
@@ -1947,73 +2093,6 @@ BUILTIN(__builtin_mca_append) {
     a->items[a->length++] = val;
 
     return arr;
-}
-
-BUILTIN(__builtin_mca_map_it_close) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
-
-    if (mca_map_iterator_finished(a0.value.as.map_it)) return m_value_unit();
-
-    mca_map_iterator_free(a0.value.as.map_it);
-
-    return m_value_unit();
-}
-
-BUILTIN(__builtin_mca_map_it_next) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
-
-    M_Map_Iterator *it = a0.value.as.map_it;
-
-    if (mca_map_iterator_finished(it)) return m_value_bool(false);
-
-    M_Map_Node *node = mca_map_iterator_next(it);
-
-    if (node == NULL) return m_value_bool(false);
-
-    return m_value_bool(true);
-}
-
-BUILTIN(__builtin_mca_map_it_done) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
-
-    return m_value_bool(mca_map_iterator_finished(a0.value.as.map_it));
-}
-
-BUILTIN(__builtin_mca_map_it_key) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
-
-    M_Map_Iterator *it = a0.value.as.map_it;
-
-    // TODO: should I 'throw' an error?
-    if (mca_map_iterator_finished(it)) return m_value_unit();
-
-    return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->key);
-}
-
-BUILTIN(__builtin_mca_map_it_value) {
-    (void)caller;
-    (void)arguments_count;
-
-    M_Eval_Result a0 = m_result_expect_type(arguments[0], evaluate_expression(interpreter, arguments[0]), M_T_MAP_IT);
-
-    M_Map_Iterator *it = a0.value.as.map_it;
-
-    // TODO: should I 'throw' an error?
-    if (mca_map_iterator_finished(it)) return m_value_unit();
-
-    return __builtin_mca_map_parse_m_map_node_entry_helper(&it->it->value);
 }
 
 BUILTIN(__builtin_mca_format) {
@@ -2166,6 +2245,8 @@ BUILTIN(__builtin_mca_import) {
 
 // TODO: add a 'help' function that prints out the help for any builtin function
 static M_Fn_Binding builtin_functions_bindings[] = {
+    // TODO: check the amount of parameters inside the function
+
     // Math related
     BIND_FN("PI",    0, __builtin_mca_pi),  // TODO: should it become a constant variable (we don't have constant values yet)?
     BIND_FN("E",     0, __builtin_mca_e),   // TODO: should it become a constant variable (we don't have constant values yet)?
@@ -2209,19 +2290,17 @@ static M_Fn_Binding builtin_functions_bindings[] = {
     BIND_FN("is_string", 1, __builtin_mca_is_string),
     BIND_FN("is_unit",   1, __builtin_mca_is_unit),
     BIND_FN("len",       1, __builtin_mca_len),
+
+    // Strings
     BIND_FN("select",    3, __builtin_mca_select),
     BIND_FN("ord",       1, __builtin_mca_ord),
     BIND_FN("format",   -1, __builtin_mca_format), // format strings
-    // First map implementation
+
+    // Maps
     BIND_FN("map_del",   2, __builtin_mca_map_del),
     BIND_FN("map_clear", 1, __builtin_mca_map_clear),
-    // map iterators (TODO: I may improve the use experience later when we have more data structures)
-    BIND_FN("map_it",       1, __builtin_mca_map_it),
-    BIND_FN("map_it_done",  1, __builtin_mca_map_it_done),
-    BIND_FN("map_it_next",  1, __builtin_mca_map_it_next),
-    BIND_FN("map_it_key",   1, __builtin_mca_map_it_key),
-    BIND_FN("map_it_value", 1, __builtin_mca_map_it_value),
-    BIND_FN("map_it_close", 1, __builtin_mca_map_it_close),
+
+    // Arrays
     BIND_FN("append",       2, __builtin_mca_append),
 
     // random

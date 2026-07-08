@@ -89,6 +89,12 @@ const char *m_lexer_token_kind_display_name(M_Token_Kind kind) {
     assert(0 && "m_lexer_token_kind_display_name: unhandled M_Token_Kind case");
 }
 
+const char *m_lexer_token_kind_name(M_Token *token) {
+    if (token == NULL) return "eof";
+
+    return m_lexer_token_kind_display_name(token->kind);
+}
+
 M_Lexer m_lexer_create(const char *filename, const char *content, const size_t content_size) {
     return (M_Lexer){
         .filename = filename,

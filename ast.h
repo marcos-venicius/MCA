@@ -7,6 +7,7 @@
 #include "./location.h"
 #include "./env.h"
 #include "./builtins/map.h"
+#include "./constraints.h"
 
 // @Leak @Note: completely arbitrary number. May study what's the best value for this later
 #define M_EK_CALL_MAX_ARGUMENTS 32
@@ -44,12 +45,14 @@ typedef enum {
     M_EK_FN          = 1 << 11,
     M_EK_CALL        = 1 << 12,
     M_EK_WHILE       = 1 << 13,
-    M_EK_BREAK       = 1 << 14,
-    M_EK_IF          = 1 << 15,
-    M_EK_MAP         = 1 << 16,
-    M_EK_ARRAY       = 1 << 17,
-    M_EK_INDEX       = 1 << 18,
-    M_EK_RETURN      = 1 << 19,
+    M_EK_FOR_OF      = 1 << 14, // for k, v : map {  }; for i, v : array {  }; for i, v : string {  }
+    M_EK_FOR_RANGE   = 1 << 15, // for i : 100 { 0 ..<100 }; for i : [20, 40] { 20..<40 }; for i : [30, 0, -1] { 30..<-1 by -1 }
+    M_EK_BREAK       = 1 << 16,
+    M_EK_IF          = 1 << 17,
+    M_EK_MAP         = 1 << 18,
+    M_EK_ARRAY       = 1 << 19,
+    M_EK_INDEX       = 1 << 20,
+    M_EK_RETURN      = 1 << 21,
 } M_Expression_Kind;
 
 typedef enum {
@@ -153,6 +156,39 @@ typedef struct {
 } m_while_loop_expression_t;
 
 typedef struct {
+    // Both should always be an identifier.
+    M_Expression *key;
+    M_Expression *value;
+    M_Expression *target;
+
+    // this can be null, which means an empty for loop
+    // body. We cannot skip this for loop because (even though it's strange)
+    // the programmer can create an really expensive loop that blocks the CPU for
+    // some time, then, later I think of ignoring the look and allowing the programmer
+    // to specify a 'interpreter attribute', something like '[do-not-ignore]' and
+    // by default, just don't execute this loop.
+    M_Expression_Block *block;
+} m_for_of_loop_expression_t;
+
+typedef struct {
+    // Should always be an identifier.
+    M_Expression *index;
+
+    // These expression should always resolve to an integer (TODO: may we loop over floatings?)
+    M_Expression *from;
+    M_Expression *to; // this may be null in this format: `for i : 100 {}`, that counts from 0 to 99 by 1
+    M_Expression *by; // this may be null is these formats: `for i : 100 {}` and `for i : [20, 50]`, that counts from 20 to 49 by 1
+
+    // this can be null, which means an empty for loop
+    // body. We cannot skip this for loop because (even though it's strange)
+    // the programmer can create an really expensive loop that blocks the CPU for
+    // some time, then, later I think of ignoring the look and allowing the programmer
+    // to specify a 'interpreter attribute', something like '[do-not-ignore]' and
+    // by default, just don't execute this loop.
+    M_Expression_Block *block;
+} m_for_range_loop_expression_t;
+
+typedef struct {
     M_Expression            *condition;
     M_Expression_Block      *then_block;
     M_Expression_Elif_Block *elif_blocks;
@@ -183,23 +219,25 @@ struct M_Expression {
 
     union {
         // M_EK_UNIT (void)
-        M_Int                     Int;    // M_EK_INT
-        M_Float                   Float;  // M_EK_FLOAT
-        M_Bool                    Bool;   // M_EK_BOOL
-        M_String                  String; // M_EK_STRING @Leak @Note: when it's a string, this will be heap-allocated
-        M_String                  Id;     // M_EK_ID     @Leak This is gonna be heap allocated but never freed
-        m_binary_expression_t     Binary; // M_EK_BINARY
-        m_assign_expression_t     Assign; // M_EK_ASSIGN, M_EK_ADD_ASSIGN, M_EK_SUB_ASSIGN
-        m_unary_expression_t      Unary;  // M_EK_UNARY
-        m_fn_expression_t         Fn;     // M_EK_FN
-        m_call_expression_t       Call;   // M_EK_CALL
-        m_while_loop_expression_t While;  // M_EK_WHILE
-        m_if_expression_t         If;     // M_EK_IF
-        M_Expression             *Break;  // M_EK_BREAK (can be null)
-        m_map_expression_t        Map;    // M_EK_MAP
-        m_array_expression_t      Array;  // M_EK_ARRAY
-        m_index_expression_t      Index;  // M_EK_INDEX
-        M_Expression             *Return; // M_EK_RETURN
+        M_Int                         Int;      // M_EK_INT
+        M_Float                       Float;    // M_EK_FLOAT
+        M_Bool                        Bool;     // M_EK_BOOL
+        M_String                      String;   // M_EK_STRING @Leak @Note: when it's a string, this will be heap-allocated
+        M_String                      Id;       // M_EK_ID     @Leak This is gonna be heap allocated but never freed
+        m_binary_expression_t         Binary;   // M_EK_BINARY
+        m_assign_expression_t         Assign;   // M_EK_ASSIGN, M_EK_ADD_ASSIGN, M_EK_SUB_ASSIGN
+        m_unary_expression_t          Unary;    // M_EK_UNARY
+        m_fn_expression_t             Fn;       // M_EK_FN
+        m_call_expression_t           Call;     // M_EK_CALL
+        m_while_loop_expression_t     While;    // M_EK_WHILE
+        m_for_of_loop_expression_t    ForOf;    // M_EK_FOR_OF
+        m_for_range_loop_expression_t ForRange; // M_EK_FOR_OF
+        m_if_expression_t             If;       // M_EK_IF
+        M_Expression                 *Break;    // M_EK_BREAK (can be null)
+        m_map_expression_t            Map;      // M_EK_MAP
+        m_array_expression_t          Array;    // M_EK_ARRAY
+        m_index_expression_t          Index;    // M_EK_INDEX
+        M_Expression                 *Return;   // M_EK_RETURN
     };
 };
 

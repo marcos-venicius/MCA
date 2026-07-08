@@ -51,6 +51,7 @@ exec_examples:
 	./examples/type-inspect.mca
 	./examples/unit.mca
 	./examples/user-defined-functions.mca
+	./examples/loops.mca
 	cd ./examples/module && ./main.mca '$(shell echo -e '1, 2,      3, \n456    ')' && cd ../../
 
 clean:

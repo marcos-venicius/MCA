@@ -391,13 +391,22 @@ int main(void) {
     TEST_CASE("i = 10; i -= 2; i", T_INT(8));
     TEST_CASE("m = {}; m['name'] = 'Fred'; m['age'] = 32; format(m['name'], ' is ', m['age'], ' years old')", T_STRING("Fred is 32 years old"));
 
-    TEST_CASE_LABEL("Loops");
+    TEST_CASE_LABEL("While Loops");
     TEST_CASE("n = 10; while n < 20 { n = n + 1 }", T_INT(20));
     TEST_CASE("a = 0; b = 1; n = 0; while n < 15 { n = n + 1; t = a; a = b; b = t + b; a }", T_INT(610)); // fib
     TEST_CASE("while false {}", T_UNIT());
     TEST_CASE("while false;", T_UNIT());
     TEST_CASE("n = 0; while n < 10  n += 1", T_INT(10));
     TEST_CASE("i = 0; n = 0; while n < 10  n += 1  i += 1", T_INT(1)); // when while does not have a block it accept a single expression as body
+
+    TEST_CASE_LABEL("For Loops");
+    TEST_CASE("for i : 10;", T_UNIT());
+    TEST_CASE("for i : 10 { i + 1 }", T_INT(10));
+    TEST_CASE("n = 10; for i : n { i + 1 }", T_INT(10));
+    TEST_CASE("x = 0; for i : [10, -1, -1] { x += i }", T_INT(55));
+    TEST_CASE("m = { 'x': 10, 'y': 15, 'z': 2 }; r = 0; for k, v : m { if (k == 'x' or k == 'y') r += v }", T_INT(25));
+    TEST_CASE("r = 0; text = 'Hello, World'; for i, v : text { if v == 'o' { r += i } }; r", T_INT(12));
+    TEST_CASE("r = 1; a = [1, 2, 3, 4, 5] for _, v : a { r = r * v }", T_INT(120));
 
     TEST_CASE_LABEL("Break");
     TEST_CASE("r = while 1 { n = 10; break 11.3; println(0); }; r", T_FLOAT(11.3));

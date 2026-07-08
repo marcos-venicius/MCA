@@ -61,10 +61,7 @@ root = {
 
 print_root = \(clear) -> {
   println('html {')
-  it = map_it(root); while !map_it_done(it) {
-    key   = map_it_key(it)
-    value = map_it_value(it)
-
+  for key, value : root {
     print('    ', key, ': ')
 
     if type(value) == 'string' {
@@ -76,8 +73,6 @@ print_root = \(clear) -> {
     }
 
     if (clear) root[key] = '<empty>'
-    
-    map_it_next(it);
   }
   println('}\n')
 }

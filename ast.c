@@ -576,6 +576,145 @@ static M_Expression *parse_while_expression(M_Ast *ast) {
     return expr;
 }
 
+static M_Expression *parse_for_expression(M_Ast *ast) {
+    M_Token* keyword_token = token(ast);
+
+    M_Expression *target = NULL;
+    M_Expression *from   = NULL;
+    M_Expression *to     = NULL;
+    M_Expression *by     = NULL;
+
+    next_token(ast); // skip 'for'
+
+    if (!check(ast, M_ID)) {
+        ast_error(ast, ast->last_consumed_token, "expected an identifier but received %s", m_lexer_token_kind_name(token(ast)));
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Expression *index = parse_identifier_expression(ast);
+    M_Expression *value = NULL;
+
+    // for i : ... (range for loop)
+    if (check(ast, M_COLON)) {
+        next_token(ast); // skip ':'
+
+        // [
+        if (check(ast, M_LBRACKET)) {
+            next_token(ast); // skip ':'
+
+            from = parse_unary_expression(ast);
+
+            // propagating the errors
+            if (from == NULL) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
+                return NULL;
+            };
+
+            if (check(ast, M_RBRACKET)) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression");
+                ast_info(ast, ast->last_consumed_token, "in for loop ranges you should either use an integer or an array in this format `[from, to]` or `[from, to, by]`");
+                synchronize(ast);
+                return NULL;
+            }
+
+            if (!check(ast, M_COMMA)) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression. Expected ',' but got '%s'", m_lexer_token_kind_name(token(ast)));
+                synchronize(ast);
+                return NULL;
+            }
+
+            next_token(ast); // skip ','
+
+            to = parse_unary_expression(ast);
+
+            if (to == NULL) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
+                return NULL;
+            }
+
+            if (check(ast, M_COMMA)) {
+                next_token(ast); // skip ','
+
+                by = parse_unary_expression(ast);
+
+                if (by == NULL) {
+                    ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
+                    return NULL;
+                }
+            }
+
+            if (!check(ast, M_RBRACKET)) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression. missing close range ']'");
+                synchronize(NULL);
+                return NULL;
+            }
+
+            next_token(ast); // skip ']'
+        } else {
+            from = parse_unary_expression(ast);
+
+            // propagating the errors
+            if (from == NULL) {
+                ast_error(ast, ast->last_consumed_token, "invalid for range expression. expected a primary expression");
+                return NULL;
+            };
+        }
+    } else if (check(ast, M_COMMA)) {
+        next_token(ast); // skip ','
+
+        if (!check(ast, M_ID)) {
+            ast_error(ast, ast->last_consumed_token, "invalid for loop expression. expected an identifier got '%s'", m_lexer_token_kind_name(token(ast)));
+            synchronize(ast);
+            return NULL;
+        }
+
+        value = parse_identifier_expression(ast);
+
+        if (!check(ast, M_COLON)) {
+            ast_error(ast, ast->last_consumed_token, "invalid for loop expression. expected ':' got '%s'", m_lexer_token_kind_name(token(ast)));
+            synchronize(ast);
+            return NULL;
+        }
+
+        next_token(ast); // skip ':'
+
+        target = parse_unary_expression(ast);
+
+        if (target == NULL) {
+            ast_error(ast, ast->last_consumed_token, "invalid for loop expression. expected a primary expression");
+            return NULL;
+        }
+    } else {
+        ast_error(ast, ast->last_consumed_token, "invalid for loop expression.");
+        ast_info(ast, keyword_token, "you can implement for loops like: "C_BLUE"for k : [from, to, by?] {..."C_RESET);
+        ast_info(ast, keyword_token, "you can also implement for loops like: "C_BLUE"for k, v : <array|map|string> {..."C_RESET);
+        synchronize(ast);
+        return NULL;
+    }
+
+    M_Expression_Block *block = parse_block_expression(ast);
+
+    M_Expression *expr = clibs_arena_alloc(ast->single_expression_arena, sizeof(M_Expression));
+
+    if (target != NULL) {
+        expr->kind         = M_EK_FOR_OF;
+        expr->ForOf.key    = index;
+        expr->ForOf.value  = value;
+        expr->ForOf.target = target;
+        expr->ForOf.block  = block;
+    } else {
+        expr->kind           = M_EK_FOR_RANGE;
+        expr->ForRange.index = index;
+        expr->ForRange.from  = from;
+        expr->ForRange.to    = to;
+        expr->ForRange.by    = by;
+        expr->ForRange.block = block;
+    }
+
+    return expr;
+}
+
 static M_Expression *parse_if_expression(M_Ast *ast) {
     M_Token *first_token = token(ast);
 
@@ -862,6 +1001,8 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
 
         if (token(ast)->size == 5 && strncmp(token(ast)->value, "while", 5) == 0) {
             return parse_while_expression(ast);
+        } else if (token(ast)->size == 3 && strncmp(token(ast)->value, "for", 3) == 0) {
+            return parse_for_expression(ast);
         } else if (token(ast)->size == 5 && strncmp(token(ast)->value, "break", 5) == 0) {
             return parse_break_expression(ast);
         } else if (token(ast)->size == 6 && strncmp(token(ast)->value, "return", 6) == 0) {
@@ -908,7 +1049,7 @@ static M_Expression *parse_primary_expression(M_Ast *ast) {
     } else if (token(ast)->kind == M_LCURLY) {
         return parse_map_expression(ast);
     } else {
-        ast_error(ast, token(ast), "expected number literal, function call or parenthesis expression but got '%.*s'", token(ast)->size, token(ast)->value);
+        ast_error(ast, token(ast), "expected a primary expression but got '%s'", m_lexer_token_kind_name(token(ast)));
         synchronize(ast);
         return NULL;
     }
