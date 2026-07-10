@@ -146,21 +146,94 @@ func TestCompoundAssignOps(t *testing.T) {
 	}
 }
 
-func TestCallOnlyRecognizedForBareIdentifier(t *testing.T) {
-	// arr[0](5) must NOT parse as a call -- arr[0] is one statement, (5) is
-	// a separate parenthesized-expression statement. TODO: I need to fix it.
+func TestCallRecognizedForAnyPostfixExpression(t *testing.T) {
+	// '(' is a general postfix operator now: arr[0](5) parses as a single
+	// call whose callee is the index expression, not two separate
+	// statements.
 	prog := mustParseOK(t, "arr[0](5)")
 
-	if len(prog.Stmts) != 2 {
-		t.Fatalf("expected 2 top-level statements (index expr, then paren expr), got %d: %#v", len(prog.Stmts), prog.Stmts)
+	if len(prog.Stmts) != 1 {
+		t.Fatalf("expected 1 top-level statement, got %d: %#v", len(prog.Stmts), prog.Stmts)
 	}
 
-	if _, ok := prog.Stmts[0].(*ast.SquareExpr); !ok {
-		t.Fatalf("expected first stmt to be IndexExpr, got %#v", prog.Stmts[0])
+	call, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected a CallExpr, got %#v", prog.Stmts[0])
 	}
 
-	if _, ok := prog.Stmts[1].(*ast.IntLit); !ok {
-		t.Fatalf("expected second stmt to be IntLit(5), got %#v", prog.Stmts[1])
+	if _, ok := call.Callee.(*ast.SquareExpr); !ok {
+		t.Fatalf("expected callee to be a SquareExpr (arr[0]), got %#v", call.Callee)
+	}
+
+	if len(call.Args) != 1 {
+		t.Fatalf("expected 1 argument, got %d: %#v", len(call.Args), call.Args)
+	}
+
+	if lit, ok := call.Args[0].(*ast.IntLit); !ok || lit.Value != 5 {
+		t.Fatalf("expected argument to be IntLit(5), got %#v", call.Args[0])
+	}
+}
+
+func TestCallRecognizedOnParenthesizedFnLiteral(t *testing.T) {
+	// The IIFE pattern: (\() -> 1)() must parse as a single call whose
+	// callee is the parenthesized fn literal.
+	prog := mustParseOK(t, "(\\() -> 1)()")
+
+	call, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected a CallExpr, got %#v", prog.Stmts[0])
+	}
+
+	if _, ok := call.Callee.(*ast.FnExpr); !ok {
+		t.Fatalf("expected callee to be a FnExpr, got %#v", call.Callee)
+	}
+
+	if len(call.Args) != 0 {
+		t.Fatalf("expected 0 arguments, got %d: %#v", len(call.Args), call.Args)
+	}
+}
+
+func TestCallRecognizedOnDotField(t *testing.T) {
+	// m.f(1, 2) parses as CallExpr{Callee: DotExpr{Left: m, Index: f}}, not
+	// a special dot-call node.
+	prog := mustParseOK(t, "m.f(1, 2)")
+
+	call, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected a CallExpr, got %#v", prog.Stmts[0])
+	}
+
+	dot, ok := call.Callee.(*ast.DotExpr)
+	if !ok {
+		t.Fatalf("expected callee to be a DotExpr, got %#v", call.Callee)
+	}
+
+	if ident, ok := dot.Index.(*ast.Ident); !ok || ident.Name != "f" {
+		t.Fatalf("expected DotExpr.Index to be Ident(f), got %#v", dot.Index)
+	}
+
+	if len(call.Args) != 2 {
+		t.Fatalf("expected 2 arguments, got %d: %#v", len(call.Args), call.Args)
+	}
+}
+
+func TestChainedCalls(t *testing.T) {
+	// f()() -- calling the result of a call -- must parse as nested
+	// CallExprs, each wrapping the previous one as its callee.
+	prog := mustParseOK(t, "f()()")
+
+	outer, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected outer stmt to be a CallExpr, got %#v", prog.Stmts[0])
+	}
+
+	inner, ok := outer.Callee.(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected outer callee to be a CallExpr, got %#v", outer.Callee)
+	}
+
+	if ident, ok := inner.Callee.(*ast.Ident); !ok || ident.Name != "f" {
+		t.Fatalf("expected innermost callee to be Ident(f), got %#v", inner.Callee)
 	}
 }
 

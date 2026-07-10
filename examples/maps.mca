@@ -15,7 +15,7 @@ type(m[1])
 print('key 2: ')
 type(m['Hey'])
 print('invalid key: ')
-type(m['non existent'])
+# type(m['non existent']) # it should not be executed cause it's gonna generate a runtime error
 
 if map_del(m, 'unused key') {
 	println('You should not see this print call #1')

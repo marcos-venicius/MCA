@@ -335,18 +335,102 @@ func binaryOpOnFloats(op ast.BinaryOp, l, r float64) float64 {
 	panic("binaryOpOnFloats: unhandled operator")
 }
 
+// isNumericKind reports whether k is one of the kinds that == and !=
+// coerce together (int/float/bool), matching the coercion binaryOpOnFloats
+// and asIntLike already do for the other arithmetic/relational operators.
+func isNumericKind(k Kind) bool {
+	return k == KInt || k == KFloat || k == KBool
+}
+
+func compareTwoValues(a, b Value) bool {
+	if isNumericKind(a.Kind()) && isNumericKind(b.Kind()) {
+		if a.Kind() == KFloat || b.Kind() == KFloat {
+			return asFloat(a) == asFloat(b)
+		}
+		return asIntLike(a) == asIntLike(b)
+	}
+
+	if a.Kind() != b.Kind() {
+		return false
+	}
+
+	switch a.Kind() {
+	case KUnit: // both are equal because unit doesn't have a value
+		return true
+	case KString:
+		return b.(StringValue) == a.(StringValue)
+	case KArray:
+		return compareTwoArrays(a.(*Array), b.(*Array))
+	case KMap:
+		// TODO: we don't do cycle checks. if we have a cyclic reference, it's gonna overflow the stack and panic
+		return compareTwoMaps(a.(*Map), b.(*Map))
+	case KFn:
+		// pointer equality
+		return a.(*FnValue) == b.(*FnValue)
+	}
+
+	return false
+}
+
+func compareTwoArrays(a, b *Array) bool {
+	// same pointer (same value)
+	if a == b {
+		return true
+	}
+
+	if len(a.Items) != len(b.Items) {
+		return false
+	}
+
+	for i := range len(a.Items) {
+		v1 := a.Items[i]
+		v2 := b.Items[i]
+
+		if !compareTwoValues(v1, v2) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func compareTwoMaps(a, b *Map) bool {
+	// same pointer (same value)
+	if a == b {
+		return true
+	}
+
+	if a.Len() != b.Len() {
+		return false
+	}
+
+	for k1, v1 := range a.values {
+		v2, ok := b.values[k1]
+
+		if !ok {
+			return false
+		}
+
+		if !compareTwoValues(v1, v2) {
+			return false
+		}
+	}
+
+	return true
+}
+
 func (in *Interp) evalBinary(e *ast.BinaryExpr) EvalResult {
 	switch e.Op {
 	case ast.AndOp:
 		leftRes := in.Eval(e.Left)
-		leftV := expectKind(e.Left, leftRes.Value, KBool, KInt, KFloat)
-		if t, _ := Truthy(leftV); !t {
+
+		if t, _ := Truthy(leftRes.Value); !t {
 			return normal(BoolV(false))
 		}
 
 		rightRes := in.Eval(e.Right)
-		rightV := expectKind(e.Right, rightRes.Value, KBool, KInt, KFloat)
-		if t, _ := Truthy(rightV); !t {
+
+		if t, _ := Truthy(rightRes.Value); !t {
 			return normal(BoolV(false))
 		}
 
@@ -354,65 +438,38 @@ func (in *Interp) evalBinary(e *ast.BinaryExpr) EvalResult {
 
 	case ast.OrOp:
 		leftRes := in.Eval(e.Left)
-		leftV := expectKind(e.Left, leftRes.Value, KBool, KInt, KFloat)
-		if t, _ := Truthy(leftV); t {
+
+		if t, _ := Truthy(leftRes.Value); t {
 			return normal(BoolV(true))
 		}
 
 		rightRes := in.Eval(e.Right)
-		rightV := expectKind(e.Right, rightRes.Value, KBool, KInt, KFloat)
-		if t, _ := Truthy(rightV); t {
+
+		if t, _ := Truthy(rightRes.Value); t {
 			return normal(BoolV(true))
 		}
 
 		return normal(BoolV(false))
 	}
 
-	leftRes := in.Eval(e.Left)
-	left := expectKind(e.Left, leftRes.Value, KInt, KFloat, KBool, KUnit, KString)
+	left := in.Eval(e.Left).Value
 
-	rightRes := in.Eval(e.Right)
-	right := expectKind(e.Right, rightRes.Value, KInt, KFloat, KBool, KUnit, KString)
-
-	if left.Kind() == KUnit || right.Kind() == KUnit {
-		switch e.Op {
-		case ast.EqualOp:
-			return normal(BoolV(left.Kind() == right.Kind()))
-		case ast.NotEqualOp:
-			return normal(BoolV(left.Kind() != right.Kind()))
-		default:
-			badSide := e.Left
-			if left.Kind() != KUnit {
-				badSide = e.Right
-			}
-			throw(badSide.Pos(), "invalid operation. cannot perform binary operation '%s' with unit type", e.Op)
-		}
+	if e.Op == ast.EqualOp {
+		right := in.Eval(e.Right).Value
+		return normal(BoolV(compareTwoValues(left, right)))
 	}
 
-	// Either side being a string triggers string rules -- checked
-	// symmetrically, so a mixed string/non-string operand pair always raises
-	// a clean type error rather than falling through to numeric coercion.
-	if left.Kind() == KString || right.Kind() == KString {
-		if left.Kind() != right.Kind() {
-			badSide := e.Left
-			if left.Kind() == KString {
-				badSide = e.Right
-			}
-			throw(badSide.Pos(), "you cannot do binary operations between types '%s %s %s'", left.Kind(), e.Op, right.Kind())
-		}
-
-		leftS, rightS := stringOf(left), stringOf(right)
-
-		switch e.Op {
-		case ast.EqualOp:
-			return normal(BoolV(leftS == rightS))
-		case ast.NotEqualOp:
-			return normal(BoolV(leftS != rightS))
-		default:
-			// TODO: later implement '>' and '<'?
-			throw(e.Pos(), "you cannot do binary operation '%s' between strings", e.Op)
-		}
+	if e.Op == ast.NotEqualOp {
+		right := in.Eval(e.Right).Value
+		return normal(BoolV(!compareTwoValues(left, right)))
 	}
+
+	// Unlike ==/!=, the arithmetic/relational operators below only accept
+	// int/float/bool -- type-check the left operand before evaluating the
+	// right one, so a bad left type is reported without evaluating (and
+	// side-effecting on) the right side at all.
+	left = expectKind(e.Left, left, KInt, KFloat, KBool)
+	right := expectKind(e.Right, in.Eval(e.Right).Value, KInt, KFloat, KBool)
 
 	returnsBool := isComparisonOp(e.Op)
 
@@ -677,21 +734,43 @@ func (in *Interp) evalReturn(e *ast.ReturnExpr) EvalResult {
 
 // ---- calls ----
 
+// calleeLabel produces a short, human-readable name for a call's callee, for
+// arity-mismatch error messages -- just the bare/field name for `f(...)` and
+// `m.f(...)` calls, a generic placeholder for every other callee shape (e.g.
+// `arr[0](...)`, `(\() -> 1)()`).
+func calleeLabel(e ast.Expr) string {
+	switch node := e.(type) {
+	case *ast.Ident:
+		return node.Name
+	case *ast.DotExpr:
+		if ident, ok := node.Index.(*ast.Ident); ok {
+			return ident.Name
+		}
+	}
+	return "<anonymous function>"
+}
+
 func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
-	if builtin, ok := builtins[e.FnName]; ok {
-		return normal(builtin(in, e, e.Args))
+	// Builtins are only recognized for a bare, unshadowed identifier callee
+	// -- a user variable of the same name always wins, and every other
+	// callee shape (m.f(...), arr[0](...), (\()->1)(), ...) always goes
+	// through the generic value path below.
+	if ident, isIdent := e.Callee.(*ast.Ident); isIdent {
+		if _, isVar := in.Current.Get(ident.Name); !isVar {
+			if builtin, ok := builtins[ident.Name]; ok {
+				return normal(builtin(in, e, e.Args))
+			}
+		}
 	}
 
-	v, ok := in.Current.Get(e.FnName)
+	calleeVal := in.Eval(e.Callee).Value
+
+	fv, ok := calleeVal.(*FnValue)
 	if !ok {
-		throw(e.Pos(), "function '%s' does not exist", e.FnName)
-	}
-	fv, ok := v.(*FnValue)
-	if !ok {
-		throw(e.Pos(), "you are trying to call '%s' that is a '%s', which is not a function", e.FnName, v.Kind())
+		throw(e.Pos(), "you are trying to call a '%s' value, which is not a function", calleeVal.Kind())
 	}
 
-	return normal(in.callFn(fv, e.Pos(), e.FnName, e.Args))
+	return normal(in.callFn(fv, e.Pos(), calleeLabel(e.Callee), e.Args))
 }
 
 // callFn evaluates a function call: arguments are evaluated in the caller's

@@ -4,6 +4,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"strings"
 	"testing"
 
 	"mca/internal/lexer"
@@ -329,6 +330,110 @@ func TestLogicalOperators(t *testing.T) {
 	check(t, "if 10 == 11 and n == x { 0 } else { 20 }", tInt(20)) // right side is lazily evaluated
 }
 
+func TestLogicalOperatorsTruthinessAcrossAllKinds(t *testing.T) {
+	// and/or use Truthy(), which is defined for every value kind -- unlike
+	// the generic binary-op path, arrays/maps/fns/unit are all legal
+	// operands here, not just int/float/bool.
+	check(t, "0 and true", tBool(false))
+	check(t, "1 and true", tBool(true))
+	check(t, "0.0 and true", tBool(false))
+	check(t, "1.5 and true", tBool(true))
+	check(t, "false and true", tBool(false))
+	check(t, "'' and true", tBool(false))
+	check(t, "'x' and true", tBool(true))
+	check(t, "[] and true", tBool(false))
+	check(t, "[1] and true", tBool(true))
+	check(t, "{} and true", tBool(false))
+	check(t, "{'a': 1} and true", tBool(true))
+	check(t, "? and true", tBool(false))               // unit is always falsy
+	check(t, "f = \\() -> 1; f and true", tBool(true)) // fn values are always truthy
+
+	check(t, "0 or false", tBool(false))
+	check(t, "1 or false", tBool(true))
+	check(t, "'' or false", tBool(false))
+	check(t, "'x' or false", tBool(true))
+	check(t, "[] or false", tBool(false))
+	check(t, "[1] or false", tBool(true))
+	check(t, "{} or false", tBool(false))
+	check(t, "{'a': 1} or false", tBool(true))
+	check(t, "? or false", tBool(false))
+	check(t, "f = \\() -> 1; f or false", tBool(true))
+}
+
+func TestBinaryOpsRejectArrayMapFnOperands(t *testing.T) {
+	// The generic binary-op path (everything but and/or) type-checks both
+	// operands and only accepts int/float/bool/unit/string for arithmetic
+	// and relational operators -- arrays, maps, and fns are always rejected
+	// there, regardless of what the other operand is.
+	expectRuntimeError(t, "[1] + [2]")
+	expectRuntimeError(t, "[1] < [2]")
+	expectRuntimeError(t, "{} + {}")
+	expectRuntimeError(t, "f = \\() -> 1; f + 1")
+}
+
+func TestEqualityShortCircuitsOnKindMismatchBeforeTypeCheck(t *testing.T) {
+	// == and != compare Kind() before the arithmetic/relational type check
+	// runs, so comparing an array/map/fn against a value of a *different*
+	// kind is legal and just reports "not equal" -- the type check never
+	// sees the array/map/fn operand.
+	check(t, "[1] == 'x'", tBool(false))
+	check(t, "[1] != 'x'", tBool(true))
+	check(t, "{} == 1", tBool(false))
+	check(t, "{} != 1", tBool(true))
+	check(t, "f = \\() -> 1; f == 1", tBool(false))
+	check(t, "f = \\() -> 1; f != 1", tBool(true))
+	check(t, "[1] == {}", tBool(false))
+	check(t, "? == [1]", tBool(false))
+	check(t, "? != [1]", tBool(true))
+}
+
+func TestEqualityCoercesNumericKinds(t *testing.T) {
+	// int/float/bool are one coercible numeric family everywhere else in
+	// evalBinary (e.g. '1 < 1.5' and 'true < 2' both coerce) -- == and !=
+	// must agree with that instead of comparing Kind() first.
+	check(t, "1 == 1.0", tBool(true))
+	check(t, "1.5 == 1.5", tBool(true))
+	check(t, "1 == 1.5", tBool(false))
+	check(t, "true == 1", tBool(true))
+	check(t, "false == 0", tBool(true))
+	check(t, "true == 1.0", tBool(true))
+	check(t, "false == 2", tBool(false))
+	check(t, "1 != 1.0", tBool(false))
+	check(t, "true != 0", tBool(true))
+}
+
+func TestBinaryOpTypeChecksLeftBeforeEvaluatingRight(t *testing.T) {
+	// A bad left-operand type must be reported without evaluating the right
+	// operand at all, same as before equality gained its own eager-eval
+	// path -- otherwise a runtime error on the right (e.g. div by zero)
+	// would mask the left operand's type error.
+	src := "[1] + (1 % 0)"
+
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+	prog := parser.Parse("", toks)
+
+	_, err := newTestInterp().Run(prog.Stmts)
+	if err == nil {
+		t.Fatalf("%q: expected a runtime error, got none", src)
+	}
+	if !strings.Contains(err.Error(), "array") {
+		t.Fatalf("%q: expected the left operand's type error (mentioning 'array'), got: %v", src, err)
+	}
+}
+
+func TestEqualitySupportsSameKindArrayMapFn(t *testing.T) {
+	// Two operands of the *same* kind (array/array, map/map, fn/fn) compare
+	// structurally for arrays/maps (element-by-element, recursively) and by
+	// identity for fns.
+	check(t, "[1] == [1]", tBool(true))
+	check(t, "[1] != [1]", tBool(false))
+	check(t, "{} == {}", tBool(true))
+	check(t, "{} != {}", tBool(false))
+	check(t, "f = \\() -> 1; f == f", tBool(true))
+	check(t, "f = \\() -> 1; f != f", tBool(false))
+}
+
 func TestNotOperator(t *testing.T) {
 	check(t, "if !(10 == 11 or 20 == 21) { 20 } else { 10 }", tInt(20))
 	check(t, "!(1 == 0)", tBool(true))
@@ -396,6 +501,32 @@ func TestFunctionClosuresDoNotAlias(t *testing.T) {
 	check(t, `make_adder = \(x) -> \(y) -> x + y; add_5 = make_adder(5); add_10 = make_adder(10); add_10(1)`, tInt(11))
 }
 
+func TestCallOnAnyExpression(t *testing.T) {
+	// '(' is a general postfix operator now, not something recognized only
+	// after a bare identifier -- any expression that evaluates to a
+	// function can be called immediately.
+	check(t, `(\() -> 42)()`, tInt(42))                    // IIFE on a parenthesized fn literal
+	check(t, `(\(x) -> x * 2)(21)`, tInt(42))               // IIFE with an argument
+	check(t, `a = [\(x) -> x + 1]; a[0](41)`, tInt(42))     // call on an array-index expression
+	check(t, `m = {'f': \(x) -> x + 1}; m['f'](41)`, tInt(42)) // call on a map-index expression
+	check(t, `f = \() -> \(x) -> x + 1; f()(41)`, tInt(42)) // chained call: call the result of a call
+	check(t, `m = {'a': {'f': \() -> 42}}; m.a.f()`, tInt(42)) // call through a multi-level dot chain
+}
+
+func TestCalleeMustBeAFunction(t *testing.T) {
+	expectRuntimeError(t, "x = 5; x()")
+	expectRuntimeError(t, "a = [1, 2]; a[0]()")
+	expectRuntimeError(t, "m = {}; m.missing()") // reading a missing field is unit; calling unit is a runtime error
+	expectRuntimeError(t, "(1 + 1)()")
+}
+
+func TestUserVariableShadowsBuiltinAsCallee(t *testing.T) {
+	// A bare-identifier callee only falls back to the builtins table when
+	// no user variable of that name is in scope -- a same-named variable
+	// always wins.
+	check(t, `len = \(x) -> 999; len('hi')`, tInt(999))
+}
+
 func TestReturn(t *testing.T) {
 	check(t, `f = \() -> { return 42; 100 }; f()`, tInt(42))
 	check(t, `f = \(x) -> { if x == 1 { return 10 } return 20 }; f(1)`, tInt(10))
@@ -430,7 +561,7 @@ func TestModuloByZeroIsCleanRuntimeError(t *testing.T) {
 
 func TestHashmaps(t *testing.T) {
 	check(t, "m = {}; m[1] = 'Hello, World'; m[1]", tString("Hello, World"))
-	check(t, "m = {}; m[1] = 'Hello, World'; m[2]", tUnit()) // missing key -> unit, not an error
+	expectRuntimeError(t, "m = {}; m[1] = 'Hello, World'; m[2]")
 	check(t, "m = {}; m[1] = 'Hello, World';", tString("Hello, World"))
 	check(t, "m = { 'name': 'John Doe', 'age': 32, 'weight': 67.56, 'is_dead': false, 10: 'test' }; m['age']", tInt(32))
 	check(t,

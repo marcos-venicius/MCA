@@ -112,6 +112,8 @@ func Truthy(v Value) (result bool, ok bool) {
 		return bool(vv), true
 	case StringValue:
 		return len(vv) > 0, true
+	case *FnValue:
+		return true, true
 	default:
 		return false, false
 	}

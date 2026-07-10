@@ -171,13 +171,14 @@ type FnExpr struct {
 	Body   []Expr
 }
 
-// CallExpr only ever carries a bare function name, never a receiver -- calls
-// are recognized in exactly one parser position (an Ident immediately
-// followed by '('), so there is no general "call any expression" rule.
-// e.g. arr[0](5) does NOT parse as a call. TODO: Fix this behavior?
+// CallExpr applies Args to whatever Callee evaluates to. Callee can be any
+// expression -- a bare Ident, a DotExpr field (`m.f(...)`), an indexed value
+// (`arr[0](...)`), or even a parenthesized function literal
+// (`(\() -> 1)()`) -- '(' is a general postfix operator, not something
+// special-cased to identifiers.
 type CallExpr struct {
 	Base
-	FnName string
+	Callee Expr
 	Args   []Expr
 }
 

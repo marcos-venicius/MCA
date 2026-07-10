@@ -1,5 +1,4 @@
 // TODO: fix some bugs:
-//   - function calling parsing (today only identifer followed by a left paren is a function call)
 //   - does it make sense to keep `{}` as map initializer instead of being a block scope?
 //   - should we stack prefix unary operators?
 //   - power is right-associative (shouldn't it be left?)
@@ -295,24 +294,22 @@ func (p *parser) parseBlock() ([]ast.Expr, bool) {
 	}
 }
 
-func (p *parser) parseCallExpr() ast.Expr {
-	fnNameTok := p.cur()
+// parseCallExpr parses a '(' arg-list ')' suffix and wraps callee in a
+// CallExpr. It's invoked from parsePostfixExpr as a general postfix
+// operator, so callee can be any expression already parsed there (an Ident,
+// a DotExpr field, an indexed value, a parenthesized expression, ...).
+func (p *parser) parseCallExpr(callee ast.Expr) ast.Expr {
+	lparen := p.cur()
+	p.next() // skip '('
 
-	lparen := p.next()
-	if lparen == nil {
-		p.errorAt(fnNameTok, "expected '(' but got EOF")
-		p.synchronize()
-		return nil
-	}
-
-	next := p.next()
+	next := p.cur()
 	if next == nil {
 		p.errorAt(lparen, "expected ')' or an expression but got EOF")
 		p.synchronize()
 		return nil
 	}
 
-	call := &ast.CallExpr{Base: ast.NewBase(p.posOf(fnNameTok)), FnName: fnNameTok.Value}
+	call := &ast.CallExpr{Base: ast.NewBase(callee.Pos()), Callee: callee}
 
 	if next.Kind == lexer.RParen {
 		p.next() // skip ')'
@@ -785,11 +782,6 @@ func (p *parser) parsePrimaryExpr() ast.Expr {
 			return &ast.BoolLit{Base: ast.NewBase(p.posOf(tok)), Value: false}
 		}
 
-		// TODO: improve it later? allow calling functions like arr[0]['fn']()
-		if p.checkAhead(lexer.LParen) {
-			return p.parseCallExpr()
-		}
-
 		return p.parseIdentifier()
 
 	case lexer.String:
@@ -879,8 +871,9 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 		return nil
 	}
 
-	for p.check(lexer.LBracket) || p.check(lexer.Dot) {
-		if p.check(lexer.LBracket) {
+	for p.check(lexer.LBracket) || p.check(lexer.Dot) || p.check(lexer.LParen) {
+		switch {
+		case p.check(lexer.LBracket):
 			bracketTok := p.cur()
 			p.next() // skip '['
 
@@ -892,23 +885,25 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 			p.next() // skip ']'
 
 			left = &ast.SquareExpr{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, Index: index}
-		} else {
-			dotTok := p.cur()
-			p.next() // skip '.'
 
-			index := p.parsePrimaryExpr()
-
-			_, isIdent := index.(*ast.Ident)
-			_, isCall := index.(*ast.CallExpr)
-
-			// TODO: I need to reason more about this, I have a feeling I'm missing something
-			if index == nil || !(isIdent || isCall) {
-				p.errorAt(dotTok, "expected identifier or function call after '.'")
-				p.synchronize()
+		case p.check(lexer.LParen):
+			// '(' is a general postfix operator: whatever `left` evaluates
+			// to (an Ident, a DotExpr field, an indexed value, a
+			// parenthesized fn literal, ...) is the thing being called.
+			left = p.parseCallExpr(left)
+			if left == nil {
 				return nil
 			}
 
-			left = &ast.DotExpr{Base: ast.NewBase(p.posOf(dotTok)), Left: left, Index: index}
+		default: // Dot
+			dotTok := p.cur()
+			p.next() // skip '.'
+
+			if !p.expect(lexer.Ident) {
+				return nil
+			}
+
+			left = &ast.DotExpr{Base: ast.NewBase(p.posOf(dotTok)), Left: left, Index: p.parseIdentifier()}
 		}
 	}
 

@@ -32,7 +32,7 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 		keyVal := expectKind(e.Keys[i], in.Eval(e.Keys[i]).Value, KInt, KString)
 		mk, _ := mapKeyFromValue(keyVal)
 
-		valVal := expectKind(e.Values[i], in.Eval(e.Values[i]).Value, KString, KInt, KBool, KFloat, KFn)
+		valVal := expectKind(e.Values[i], in.Eval(e.Values[i]).Value, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
 		m.Set(mk, valVal)
 	}
@@ -66,7 +66,13 @@ func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 		if v, ok := lv.Get(mk); ok {
 			return normal(v)
 		}
-		return normal(UnitV())
+
+		switch mk.Kind {
+		case KInt:
+			throw(e.Pos(), "key '%d' not found", mk.I)
+		case KString:
+			throw(e.Pos(), "key '%s' not found", mk.S)
+		}
 	}
 
 	panic("evalSquare: unreachable")
@@ -77,27 +83,17 @@ func (in *Interp) evalDot(e *ast.DotExpr) EvalResult {
 
 	lv := left.(*Map)
 
-	switch node := e.Index.(type) {
-	case *ast.Ident:
-		if v, ok := lv.Get(MapKey{Kind: KString, S: node.Name}); ok {
-			return normal(v)
-		}
-		return normal(UnitV()) // missing field, just reading -> unit, not an error
+	// The parser only ever produces an Ident here (m.f(...) parses as
+	// CallExpr{Callee: DotExpr{Index: Ident("f")}}; the call itself is
+	// handled generically by evalCall, not here).
+	ident := e.Index.(*ast.Ident)
 
-	case *ast.CallExpr:
-		v, ok := lv.Get(MapKey{Kind: KString, S: node.FnName})
-		if !ok {
-			throw(node.Pos(), "this map does not have this function %s", node.FnName)
-		}
-
-		expectKind(e.Index, v, KFn)
-
-		fv := v.(*FnValue)
-
-		return normal(in.callFn(fv, e.Pos(), node.FnName, node.Args))
+	if v, ok := lv.Get(MapKey{Kind: KString, S: ident.Name}); ok {
+		return normal(v)
 	}
 
-	panic("evalDot: unreachable")
+	throw(e.Pos(), "key '%s' not found", ident.Name)
+	panic("evalDot: unreacheable")
 }
 
 // storeSquareAssign handles array/map index-assignment targets (`arr[i] = v`,
@@ -109,7 +105,7 @@ func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rig
 
 	switch lv := leftVal.(type) {
 	case *Map:
-		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn)
+		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
 		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KString)
 		mk, _ := mapKeyFromValue(idxVal)
@@ -140,7 +136,7 @@ func (in *Interp) storeDotAssign(e *ast.AssignExpr, left *ast.DotExpr, rightVal 
 
 	lv := leftVal.(*Map)
 
-	expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn)
+	expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
 	switch node := left.Index.(type) {
 	case *ast.Ident:
