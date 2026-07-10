@@ -721,6 +721,43 @@ func TestSplitArity(t *testing.T) {
 	expectRuntimeError(t, "split('a,b', ',', 'extra')")
 }
 
+func TestChr(t *testing.T) {
+	check(t, "chr(65)", tString("A"))
+	check(t, "chr(97)", tString("a"))
+	check(t, "chr(48)", tString("0"))
+	check(t, "chr(32)", tString(" "))
+
+	check(t, "chr(128512)", tString("\U0001F600")) // multi-byte code point (an emoji)
+	check(t, "len(chr(128512))", tInt(4))          // ... encoded as 4 UTF-8 bytes
+
+	// round-trips through ord() for single-byte code points (ord() indexes
+	// by byte, not rune, so this doesn't hold for multi-byte code points).
+	check(t, "ord(chr(65))", tInt(65))
+	check(t, "chr(ord('Q'))", tString("Q"))
+}
+
+func TestChrOnInvalidCodepoints(t *testing.T) {
+	// Out-of-range code points (negative, or beyond the max valid rune
+	// 0x10FFFF) fall back to the Unicode replacement character (U+FFFD)
+	// rather than erroring, matching Go's string(rune(...)) conversion.
+	check(t, "chr(-1)", tString("�"))
+	check(t, "chr(2000000)", tString("�"))
+	check(t, "len(chr(-1))", tInt(3))
+	check(t, "len(chr(2000000))", tInt(3))
+}
+
+func TestChrWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "chr('a')")
+	expectRuntimeError(t, "chr(1.5)")
+	expectRuntimeError(t, "chr(true)")
+	expectRuntimeError(t, "chr([65])")
+}
+
+func TestChrArity(t *testing.T) {
+	expectRuntimeError(t, "chr()")
+	expectRuntimeError(t, "chr(65, 66)")
+}
+
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))
 	check(t, "m = {}; m.cursor = 0; m.cursor += 1; m.cursor", tInt(1))

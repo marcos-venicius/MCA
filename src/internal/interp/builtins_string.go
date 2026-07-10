@@ -88,6 +88,12 @@ func builtinOrd(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return IntV(int64(data[0]))
 }
 
+func builtinChr(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	data := intOf(expectKind(args[0], in.Eval(args[0]).Value, KInt))
+
+	return StringV(string(rune(data)))
+}
+
 func builtinFormat(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	if len(args) <= 0 {
 		throw(caller.Pos(), "expected at least one argument but received %d", len(args))

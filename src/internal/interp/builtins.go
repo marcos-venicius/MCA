@@ -89,6 +89,7 @@ func init() {
 		"split":  arity("split", 2, builtinSplit),
 		"select": arity("select", 3, builtinSelect),
 		"ord":    arity("ord", 1, builtinOrd),
+		"chr":    arity("chr", 1, builtinChr),
 		"format": arity("format", -1, builtinFormat),
 
 		// Maps
