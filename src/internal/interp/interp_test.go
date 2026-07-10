@@ -593,6 +593,26 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
+func TestJoin(t *testing.T) {
+	check(t, "join(['a', 'b', 'c'], ',')", tString("a,b,c"))
+	check(t, "join(['a', 'b', 'c'], '')", tString("abc"))
+	check(t, "join(['a', 'b', 'c'], ' -- ')", tString("a -- b -- c"))
+	check(t, "join(['solo'], ',')", tString("solo"))
+	check(t, "join([], ',')", tString(""))
+}
+
+func TestJoinRejectsNonStringItemsAndWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "join([1, 2, 3], ',')")     // ints, not strings
+	expectRuntimeError(t, "join(['a', 2, 'c'], ',')")  // mixed -- fails on the first non-string
+	expectRuntimeError(t, "join('not an array', ',')") // first arg must be an array
+	expectRuntimeError(t, "join(['a', 'b'], 1)")       // separator must be a string
+}
+
+func TestJoinArity(t *testing.T) {
+	expectRuntimeError(t, "join(['a', 'b'])")
+	expectRuntimeError(t, "join(['a', 'b'], ',', 'extra')")
+}
+
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))
 	check(t, "m = {}; m.cursor = 0; m.cursor += 1; m.cursor", tInt(1))

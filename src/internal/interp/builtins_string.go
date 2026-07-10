@@ -20,6 +20,25 @@ func builtinLen(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	}
 }
 
+func builtinJoin(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+	sep := expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue)
+
+	strs := make([]string, len(arr.Items))
+
+	for i, v := range arr.Items {
+		if v.Kind() != KString {
+			throw(args[0].Pos(), "expected a string at index %d but got '%s'", i, v.Kind())
+		}
+
+		strs[i] = string(v.(StringValue))
+	}
+
+	out := strings.Join(strs, string(sep))
+
+	return StringV(out)
+}
+
 // TODO: later, instead of a builtin function I want to make it a 'range operator'
 // just like in python 'Hello'[1:3]
 func builtinSelect(in *Interp, caller ast.Expr, args []ast.Expr) Value {
