@@ -30,6 +30,7 @@ func builtinArgv(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 // path). Every call re-lexes/re-parses/re-runs the file from scratch in a
 // brand new Interp with no shared environment and no caching.
 // TODO: I didn't tested this code cross-platform. I have no idea of how this is gonna behave on Windows for example.
+// TODO: We're not caching the import evaluation. For now, Everytime you import the same module it's gaonna be reevaluated.
 func builtinImport(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	pathArg := stringOf(expectKind(args[0], in.Eval(args[0]).Value, KString))
 
