@@ -39,6 +39,23 @@ func builtinJoin(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return StringV(out)
 }
 
+func builtinSplit(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+	sep := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
+
+	out := strings.Split(str, sep)
+
+	arr := Array{
+		Items: make([]Value, len(out)),
+	}
+
+	for i, v := range out {
+		arr.Items[i] = StringV(v)
+	}
+
+	return ArrayV(&arr)
+}
+
 // TODO: later, instead of a builtin function I want to make it a 'range operator'
 // just like in python 'Hello'[1:3]
 func builtinSelect(in *Interp, caller ast.Expr, args []ast.Expr) Value {

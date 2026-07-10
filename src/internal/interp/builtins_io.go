@@ -44,6 +44,7 @@ func builtinExit(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	panic("unreachable")
 }
 
+// TODO: make file path relative when starting with '.'
 func builtinReadEntireFile(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	path := stringOf(expectKind(args[0], in.Eval(args[0]).Value, KString))
 

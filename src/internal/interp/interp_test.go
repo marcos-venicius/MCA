@@ -613,6 +613,45 @@ func TestJoinArity(t *testing.T) {
 	expectRuntimeError(t, "join(['a', 'b'], ',', 'extra')")
 }
 
+func TestSplit(t *testing.T) {
+	check(t, "s = split('a,b,c', ','); len(s)", tInt(3))
+	check(t, "s = split('a,b,c', ','); s[0]", tString("a"))
+	check(t, "s = split('a,b,c', ','); s[1]", tString("b"))
+	check(t, "s = split('a,b,c', ','); s[2]", tString("c"))
+	check(t, "join(split('a,b,c', ','), ',')", tString("a,b,c")) // round-trips through join
+
+	check(t, "s = split('a::b::c', '::'); len(s)", tInt(3)) // multi-char separator
+	check(t, "s = split('a::b::c', '::'); s[1]", tString("b"))
+
+	check(t, "s = split('hello', ','); len(s)", tInt(1)) // separator not present -> whole string, unsplit
+	check(t, "s = split('hello', ','); s[0]", tString("hello"))
+
+	check(t, "s = split('', ','); len(s)", tInt(1)) // empty input -> single empty-string element
+	check(t, "s = split('', ','); s[0]", tString(""))
+
+	check(t, "s = split('a,,b', ','); len(s)", tInt(3)) // consecutive separators -> empty element between them
+	check(t, "s = split('a,,b', ','); s[1]", tString(""))
+
+	check(t, "s = split(',a,', ','); len(s)", tInt(3)) // leading/trailing separators -> empty elements at the ends
+	check(t, "s = split(',a,', ','); s[0]", tString(""))
+	check(t, "s = split(',a,', ','); s[2]", tString(""))
+
+	check(t, "s = split('abc', ''); len(s)", tInt(3)) // empty separator -> split between every rune
+	check(t, "s = split('abc', ''); s[0]", tString("a"))
+	check(t, "s = split('abc', ''); s[2]", tString("c"))
+}
+
+func TestSplitWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "split(123, ',')")   // first arg must be a string
+	expectRuntimeError(t, "split('a,b', 123)") // separator must be a string
+	expectRuntimeError(t, "split(['a'], ',')")
+}
+
+func TestSplitArity(t *testing.T) {
+	expectRuntimeError(t, "split('a,b')")
+	expectRuntimeError(t, "split('a,b', ',', 'extra')")
+}
+
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))
 	check(t, "m = {}; m.cursor = 0; m.cursor += 1; m.cursor", tInt(1))
