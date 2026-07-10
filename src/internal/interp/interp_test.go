@@ -505,11 +505,11 @@ func TestCallOnAnyExpression(t *testing.T) {
 	// '(' is a general postfix operator now, not something recognized only
 	// after a bare identifier -- any expression that evaluates to a
 	// function can be called immediately.
-	check(t, `(\() -> 42)()`, tInt(42))                    // IIFE on a parenthesized fn literal
-	check(t, `(\(x) -> x * 2)(21)`, tInt(42))               // IIFE with an argument
-	check(t, `a = [\(x) -> x + 1]; a[0](41)`, tInt(42))     // call on an array-index expression
+	check(t, `(\() -> 42)()`, tInt(42))                        // IIFE on a parenthesized fn literal
+	check(t, `(\(x) -> x * 2)(21)`, tInt(42))                  // IIFE with an argument
+	check(t, `a = [\(x) -> x + 1]; a[0](41)`, tInt(42))        // call on an array-index expression
 	check(t, `m = {'f': \(x) -> x + 1}; m['f'](41)`, tInt(42)) // call on a map-index expression
-	check(t, `f = \() -> \(x) -> x + 1; f()(41)`, tInt(42)) // chained call: call the result of a call
+	check(t, `f = \() -> \(x) -> x + 1; f()(41)`, tInt(42))    // chained call: call the result of a call
 	check(t, `m = {'a': {'f': \() -> 42}}; m.a.f()`, tInt(42)) // call through a multi-level dot chain
 }
 
@@ -596,7 +596,7 @@ func TestFilter(t *testing.T) {
 
 	check(t, "a = filter([1, 2, 3], \\(x) -> x > 100); len(a)", tInt(0)) // nothing passes
 	check(t, "a = filter([1, 2, 3], \\(x) -> true); len(a)", tInt(3))    // everything passes
-	check(t, "a = filter([], \\(x) -> true); len(a)", tInt(0))          // empty input
+	check(t, "a = filter([], \\(x) -> true); len(a)", tInt(0))           // empty input
 
 	check(t, "a = [1, 2, 3]; b = filter(a, \\(x) -> x > 1); len(a)", tInt(3)) // source array untouched
 
@@ -609,15 +609,52 @@ func TestFilter(t *testing.T) {
 }
 
 func TestFilterWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "filter(123, \\(x) -> true)")        // first arg must be an array
-	expectRuntimeError(t, "filter([1, 2, 3], 123)")             // second arg must be a function
-	expectRuntimeError(t, "filter([1, 2, 3], \\() -> true)")    // closure must take exactly one argument
+	expectRuntimeError(t, "filter(123, \\(x) -> true)")      // first arg must be an array
+	expectRuntimeError(t, "filter([1, 2, 3], 123)")          // second arg must be a function
+	expectRuntimeError(t, "filter([1, 2, 3], \\() -> true)") // closure must take exactly one argument
 	expectRuntimeError(t, "filter([1, 2, 3], \\(x, y) -> true)")
 }
 
 func TestFilterArity(t *testing.T) {
 	expectRuntimeError(t, "filter([1, 2, 3])")
 	expectRuntimeError(t, "filter([1, 2, 3], \\(x) -> true, 'extra')")
+}
+
+func TestMap(t *testing.T) {
+	check(t, "a = map([1, 2, 3], \\(x) -> x * 2); len(a)", tInt(3))
+	check(t, "a = map([1, 2, 3], \\(x) -> x * 2); a[0]", tInt(2))
+	check(t, "a = map([1, 2, 3], \\(x) -> x * 2); a[1]", tInt(4))
+	check(t, "a = map([1, 2, 3], \\(x) -> x * 2); a[2]", tInt(6))
+
+	check(t, "a = map([], \\(x) -> x * 2); len(a)", tInt(0)) // empty input
+
+	check(t, "a = [1, 2, 3]; b = map(a, \\(x) -> x * 2); a[0]", tInt(1)) // source array untouched
+
+	// the closure's return type doesn't need to match the input element's
+	// type -- map() doesn't constrain it either way.
+	check(t, "a = map([1, 2, 3], \\(x) -> x > 1); a[0]", tBool(false))
+	check(t, "a = map([1, 2, 3], \\(x) -> x > 1); a[1]", tBool(true))
+
+	// the closure is a real closure -- it can reference variables captured
+	// from its defining scope, not just its own parameter.
+	check(t, "factor = 10; a = map([1, 2, 3], \\(x) -> x * factor); a[2]", tInt(30))
+
+	// composes with filter()
+	check(t, "a = filter(map([1, 2, 3, 4], \\(x) -> x * 2), \\(x) -> x > 4); len(a)", tInt(2))
+	check(t, "a = filter(map([1, 2, 3, 4], \\(x) -> x * 2), \\(x) -> x > 4); a[0]", tInt(6))
+	check(t, "a = filter(map([1, 2, 3, 4], \\(x) -> x * 2), \\(x) -> x > 4); a[1]", tInt(8))
+}
+
+func TestMapWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "map(123, \\(x) -> x)")      // first arg must be an array
+	expectRuntimeError(t, "map([1, 2, 3], 123)")       // second arg must be a function
+	expectRuntimeError(t, "map([1, 2, 3], \\() -> 1)") // closure must take exactly one argument
+	expectRuntimeError(t, "map([1, 2, 3], \\(x, y) -> x)")
+}
+
+func TestMapArity(t *testing.T) {
+	expectRuntimeError(t, "map([1, 2, 3])")
+	expectRuntimeError(t, "map([1, 2, 3], \\(x) -> x, 'extra')")
 }
 
 func TestStrings(t *testing.T) {
@@ -634,7 +671,7 @@ func TestJoin(t *testing.T) {
 }
 
 func TestJoinRejectsNonStringItemsAndWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "join([1, 2, 3], ',')")     // ints, not strings
+	expectRuntimeError(t, "join([1, 2, 3], ',')")      // ints, not strings
 	expectRuntimeError(t, "join(['a', 2, 'c'], ',')")  // mixed -- fails on the first non-string
 	expectRuntimeError(t, "join('not an array', ',')") // first arg must be an array
 	expectRuntimeError(t, "join(['a', 'b'], 1)")       // separator must be a string

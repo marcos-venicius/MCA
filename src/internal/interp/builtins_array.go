@@ -31,6 +31,29 @@ func builtinFilter(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return &filtered
 }
 
+func builtinMap(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array).Items
+	fn := expectKind(args[1], in.Eval(args[1]).Value, KFn).(*FnValue)
+
+	if len(fn.Node.Params) != 1 {
+		throw(args[1].Pos(), "map closure should expect exactly one argument, but it has %d", len(fn.Node.Params))
+	}
+
+	out := make([]Value, len(arr))
+
+	for i, v := range arr {
+		value := in.callFnValue(fn, caller.Pos(), calleeLabel(nil), []Value{v})
+
+		out[i] = value
+	}
+
+	mapped := Array{
+		Items: out,
+	}
+
+	return &mapped
+}
+
 func builtinAppend(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	arrVal := in.Eval(args[0]).Value
 

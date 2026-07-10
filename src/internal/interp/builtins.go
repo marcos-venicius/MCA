@@ -67,7 +67,6 @@ func init() {
 		// language specifics
 		"import": arity("import", 1, builtinImport),
 
-		"filter":    arity("filter", 2, builtinFilter),
 		"type":      arity("type", 1, builtinType),
 		"argc":      arity("argc", 0, builtinArgc),
 		"argv":      arity("argv", 1, builtinArgv),
@@ -97,6 +96,8 @@ func init() {
 		"map_clear": arity("map_clear", 1, builtinMapClear),
 
 		// Arrays
+		"map":    arity("map", 2, builtinMap),
+		"filter": arity("filter", 2, builtinFilter),
 		"append": arity("append", 2, builtinAppend),
 
 		// random
