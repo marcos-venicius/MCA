@@ -100,6 +100,7 @@ func init() {
 		"srand": arity("srand", 1, builtinSrand),
 		"rand":  arity("rand", 2, builtinRand),
 
+		// TODO: may I have a 'Date' value type?
 		// datetime related
 		"time":        arity("time", 0, builtinTime),
 		"year":        arity("year", 1, builtinYear),

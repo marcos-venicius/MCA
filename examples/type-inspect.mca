@@ -28,4 +28,11 @@ println(1 == 1, type(1 == 1))
 println(?, type(?))
 println('Hello \'World\' \\\\//', type('Hello \'World\' \\\\//'))
 
+m = {}
+arr = []
+fn = \() ->;
+
+println(m, is_map(m), type(m))
+println(arr, is_array(arr), type(arr))
+println(fn, is_fn(fn), type(fn))
 # vim: set syntax=r :

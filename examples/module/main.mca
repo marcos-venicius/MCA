@@ -5,7 +5,7 @@ lexer = import('./lexer.mca')
 PROGRAM_NAME = argv(0)
 
 if argc() != 2 {
-  import('utils.mca').help(PROGRAM_NAME)
+  import('./utils.mca').help(PROGRAM_NAME)
   exit(1)
 }
 

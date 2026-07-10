@@ -1,0 +1,13 @@
+#!/usr/local/bin/mca
+
+make_counter = \() -> {
+    n = 0
+
+    \() -> (n += 1)
+}
+
+c1 = make_counter()
+c2 = make_counter()
+
+println(c1(), c1(), c1()) # 1 2 3
+println(c2()) # 1 -- c2 has its own independent 'n'
