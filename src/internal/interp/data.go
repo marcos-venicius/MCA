@@ -40,7 +40,7 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 	return normal(MapV(m))
 }
 
-func (in *Interp) evalIndex(e *ast.IndexExpr) EvalResult {
+func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 	left := expectKind(e.Left, in.Eval(e.Left).Value, KArray, KString, KMap)
 
 	switch lv := left.(type) {
@@ -61,56 +61,58 @@ func (in *Interp) evalIndex(e *ast.IndexExpr) EvalResult {
 		return normal(StringV(string(lv[i])))
 
 	case *Map:
-		switch idxNode := e.Index.(type) {
-		case *ast.CallExpr:
-			// `m.method(args)` sugar: look the name up as a map entry and
-			// invoke it directly, bypassing normal function/variable
-			// resolution entirely. TODO: should I improve this somehow?
-			entryVal := UnitV()
-			if v, ok := lv.Get(MapKey{Kind: KString, S: idxNode.FnName}); ok {
-				entryVal = v
-			}
-			fnVal := expectKind(idxNode, entryVal, KFn)
-			return normal(in.callFn(fnVal.(*FnValue), idxNode.Pos(), idxNode.FnName, idxNode.Args))
-
-		case *ast.Ident:
-			// `m.field` sugar: always a literal string key, never a variable lookup.
-			if v, ok := lv.Get(MapKey{Kind: KString, S: idxNode.Name}); ok {
-				return normal(v)
-			}
-			return normal(UnitV()) // missing map key -> unit, not an error
-
-		default:
-			idxVal := expectKind(e.Index, in.Eval(e.Index).Value, KInt, KString)
-			mk, _ := mapKeyFromValue(idxVal)
-			if v, ok := lv.Get(mk); ok {
-				return normal(v)
-			}
-			return normal(UnitV())
+		idxVal := expectKind(e.Index, in.Eval(e.Index).Value, KInt, KString)
+		mk, _ := mapKeyFromValue(idxVal)
+		if v, ok := lv.Get(mk); ok {
+			return normal(v)
 		}
+		return normal(UnitV())
 	}
 
-	panic("evalIndex: unreachable")
+	panic("evalSquare: unreachable")
 }
 
-// storeIndexAssign handles array/map index-assignment targets (`arr[i] = v`,
-// `m[k] = v`, `m.field = v`). It only performs the store -- the assignment
+func (in *Interp) evalDot(e *ast.DotExpr) EvalResult {
+	left := expectKind(e.Left, in.Eval(e.Left).Value, KMap)
+
+	lv := left.(*Map)
+
+	switch node := e.Index.(type) {
+	case *ast.Ident:
+		if v, ok := lv.Get(MapKey{Kind: KString, S: node.Name}); ok {
+			return normal(v)
+		}
+		return normal(UnitV()) // missing field, just reading -> unit, not an error
+
+	case *ast.CallExpr:
+		v, ok := lv.Get(MapKey{Kind: KString, S: node.FnName})
+		if !ok {
+			throw(node.Pos(), "this map does not have this function %s", node.FnName)
+		}
+
+		expectKind(e.Index, v, KFn)
+
+		fv := v.(*FnValue)
+
+		return normal(in.callFn(fv, e.Pos(), node.FnName, node.Args))
+	}
+
+	panic("evalDot: unreachable")
+}
+
+// storeSquareAssign handles array/map index-assignment targets (`arr[i] = v`,
+// `m[k] = v`). It only performs the store -- the assignment
 // expression's own result (including Flow) is the right-hand side's
 // EvalResult, handled by the caller (evalAssign).
-func (in *Interp) storeIndexAssign(e *ast.AssignExpr, left *ast.IndexExpr, rightVal Value) {
+func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rightVal Value) {
 	leftVal := expectKind(left.Left, in.Eval(left.Left).Value, KArray, KMap)
 
 	switch lv := leftVal.(type) {
 	case *Map:
 		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn)
 
-		var mk MapKey
-		if idNode, ok := left.Index.(*ast.Ident); ok {
-			mk = MapKey{Kind: KString, S: idNode.Name}
-		} else {
-			idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KString)
-			mk, _ = mapKeyFromValue(idxVal)
-		}
+		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KString)
+		mk, _ := mapKeyFromValue(idxVal)
 
 		lv.Set(mk, rightVal)
 
@@ -125,7 +127,27 @@ func (in *Interp) storeIndexAssign(e *ast.AssignExpr, left *ast.IndexExpr, right
 		lv.Items[i] = rightVal
 
 	default:
-		panic("storeIndexAssign: unreachable")
+		panic("storeSquareAssign: unreachable")
+	}
+}
+
+// storeDotAssign handles map index-assignment targets
+// (`m.k = v`). It only performs the store -- the assignment
+// expression's own result (including Flow) is the right-hand side's
+// EvalResult, handled by the caller (evalAssign).
+func (in *Interp) storeDotAssign(e *ast.AssignExpr, left *ast.DotExpr, rightVal Value) {
+	leftVal := expectKind(left.Left, in.Eval(left.Left).Value, KMap)
+
+	lv := leftVal.(*Map)
+
+	expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn)
+
+	switch node := left.Index.(type) {
+	case *ast.Ident:
+		// `m.field` sugar: always a literal string key, never a variable lookup.
+		lv.Set(MapKey{Kind: KString, S: node.Name}, rightVal)
+	default:
+		throw(left.Index.Pos(), "invalid use of dot operator. only accept valid identifiers in assignments")
 	}
 }
 

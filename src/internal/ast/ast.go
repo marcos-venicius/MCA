@@ -248,11 +248,18 @@ type MapExpr struct {
 	Values []Expr
 }
 
-// IndexExpr backs both `left[index]` and `left.index` -- the parser
-// compiles both forms into this same node, and
-// the interpreter tells them apart at runtime by what Index actually is
-// (an arbitrary Expr for `[]`, always an *Ident or *CallExpr for `.`).
-type IndexExpr struct {
+// m = {'hello': \() ->;}; `m.hello`
+// When using dot expression, the ident name is gonna be used as the key
+type DotExpr struct {
+	Base
+	Left  Expr
+	Index Expr
+}
+
+// m = {'hello': \() ->;}; m['hello']
+// When using square expression, the expression inside the square
+// is gonna be evaluated and used as the key
+type SquareExpr struct {
 	Base
 	Left  Expr
 	Index Expr

@@ -10,5 +10,6 @@ c1 = make_counter()
 c2 = make_counter()
 
 println(c1(), c1(), c1()) # 1 2 3
-p
-# vim: set syntax=r :rintln(c2()) # 1 -- c2 has its own independent 'n'
+println(c2()) # 1 -- c2 has its own independent 'n'
+
+# vim: set syntax=r :

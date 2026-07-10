@@ -147,8 +147,10 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 		return in.evalArrayLit(node)
 	case *ast.MapExpr:
 		return in.evalMapLit(node)
-	case *ast.IndexExpr:
-		return in.evalIndex(node)
+	case *ast.SquareExpr:
+		return in.evalSquare(node)
+	case *ast.DotExpr:
+		return in.evalDot(node)
 	case *ast.ForOfExpr:
 		return in.evalForOf(node)
 	default:
@@ -485,8 +487,12 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 		in.Current.Assign(left.Name, rightRes.Value)
 		return rightRes
 
-	case *ast.IndexExpr:
-		in.storeIndexAssign(e, left, rightRes.Value)
+	case *ast.SquareExpr:
+		in.storeSquareAssign(e, left, rightRes.Value)
+		return rightRes
+
+	case *ast.DotExpr:
+		in.storeDotAssign(e, left, rightRes.Value)
 		return rightRes
 	}
 

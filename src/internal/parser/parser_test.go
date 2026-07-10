@@ -155,7 +155,7 @@ func TestCallOnlyRecognizedForBareIdentifier(t *testing.T) {
 		t.Fatalf("expected 2 top-level statements (index expr, then paren expr), got %d: %#v", len(prog.Stmts), prog.Stmts)
 	}
 
-	if _, ok := prog.Stmts[0].(*ast.IndexExpr); !ok {
+	if _, ok := prog.Stmts[0].(*ast.SquareExpr); !ok {
 		t.Fatalf("expected first stmt to be IndexExpr, got %#v", prog.Stmts[0])
 	}
 
@@ -167,12 +167,12 @@ func TestCallOnlyRecognizedForBareIdentifier(t *testing.T) {
 func TestDotPostfixChain(t *testing.T) {
 	prog := mustParseOK(t, "a.b.c")
 
-	outer, ok := prog.Stmts[0].(*ast.IndexExpr)
+	outer, ok := prog.Stmts[0].(*ast.DotExpr)
 	if !ok {
 		t.Fatalf("expected IndexExpr, got %#v", prog.Stmts[0])
 	}
 
-	inner, ok := outer.Left.(*ast.IndexExpr)
+	inner, ok := outer.Left.(*ast.DotExpr)
 	if !ok {
 		t.Fatalf("expected nested IndexExpr for a.b, got %#v", outer.Left)
 	}

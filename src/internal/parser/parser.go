@@ -891,7 +891,7 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 			}
 			p.next() // skip ']'
 
-			left = &ast.IndexExpr{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, Index: index}
+			left = &ast.SquareExpr{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, Index: index}
 		} else {
 			dotTok := p.cur()
 			p.next() // skip '.'
@@ -908,7 +908,7 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 				return nil
 			}
 
-			left = &ast.IndexExpr{Base: ast.NewBase(p.posOf(dotTok)), Left: left, Index: index}
+			left = &ast.DotExpr{Base: ast.NewBase(p.posOf(dotTok)), Left: left, Index: index}
 		}
 	}
 
@@ -1091,7 +1091,7 @@ func (p *parser) parseLogicalExpr() ast.Expr {
 
 func acceptableAssignTarget(e ast.Expr) bool {
 	switch e.(type) {
-	case *ast.Ident, *ast.IndexExpr:
+	case *ast.Ident, *ast.SquareExpr, *ast.DotExpr:
 		return true
 	}
 	return false
