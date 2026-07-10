@@ -54,3 +54,5 @@ pub_run_lexer = \(lexer) -> {
   'create': pub_create_lexer,
   'run':    pub_run_lexer
 }
+
+# vim: set syntax=r :

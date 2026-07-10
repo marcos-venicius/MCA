@@ -11,3 +11,5 @@ pub_help = \(program_name) -> {
   'help':     pub_help,
   'is_digit': pub_is_digit
 }
+
+# vim: set syntax=r :

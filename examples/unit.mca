@@ -44,3 +44,5 @@ diff = while {
 
 # '?' unit here just prints a whitespace to stdout
 print('diff: ', diff, '. cicles: ', cicles, '\n')
+
+# vim: set syntax=r :

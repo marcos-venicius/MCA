@@ -18,3 +18,5 @@ else
   print('extracted ', len(numbers[0]), ' numbers: ')
 
 println(numbers[0])
+
+# vim: set syntax=r :
