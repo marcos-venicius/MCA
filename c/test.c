@@ -327,7 +327,7 @@ int main(void) {
     TEST_CASE("is_unit(1)", T_BOOL(false));
     TEST_CASE("is_unit(?)", T_BOOL(true));
     TEST_CASE("'Hello, World'[7]", T_STRING("W"));
-    TEST_CASE("read_entire_file('./test/file.txt')", T_STRING("Hello World\n"));
+    TEST_CASE("read_entire_file('../test/file.txt')", T_STRING("Hello World\n"));
     TEST_CASE("select('Hello, World', 7, 12)", T_STRING("World"));
     TEST_CASE("select('heyhey', 0, 6)", T_STRING("heyhey"));
     TEST_CASE("select('heyhey', 2, 3)", T_STRING("y"));

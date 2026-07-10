@@ -1,0 +1,719 @@
+package interp
+
+import (
+	"io"
+	"math"
+	"os"
+
+	"mca/internal/ast"
+)
+
+// ControlFlow tags how an evaluation completed: falling through normally,
+// or unwinding because of a break or return (later add `continue`).
+type ControlFlow int
+
+const (
+	FlowNormal ControlFlow = iota
+	FlowBreak
+	FlowReturn
+)
+
+// EvalResult is what every Eval call produces: a value plus how it got
+// there. Only block-statement sequencing (evalBlock) inspects Flow to decide
+// whether to keep running; everywhere else that consumes a sub-expression's
+// result (binary operands, call arguments, array items, ...) uses only
+// .Value and discards .Flow, since a bare break/return can only meaningfully
+// unwind through statement sequencing, not through an arbitrary operand
+// position.
+type EvalResult struct {
+	Value Value
+	Flow  ControlFlow
+}
+
+func normal(v Value) EvalResult { return EvalResult{Value: v, Flow: FlowNormal} }
+
+// BuiltinFn is a builtin's implementation. Builtins receive unevaluated
+// argument AST nodes (not values) and evaluate them themselves -- this is
+// what lets print/println control their own per-arg formatting, and lets
+// type() etc. avoid unwanted evaluation side effects. caller is used for
+// error positions (arity errors, etc).
+type BuiltinFn func(in *Interp, caller ast.Expr, args []ast.Expr) Value
+
+// Interp is one running MCA program. Out/Err are settable so tests (and the
+// CLI) can redirect them. Args holds the language-level argv, with Args[0]
+// conventionally the script path. Builtins are looked up from the shared
+// package-level `builtins` table rather than stored per-instance.
+type Interp struct {
+	Global  *Env
+	Current *Env
+
+	Out  io.Writer
+	Err  io.Writer
+	Args []string
+}
+
+func New() *Interp {
+	g := NewEnv(nil)
+	return &Interp{Global: g, Current: g, Out: os.Stdout, Err: os.Stderr}
+}
+
+// Run evaluates stmts under the single recover boundary for the whole
+// program: a runtime error anywhere, including inside an imported module, is
+// fatal to the entire run. Callers must ensure the program parsed with zero
+// errors first.
+func (in *Interp) Run(stmts []ast.Expr) (result Value, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			if re, ok := r.(*RuntimeError); ok {
+				err = re
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	return in.runStatements(stmts), nil
+}
+
+// runStatements has no recover boundary of its own -- used directly (not via
+// Run) by the import() builtin, so a runtime error inside an imported
+// module's top-level code panics straight through to whichever Run call is
+// outermost, keeping "a runtime error anywhere kills the whole program" true
+// even across module boundaries.
+func (in *Interp) runStatements(stmts []ast.Expr) Value {
+	result := UnitV()
+
+	for _, stmt := range stmts {
+		r := in.Eval(stmt)
+
+		if r.Flow == FlowBreak {
+			throw(stmt.Pos(), "cannot use 'break' outside of a loop")
+		}
+		if r.Flow == FlowReturn {
+			throw(stmt.Pos(), "cannot use 'return' outside of a function")
+		}
+
+		result = r.Value
+	}
+
+	return result
+}
+
+// Eval dispatches on the concrete type of e. A central type switch (rather
+// than an Eval method per AST node) is the idiom Go's own stdlib uses for
+// this same shape of problem (e.g. text/template's state.walk) -- it also
+// sidesteps a real import cycle here, since ast can't depend on interp for
+// an Eval method's return type while interp already depends on ast for the
+// node types themselves.
+func (in *Interp) Eval(e ast.Expr) EvalResult {
+	switch node := e.(type) {
+	case *ast.StringLit:
+		return normal(StringV(node.Value))
+	case *ast.UnitLit:
+		return normal(UnitV())
+	case *ast.BoolLit:
+		return normal(BoolV(node.Value))
+	case *ast.IntLit:
+		return normal(IntV(node.Value))
+	case *ast.FloatLit:
+		return normal(FloatV(node.Value))
+	case *ast.Ident:
+		v, ok := in.Current.Get(node.Name)
+		if !ok {
+			throw(node.Pos(), "variable '%s' does not exist", node.Name)
+		}
+		return normal(v)
+	case *ast.AssignExpr:
+		return in.evalAssign(node)
+	case *ast.UnaryExpr:
+		return in.evalUnary(node)
+	case *ast.BinaryExpr:
+		return in.evalBinary(node)
+	case *ast.CallExpr:
+		return in.evalCall(node)
+	case *ast.FnExpr:
+		return normal(FnValV(&FnValue{Node: node, Env: in.Current}))
+	case *ast.IfExpr:
+		return in.evalIf(node)
+	case *ast.WhileExpr:
+		return in.evalWhile(node)
+	case *ast.ForRangeExpr:
+		return in.evalForRange(node)
+	case *ast.BreakExpr:
+		return in.evalBreak(node)
+	case *ast.ReturnExpr:
+		return in.evalReturn(node)
+	case *ast.ArrayExpr:
+		return in.evalArrayLit(node)
+	case *ast.MapExpr:
+		return in.evalMapLit(node)
+	case *ast.IndexExpr:
+		return in.evalIndex(node)
+	case *ast.ForOfExpr:
+		return in.evalForOf(node)
+	default:
+		throw(e.Pos(), "internal: expression kind %T not yet implemented", e)
+		panic("unreachable")
+	}
+}
+
+func (in *Interp) evalBlock(body []ast.Expr) EvalResult {
+	result := normal(UnitV())
+
+	for _, stmt := range body {
+		result = in.Eval(stmt)
+		if result.Flow != FlowNormal {
+			return result
+		}
+	}
+
+	return result
+}
+
+// pushScope/popScope enter and leave a lexical scope. There's no manual free
+// the way C needed -- Go's GC reclaims the scope once nothing (including an
+// escaping closure) still references it.
+func (in *Interp) pushScope() (parent *Env) {
+	parent = in.Current
+	in.Current = NewEnv(parent)
+	return parent
+}
+
+func (in *Interp) popScope(parent *Env) {
+	in.Current = parent
+}
+
+func (in *Interp) evalBlockNewScope(body []ast.Expr) EvalResult {
+	parent := in.pushScope()
+	defer in.popScope(parent)
+	return in.evalBlock(body)
+}
+
+// ---- unary ----
+
+func (in *Interp) evalUnary(e *ast.UnaryExpr) EvalResult {
+	res := in.Eval(e.Operand)
+
+	switch e.Op {
+	case ast.MinusOp:
+		var out Value
+		switch vv := res.Value.(type) {
+		case IntValue:
+			out = IntV(-int64(vv))
+		case FloatValue:
+			out = FloatV(-float64(vv))
+		default:
+			throw(e.Pos(), "unexpected data type. expected a '%s' but got a '%s'", KindsName(KInt, KFloat), res.Value.Kind())
+		}
+		return EvalResult{Value: out, Flow: res.Flow}
+
+	case ast.NotOp:
+		// TODO: add array, string, map and unit?
+		v := expectKind(e, res.Value, KInt, KFloat, KBool)
+		var out Value
+		switch vv := v.(type) {
+		case BoolValue:
+			out = BoolV(!bool(vv))
+		case IntValue:
+			out = BoolV(vv == 0)
+		case FloatValue:
+			out = BoolV(vv == 0)
+		}
+		return EvalResult{Value: out, Flow: res.Flow}
+
+	case ast.FactorialOp:
+		v := expectKind(e, res.Value, KInt, KFloat)
+		return EvalResult{Value: calculateFactorial(v), Flow: res.Flow}
+	}
+
+	panic("evalUnary: unhandled operator")
+}
+
+// calculateFactorial computes tgamma(x+1); negative operands (int, or float
+// with an exact integral value) yield float NaN instead, since factorial is
+// undefined there.
+func calculateFactorial(v Value) Value {
+	var val float64
+	isNegativeInt := false
+	isInt := false
+
+	switch vv := v.(type) {
+	case IntValue:
+		val = float64(vv)
+		isNegativeInt = vv < 0
+		isInt = true
+	case FloatValue:
+		val = float64(vv)
+		isNegativeInt = val < 0 && val == float64(int64(val))
+	}
+
+	if isNegativeInt {
+		return FloatV(math.NaN())
+	}
+
+	x := math.Gamma(val + 1.0)
+
+	if isInt {
+		return IntV(int64(x))
+	}
+	return FloatV(x)
+}
+
+// ---- binary ----
+
+func isComparisonOp(op ast.BinaryOp) bool {
+	switch op {
+	case ast.EqualOp, ast.NotEqualOp, ast.GtOp, ast.LtOp, ast.GteOp, ast.LteOp:
+		return true
+	}
+	return false
+}
+
+// asFloat widens an already kind-checked int/float/bool value to float64.
+func asFloat(v Value) float64 {
+	switch vv := v.(type) {
+	case FloatValue:
+		return float64(vv)
+	case BoolValue:
+		if vv {
+			return 1
+		}
+		return 0
+	default: // IntValue
+		return float64(vv.(IntValue))
+	}
+}
+
+// asIntLike reads an already kind-checked int/bool value as int64.
+func asIntLike(v Value) int64 {
+	if iv, ok := v.(IntValue); ok {
+		return int64(iv)
+	}
+	if bool(v.(BoolValue)) {
+		return 1
+	}
+	return 0
+}
+
+func boolToFloat(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func binaryOpOnFloats(op ast.BinaryOp, l, r float64) float64 {
+	switch op {
+	case ast.PlusOp:
+		return l + r
+	case ast.TimesOp:
+		return l * r
+	case ast.DivideOp:
+		return l / r
+	case ast.SubtractOp:
+		return l - r
+	case ast.ModOp:
+		return math.Mod(l, r)
+	case ast.PowOp:
+		return math.Pow(l, r)
+	case ast.EqualOp:
+		return boolToFloat(l == r)
+	case ast.NotEqualOp:
+		return boolToFloat(l != r)
+	case ast.GtOp:
+		return boolToFloat(l > r)
+	case ast.LtOp:
+		return boolToFloat(l < r)
+	case ast.GteOp:
+		return boolToFloat(l >= r)
+	case ast.LteOp:
+		return boolToFloat(l <= r)
+	}
+
+	panic("binaryOpOnFloats: unhandled operator")
+}
+
+func (in *Interp) evalBinary(e *ast.BinaryExpr) EvalResult {
+	switch e.Op {
+	case ast.AndOp:
+		leftRes := in.Eval(e.Left)
+		leftV := expectKind(e.Left, leftRes.Value, KBool, KInt, KFloat)
+		if t, _ := Truthy(leftV); !t {
+			return normal(BoolV(false))
+		}
+
+		rightRes := in.Eval(e.Right)
+		rightV := expectKind(e.Right, rightRes.Value, KBool, KInt, KFloat)
+		if t, _ := Truthy(rightV); !t {
+			return normal(BoolV(false))
+		}
+
+		return normal(BoolV(true))
+
+	case ast.OrOp:
+		leftRes := in.Eval(e.Left)
+		leftV := expectKind(e.Left, leftRes.Value, KBool, KInt, KFloat)
+		if t, _ := Truthy(leftV); t {
+			return normal(BoolV(true))
+		}
+
+		rightRes := in.Eval(e.Right)
+		rightV := expectKind(e.Right, rightRes.Value, KBool, KInt, KFloat)
+		if t, _ := Truthy(rightV); t {
+			return normal(BoolV(true))
+		}
+
+		return normal(BoolV(false))
+	}
+
+	leftRes := in.Eval(e.Left)
+	left := expectKind(e.Left, leftRes.Value, KInt, KFloat, KBool, KUnit, KString)
+
+	rightRes := in.Eval(e.Right)
+	right := expectKind(e.Right, rightRes.Value, KInt, KFloat, KBool, KUnit, KString)
+
+	if left.Kind() == KUnit || right.Kind() == KUnit {
+		switch e.Op {
+		case ast.EqualOp:
+			return normal(BoolV(left.Kind() == right.Kind()))
+		case ast.NotEqualOp:
+			return normal(BoolV(left.Kind() != right.Kind()))
+		default:
+			badSide := e.Left
+			if left.Kind() != KUnit {
+				badSide = e.Right
+			}
+			throw(badSide.Pos(), "invalid operation. cannot perform binary operation '%s' with unit type", e.Op)
+		}
+	}
+
+	// Either side being a string triggers string rules -- checked
+	// symmetrically, so a mixed string/non-string operand pair always raises
+	// a clean type error rather than falling through to numeric coercion.
+	if left.Kind() == KString || right.Kind() == KString {
+		if left.Kind() != right.Kind() {
+			badSide := e.Left
+			if left.Kind() == KString {
+				badSide = e.Right
+			}
+			throw(badSide.Pos(), "you cannot do binary operations between types '%s %s %s'", left.Kind(), e.Op, right.Kind())
+		}
+
+		leftS, rightS := stringOf(left), stringOf(right)
+
+		switch e.Op {
+		case ast.EqualOp:
+			return normal(BoolV(leftS == rightS))
+		case ast.NotEqualOp:
+			return normal(BoolV(leftS != rightS))
+		default:
+			// TODO: later implement '>' and '<'?
+			throw(e.Pos(), "you cannot do binary operation '%s' between strings", e.Op)
+		}
+	}
+
+	returnsBool := isComparisonOp(e.Op)
+
+	if left.Kind() == KFloat || right.Kind() == KFloat {
+		result := binaryOpOnFloats(e.Op, asFloat(left), asFloat(right))
+
+		if returnsBool {
+			return normal(BoolV(result != 0.0))
+		}
+		return normal(FloatV(result))
+	}
+
+	l := asIntLike(left)
+	r := asIntLike(right)
+
+	if e.Op == ast.ModOp && r == 0 {
+		// Native int %/0 has no well-defined value to preserve here (it's
+		// undefined behavior, typically SIGFPE, in C); raise a clean runtime
+		// error instead of letting Go's own divide-by-zero panic escape
+		// uncontrolled.
+		throw(e.Pos(), "division by zero")
+	}
+
+	var result float64
+
+	switch e.Op {
+	case ast.PlusOp:
+		result = float64(l + r)
+	case ast.TimesOp:
+		result = float64(l * r)
+	case ast.DivideOp:
+		result = float64(l) / float64(r) // always true division
+	case ast.SubtractOp:
+		result = float64(l - r)
+	case ast.ModOp:
+		result = float64(l % r)
+	case ast.PowOp:
+		result = math.Pow(float64(l), float64(r))
+	case ast.EqualOp:
+		result = boolToFloat(l == r)
+	case ast.NotEqualOp:
+		result = boolToFloat(l != r)
+	case ast.GtOp:
+		result = boolToFloat(l > r)
+	case ast.LtOp:
+		result = boolToFloat(l < r)
+	case ast.GteOp:
+		result = boolToFloat(l >= r)
+	case ast.LteOp:
+		result = boolToFloat(l <= r)
+	}
+
+	if returnsBool {
+		return normal(BoolV(result != 0.0))
+	}
+
+	// TODO: I'm still not sure if that's the best way of handling it
+	if math.Mod(result, 1.0) != 0.0 {
+		return normal(FloatV(result))
+	}
+
+	return normal(IntV(int64(result)))
+}
+
+// ---- assignment ----
+
+func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
+	rightRes := in.evalAssignRightSide(e)
+
+	switch left := e.Left.(type) {
+	case *ast.Ident:
+		in.Current.Assign(left.Name, rightRes.Value)
+		return rightRes
+
+	case *ast.IndexExpr:
+		in.storeIndexAssign(e, left, rightRes.Value)
+		return rightRes
+	}
+
+	return rightRes
+}
+
+// evalAssignRightSide computes the value (and, for plain `=` only, the
+// control flow) an assignment expression evaluates to. For plain `=` the
+// right-hand side's EvalResult is returned completely unmodified -- unlike
+// almost every other multi-operand construct here (binary operands, call
+// arguments, array items, ...), which keep only .Value and drop .Flow. That
+// asymmetry is what lets `x = if cond { break v }` propagate the break out
+// through the assignment and into the enclosing loop. For `+=`/`-=` the
+// result is always Flow-Normal (freshly constructed), regardless of what
+// flow evaluating the left/right sub-expressions produced.
+// TODO: work better on this later, I'm alreay tired.
+func (in *Interp) evalAssignRightSide(e *ast.AssignExpr) EvalResult {
+	rightRes := in.Eval(e.Right)
+
+	if e.Op == ast.Assign {
+		return rightRes
+	}
+
+	leftRes := in.Eval(e.Left)
+	left := expectKind(e.Left, leftRes.Value, KInt, KFloat)
+	right := expectKind(e.Right, rightRes.Value, KInt, KFloat)
+
+	if left.Kind() == KFloat || right.Kind() == KFloat {
+		lv, rv := asFloat(left), asFloat(right)
+		if e.Op == ast.AddAssign {
+			return normal(FloatV(lv + rv))
+		}
+		return normal(FloatV(lv - rv))
+	}
+
+	li, ri := intOf(left), intOf(right)
+	if e.Op == ast.AddAssign {
+		return normal(IntV(li + ri))
+	}
+	return normal(IntV(li - ri))
+}
+
+// ---- if/while/for-range/break/return ----
+
+func (in *Interp) evalIf(e *ast.IfExpr) EvalResult {
+	condRes := in.Eval(e.Condition)
+	t, ok := Truthy(condRes.Value)
+	if !ok {
+		throw(e.Condition.Pos(), "failed to check truthiness of '%s' data type on that 'if'", condRes.Value.Kind())
+	}
+
+	if t {
+		return in.evalBlockNewScope(e.Then)
+	}
+
+	for _, elif := range e.Elifs {
+		er := in.Eval(elif.Condition)
+		et, ok := Truthy(er.Value)
+		if !ok {
+			throw(elif.Condition.Pos(), "failed to check truthiness of '%s' data type on that 'elif'", er.Value.Kind())
+		}
+
+		if et {
+			return in.evalBlockNewScope(elif.Body)
+		}
+	}
+
+	if e.Else != nil {
+		return in.evalBlockNewScope(e.Else)
+	}
+
+	return normal(UnitV())
+}
+
+func (in *Interp) evalWhile(e *ast.WhileExpr) EvalResult {
+	last := normal(UnitV())
+
+	for {
+		if e.Condition != nil {
+			condRes := in.Eval(e.Condition)
+			t, ok := Truthy(condRes.Value)
+			if !ok {
+				throw(e.Condition.Pos(), "failed to check truthiness of '%s' data type on that 'loop'", condRes.Value.Kind())
+			}
+			if !t {
+				break
+			}
+		}
+
+		if e.Body != nil {
+			last = in.evalBlockNewScope(e.Body)
+
+			if last.Flow == FlowReturn {
+				return last
+			}
+			if last.Flow == FlowBreak {
+				last = normal(last.Value)
+				break
+			}
+		}
+	}
+
+	return last
+}
+
+func (in *Interp) evalForRange(e *ast.ForRangeExpr) EvalResult {
+	fromRes := in.Eval(e.From)
+	fromV := expectKind(e.From, fromRes.Value, KInt)
+
+	if e.To == nil {
+		return in.runForRange(e, 0, intOf(fromV), 1)
+	}
+
+	toRes := in.Eval(e.To)
+	toV := expectKind(e.To, toRes.Value, KInt)
+
+	if e.By == nil {
+		return in.runForRange(e, intOf(fromV), intOf(toV), 1)
+	}
+
+	byRes := in.Eval(e.By)
+	byV := expectKind(e.By, byRes.Value, KInt)
+
+	return in.runForRange(e, intOf(fromV), intOf(toV), intOf(byV))
+}
+
+// runForRange drives all three `for i : ...` shapes. Direction (ascending vs
+// descending) is decided by whether from*to crosses zero -- a quirk pinned
+// by an existing test and examples/loops.mca, so it's replicated exactly
+// rather than "fixed" to something more obvious like sign(by). break here
+// stops the loop and yields its value, same as while.
+// TODO: think more about this later.
+func (in *Interp) runForRange(e *ast.ForRangeExpr, from, to, by int64) EvalResult {
+	last := normal(UnitV())
+
+	isNegative := from*to < 0
+
+	for i := from; forRangeCond(isNegative, i, to); i += by {
+		if e.Body == nil {
+			continue
+		}
+
+		parent := in.pushScope()
+		in.Current.Define(e.Index.Name, IntV(i))
+		last = in.evalBlock(e.Body)
+		in.popScope(parent)
+
+		if last.Flow == FlowReturn {
+			return last
+		}
+		if last.Flow == FlowBreak {
+			last = normal(last.Value)
+			break
+		}
+	}
+
+	return last
+}
+
+func forRangeCond(isNegative bool, i, to int64) bool {
+	if isNegative {
+		return i > to
+	}
+	return i < to
+}
+
+func (in *Interp) evalBreak(e *ast.BreakExpr) EvalResult {
+	if e.Value != nil {
+		r := in.Eval(e.Value)
+		return EvalResult{Value: r.Value, Flow: FlowBreak}
+	}
+	return EvalResult{Value: UnitV(), Flow: FlowBreak}
+}
+
+func (in *Interp) evalReturn(e *ast.ReturnExpr) EvalResult {
+	if e.Value != nil {
+		r := in.Eval(e.Value)
+		return EvalResult{Value: r.Value, Flow: FlowReturn}
+	}
+	return EvalResult{Value: UnitV(), Flow: FlowReturn}
+}
+
+// ---- calls ----
+
+func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
+	if builtin, ok := builtins[e.FnName]; ok {
+		return normal(builtin(in, e, e.Args))
+	}
+
+	v, ok := in.Current.Get(e.FnName)
+	if !ok {
+		throw(e.Pos(), "function '%s' does not exist", e.FnName)
+	}
+	fv, ok := v.(*FnValue)
+	if !ok {
+		throw(e.Pos(), "you are trying to call '%s' that is a '%s', which is not a function", e.FnName, v.Kind())
+	}
+
+	return normal(in.callFn(fv, e.Pos(), e.FnName, e.Args))
+}
+
+// callFn evaluates a function call: arguments are evaluated in the caller's
+// (current) environment, then bound into a fresh call frame whose parent is
+// the function's *captured* environment (fv.Env, not the caller's
+// environment) -- this is what makes MCA's functions lexically-scoped
+// closures rather than dynamically-scoped ones.
+func (in *Interp) callFn(fv *FnValue, callPos ast.Pos, name string, argExprs []ast.Expr) Value {
+	if len(argExprs) > len(fv.Node.Params) {
+		throw(callPos, "too many arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(argExprs))
+	} else if len(argExprs) < len(fv.Node.Params) {
+		throw(callPos, "too few arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(argExprs))
+	}
+
+	args := make([]Value, len(argExprs))
+	for i, argExpr := range argExprs {
+		args[i] = in.Eval(argExpr).Value
+	}
+
+	fnEnv := NewEnv(fv.Env)
+	for i, param := range fv.Node.Params {
+		fnEnv.Define(param.Name, args[i])
+	}
+
+	callerEnv := in.Current
+	in.Current = fnEnv
+	result := in.evalBlock(fv.Node.Body)
+	in.Current = callerEnv
+
+	return result.Value
+}
