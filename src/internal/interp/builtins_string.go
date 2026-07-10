@@ -3,6 +3,7 @@ package interp
 import (
 	"strconv"
 	"strings"
+	"unicode"
 
 	"mca/internal/ast"
 )
@@ -18,6 +19,46 @@ func builtinLen(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	default: // *Array
 		return IntV(int64(len(vv.(*Array).Items)))
 	}
+}
+
+func builtinLower(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+
+	lower := strings.ToLower(str)
+
+	return StringV(lower)
+}
+
+func builtinUpper(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+
+	upper := strings.ToUpper(str)
+
+	return StringV(upper)
+}
+
+func builtinTrim(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+
+	out := strings.TrimSpace(str)
+
+	return StringV(out)
+}
+
+func builtinLTrim(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+
+	out := strings.TrimLeftFunc(str, unicode.IsSpace)
+
+	return StringV(out)
+}
+
+func builtinRTrim(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+
+	out := strings.TrimRightFunc(str, unicode.IsSpace)
+
+	return StringV(out)
 }
 
 func builtinJoin(in *Interp, caller ast.Expr, args []ast.Expr) Value {

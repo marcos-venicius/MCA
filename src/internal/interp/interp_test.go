@@ -740,6 +740,102 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
+func TestLower(t *testing.T) {
+	check(t, "lower('HELLO')", tString("hello"))
+	check(t, "lower('Hello World')", tString("hello world"))
+	check(t, "lower('already lower')", tString("already lower"))
+	check(t, "lower('')", tString(""))
+	check(t, "lower('MiXeD123!')", tString("mixed123!"))
+}
+
+func TestLowerWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "lower(123)")
+	expectRuntimeError(t, "lower(true)")
+	expectRuntimeError(t, "lower(['a'])")
+}
+
+func TestLowerArity(t *testing.T) {
+	expectRuntimeError(t, "lower()")
+	expectRuntimeError(t, "lower('a', 'b')")
+}
+
+func TestUpper(t *testing.T) {
+	check(t, "upper('hello')", tString("HELLO"))
+	check(t, "upper('Hello World')", tString("HELLO WORLD"))
+	check(t, "upper('ALREADY UPPER')", tString("ALREADY UPPER"))
+	check(t, "upper('')", tString(""))
+	check(t, "upper('MiXeD123!')", tString("MIXED123!"))
+}
+
+func TestUpperWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "upper(123)")
+	expectRuntimeError(t, "upper(true)")
+	expectRuntimeError(t, "upper(['a'])")
+}
+
+func TestUpperArity(t *testing.T) {
+	expectRuntimeError(t, "upper()")
+	expectRuntimeError(t, "upper('a', 'b')")
+}
+
+func TestTrim(t *testing.T) {
+	check(t, "trim('  hello  ')", tString("hello"))
+	check(t, "trim('hello')", tString("hello"))                     // nothing to trim
+	check(t, "trim('   ')", tString(""))                            // all whitespace
+	check(t, "trim('')", tString(""))                               // empty input
+	check(t, "trim('\t\\n hello \\n\t')", tString("hello"))         // tabs/newlines too (MCA only supports \n as an escape, tab is a raw byte)
+	check(t, "trim('  hello   world  ')", tString("hello   world")) // interior spaces preserved
+}
+
+func TestTrimWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "trim(123)")
+	expectRuntimeError(t, "trim(true)")
+	expectRuntimeError(t, "trim(['a'])")
+}
+
+func TestTrimArity(t *testing.T) {
+	expectRuntimeError(t, "trim()")
+	expectRuntimeError(t, "trim('a', 'b')")
+}
+
+func TestLTrim(t *testing.T) {
+	check(t, "ltrim('  hello  ')", tString("hello  ")) // only leading whitespace removed
+	check(t, "ltrim('hello')", tString("hello"))
+	check(t, "ltrim('   ')", tString(""))
+	check(t, "ltrim('')", tString(""))
+	check(t, "ltrim('\t\\n hello')", tString("hello"))
+}
+
+func TestLTrimWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "ltrim(123)")
+	expectRuntimeError(t, "ltrim(true)")
+	expectRuntimeError(t, "ltrim(['a'])")
+}
+
+func TestLTrimArity(t *testing.T) {
+	expectRuntimeError(t, "ltrim()")
+	expectRuntimeError(t, "ltrim('a', 'b')")
+}
+
+func TestRTrim(t *testing.T) {
+	check(t, "rtrim('  hello  ')", tString("  hello")) // only trailing whitespace removed
+	check(t, "rtrim('hello')", tString("hello"))
+	check(t, "rtrim('   ')", tString(""))
+	check(t, "rtrim('')", tString(""))
+	check(t, "rtrim('hello \\n\t')", tString("hello"))
+}
+
+func TestRTrimWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "rtrim(123)")
+	expectRuntimeError(t, "rtrim(true)")
+	expectRuntimeError(t, "rtrim(['a'])")
+}
+
+func TestRTrimArity(t *testing.T) {
+	expectRuntimeError(t, "rtrim()")
+	expectRuntimeError(t, "rtrim('a', 'b')")
+}
+
 func TestJoin(t *testing.T) {
 	check(t, "join(['a', 'b', 'c'], ',')", tString("a,b,c"))
 	check(t, "join(['a', 'b', 'c'], '')", tString("abc"))

@@ -85,6 +85,11 @@ func init() {
 		"len":       arity("len", 1, builtinLen),
 
 		// Strings
+		"lower":  arity("lower", 1, builtinLower),
+		"upper":  arity("upper", 1, builtinUpper),
+		"trim":   arity("trim", 1, builtinTrim),
+		"ltrim":  arity("ltrim", 1, builtinLTrim),
+		"rtrim":  arity("rtrim", 1, builtinRTrim),
 		"join":   arity("join", 2, builtinJoin),
 		"split":  arity("split", 2, builtinSplit),
 		"select": arity("select", 3, builtinSelect),
