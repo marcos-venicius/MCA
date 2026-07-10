@@ -93,6 +93,8 @@ func init() {
 		"format": arity("format", -1, builtinFormat),
 
 		// Maps
+		"keys":      arity("keys", 1, builtinMapKeys),
+		"values":    arity("values", 1, builtinMapValues),
 		"map_del":   arity("map_del", 2, builtinMapDel),
 		"map_clear": arity("map_clear", 1, builtinMapClear),
 

@@ -574,6 +574,84 @@ func TestHashmaps(t *testing.T) {
 	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; map_clear(m); len(m)", tInt(0))
 }
 
+func TestMapKeys(t *testing.T) {
+	check(t, "m = {}; len(keys(m))", tInt(0)) // empty map
+
+	check(t, "m = {}; m['only'] = 42; ks = keys(m); len(ks)", tInt(1))
+	check(t, "m = {}; m['only'] = 42; keys(m)[0]", tString("only"))
+
+	check(t, "m = {}; m[7] = 'seven'; keys(m)[0]", tInt(7))
+
+	// map iteration order isn't guaranteed, so verify the key *set* by
+	// building a membership map out of the result rather than indexing by
+	// position.
+	check(t,
+		"m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999;"+
+			"ks = keys(m); found = {}; for i, k : ks { found[k] = true };"+
+			"len(ks) == 3 and found['width'] and found['height'] and found['z-index']",
+		tBool(true))
+
+	// mixed string/int keys
+	check(t,
+		"m = {'name': 'John Doe', 'age': 32, 'weight': 67.56, 'is_dead': false, 10: 'test'};"+
+			"ks = keys(m); found = {}; for i, k : ks { found[k] = true };"+
+			"len(ks) == 5 and found['name'] and found['age'] and found['weight'] and found['is_dead'] and found[10]",
+		tBool(true))
+
+	// the returned array is a fresh copy -- mutating it doesn't touch the map
+	check(t, "m = {}; m['a'] = 1; ks = keys(m); append(ks, 'z'); len(m)", tInt(1))
+}
+
+func TestMapKeysWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "keys(123)")
+	expectRuntimeError(t, "keys('a string')")
+	expectRuntimeError(t, "keys([1, 2, 3])")
+	expectRuntimeError(t, "keys(true)")
+}
+
+func TestMapKeysArity(t *testing.T) {
+	expectRuntimeError(t, "keys()")
+	expectRuntimeError(t, "m = {}; keys(m, 'extra')")
+}
+
+func TestMapValues(t *testing.T) {
+	check(t, "m = {}; len(values(m))", tInt(0)) // empty map
+
+	check(t, "m = {}; m['only'] = 42; vs = values(m); len(vs)", tInt(1))
+	check(t, "m = {}; m['only'] = 42; values(m)[0]", tInt(42))
+
+	// map iteration order isn't guaranteed, so verify the value *set* by
+	// building a membership map out of the result rather than indexing by
+	// position.
+	check(t,
+		"m = {}; m['a'] = 1; m['b'] = 2; m['c'] = 3;"+
+			"vs = values(m); found = {}; for i, v : vs { found[v] = true };"+
+			"len(vs) == 3 and found[1] and found[2] and found[3]",
+		tBool(true))
+
+	// mixed-type values -- just check the count, since floats/bools can't
+	// be used as map keys to check membership the same way
+	check(t,
+		"m = {'name': 'John Doe', 'age': 32, 'weight': 67.56, 'is_dead': false, 10: 'test'};"+
+			"len(values(m))",
+		tInt(5))
+
+	// the returned array is a fresh copy -- mutating it doesn't touch the map
+	check(t, "m = {}; m['a'] = 1; vs = values(m); append(vs, 99); len(m)", tInt(1))
+}
+
+func TestMapValuesWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "values(123)")
+	expectRuntimeError(t, "values('a string')")
+	expectRuntimeError(t, "values([1, 2, 3])")
+	expectRuntimeError(t, "values(true)")
+}
+
+func TestMapValuesArity(t *testing.T) {
+	expectRuntimeError(t, "values()")
+	expectRuntimeError(t, "m = {}; values(m, 'extra')")
+}
+
 func TestArrays(t *testing.T) {
 	check(t, "a = []; len(a)", tInt(0))
 	check(t, "a = [1, 2, 'three']; len(a)", tInt(3))

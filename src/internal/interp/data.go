@@ -12,6 +12,17 @@ func mapKeyFromValue(v Value) (MapKey, bool) {
 	return MapKey{}, false
 }
 
+func mapValueFromKey(v MapKey) Value {
+	switch v.Kind {
+	case KString:
+		return StringV(v.S)
+	case KInt:
+		return IntV(v.I)
+	}
+
+	panic("mapValueFromKey: unreacheable")
+}
+
 func (in *Interp) evalArrayLit(e *ast.ArrayExpr) EvalResult {
 	items := make([]Value, len(e.Items))
 	for i, item := range e.Items {

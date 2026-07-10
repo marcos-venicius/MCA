@@ -19,3 +19,37 @@ func builtinMapClear(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	m.Clear()
 	return UnitV()
 }
+
+func builtinMapKeys(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
+
+	values := make([]Value, 0, m.Len())
+
+	for k := range m.values {
+		value := mapValueFromKey(k)
+
+		values = append(values, value)
+	}
+
+	out := Array{
+		Items: values,
+	}
+
+	return ArrayV(&out)
+}
+
+func builtinMapValues(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
+
+	values := make([]Value, 0, m.Len())
+
+	for _, v := range m.values {
+		values = append(values, v)
+	}
+
+	out := Array{
+		Items: values,
+	}
+
+	return ArrayV(&out)
+}
