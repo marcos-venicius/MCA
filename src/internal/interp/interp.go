@@ -802,3 +802,23 @@ func (in *Interp) callFn(fv *FnValue, callPos ast.Pos, name string, argExprs []a
 
 	return result.Value
 }
+
+func (in *Interp) callFnValue(fv *FnValue, callPos ast.Pos, name string, args []Value) Value {
+	if len(args) > len(fv.Node.Params) {
+		throw(callPos, "too many arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(args))
+	} else if len(args) < len(fv.Node.Params) {
+		throw(callPos, "too few arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(args))
+	}
+
+	fnEnv := NewEnv(fv.Env)
+	for i, param := range fv.Node.Params {
+		fnEnv.Define(param.Name, args[i])
+	}
+
+	callerEnv := in.Current
+	in.Current = fnEnv
+	result := in.evalBlock(fv.Node.Body)
+	in.Current = callerEnv
+
+	return result.Value
+}

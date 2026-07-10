@@ -67,6 +67,7 @@ func init() {
 		// language specifics
 		"import": arity("import", 1, builtinImport),
 
+		"filter":    arity("filter", 2, builtinFilter),
 		"type":      arity("type", 1, builtinType),
 		"argc":      arity("argc", 0, builtinArgc),
 		"argv":      arity("argv", 1, builtinArgv),

@@ -588,6 +588,38 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestFilter(t *testing.T) {
+	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); len(a)", tInt(3))
+	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); a[0]", tInt(3))
+	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); a[1]", tInt(4))
+	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); a[2]", tInt(5))
+
+	check(t, "a = filter([1, 2, 3], \\(x) -> x > 100); len(a)", tInt(0)) // nothing passes
+	check(t, "a = filter([1, 2, 3], \\(x) -> true); len(a)", tInt(3))    // everything passes
+	check(t, "a = filter([], \\(x) -> true); len(a)", tInt(0))          // empty input
+
+	check(t, "a = [1, 2, 3]; b = filter(a, \\(x) -> x > 1); len(a)", tInt(3)) // source array untouched
+
+	check(t, "a = filter(['a', 'bb', 'ccc'], \\(s) -> len(s) > 1); len(a)", tInt(2))
+	check(t, "a = filter(['a', 'bb', 'ccc'], \\(s) -> len(s) > 1); a[0]", tString("bb"))
+
+	// the closure is a real closure -- it can reference variables captured
+	// from its defining scope, not just its own parameter.
+	check(t, "threshold = 3; a = filter([1, 2, 3, 4, 5], \\(x) -> x > threshold); len(a)", tInt(2))
+}
+
+func TestFilterWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "filter(123, \\(x) -> true)")        // first arg must be an array
+	expectRuntimeError(t, "filter([1, 2, 3], 123)")             // second arg must be a function
+	expectRuntimeError(t, "filter([1, 2, 3], \\() -> true)")    // closure must take exactly one argument
+	expectRuntimeError(t, "filter([1, 2, 3], \\(x, y) -> true)")
+}
+
+func TestFilterArity(t *testing.T) {
+	expectRuntimeError(t, "filter([1, 2, 3])")
+	expectRuntimeError(t, "filter([1, 2, 3], \\(x) -> true, 'extra')")
+}
+
 func TestStrings(t *testing.T) {
 	check(t, "a = 'Hello World'; a[0]", tString("H"))
 	check(t, "'Hello World'[6]", tString("W"))
