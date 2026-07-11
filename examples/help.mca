@@ -1,0 +1,11 @@
+#!/usr/local/bin/mca
+
+
+# Prints all builtin functions
+help()
+
+
+for _ : 10  println()
+
+# print the help for 'map' builtin
+help(map)

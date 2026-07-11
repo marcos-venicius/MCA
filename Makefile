@@ -25,6 +25,7 @@ exec_examples:
 	./examples/user-defined-functions.mca
 	./examples/loops.mca
 	./examples/closures.mca
+	./examples/help.mca
 	cd ./examples/module && ./main.mca '$(shell echo -e '1, 2,      3, \n456    ')' && cd ../../
 
 .PHONY: ./bin/mca exec_examples
