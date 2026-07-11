@@ -1,6 +1,7 @@
 package interp
 
 import (
+	"bytes"
 	"io"
 	"math"
 	"os"
@@ -1152,5 +1153,119 @@ func TestImport(t *testing.T) {
 
 	if got.Kind() != KInt || intOf(got) != 42 {
 		t.Fatalf("import result = %+v, want int(42)", got)
+	}
+}
+
+// runHelpCapturingOutput runs src (expected to be one or more help() calls)
+// and returns whatever it wrote to stdout, for asserting on the printed
+// documentation itself rather than just the (always-unit) return value.
+func runHelpCapturingOutput(t *testing.T, src string) string {
+	t.Helper()
+
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		t.Fatalf("%q: lex errors: %v", src, l.Errors)
+	}
+
+	prog := parser.Parse("", toks)
+	if len(prog.Errors) > 0 {
+		t.Fatalf("%q: parse errors: %v", src, prog.Errors)
+	}
+
+	var buf bytes.Buffer
+	in := New()
+	in.Out = &buf
+	in.Err = io.Discard
+
+	if _, err := in.Run(prog.Stmts); err != nil {
+		t.Fatalf("%q: unexpected runtime error: %v", src, err)
+	}
+
+	return buf.String()
+}
+
+func TestHelp(t *testing.T) {
+	check(t, "help('map')", tUnit())
+	check(t, "help()", tUnit())
+
+	out := runHelpCapturingOutput(t, "help('map')")
+	if !strings.Contains(out, "map(arr: array, fn: fn) -> array") {
+		t.Errorf("help('map') missing its signature line, got:\n%s", out)
+	}
+	if !strings.Contains(out, "Examples:") {
+		t.Errorf("help('map') missing an examples section, got:\n%s", out)
+	}
+	if !strings.Contains(out, "map([1, 2, 3]") {
+		t.Errorf("help('map') missing its example call, got:\n%s", out)
+	}
+
+	overview := runHelpCapturingOutput(t, "help()")
+	if !strings.Contains(overview, "Math:") || !strings.Contains(overview, "Arrays:") {
+		t.Errorf("help() overview missing expected category headers, got:\n%s", overview)
+	}
+	if !strings.Contains(overview, "map") || !strings.Contains(overview, "concat") {
+		t.Errorf("help() overview missing expected builtin names, got:\n%s", overview)
+	}
+	if !strings.Contains(overview, "run help('name')") {
+		t.Errorf("help() overview missing the pointer to help('name'), got:\n%s", overview)
+	}
+}
+
+func TestHelpUnknownFunctionIsRuntimeError(t *testing.T) {
+	expectRuntimeError(t, "help('this_builtin_does_not_exist')")
+	expectRuntimeError(t, "help('')")
+}
+
+func TestHelpWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "help(123)")
+	expectRuntimeError(t, "help(true)")
+	expectRuntimeError(t, "help(['map'])")
+}
+
+func TestHelpArity(t *testing.T) {
+	expectRuntimeError(t, "help('map', 'filter')")
+}
+
+// TestHelpDocsCoverAllBuiltins keeps helpDocs honest as builtins get added
+// or removed: every registered builtin must have a help entry, and every
+// help entry must correspond to a real, still-registered builtin.
+func TestHelpDocsCoverAllBuiltins(t *testing.T) {
+	for name := range builtins {
+		if _, ok := helpDocs[name]; !ok {
+			t.Errorf("builtin %q is registered but has no help() entry", name)
+		}
+	}
+
+	for name := range helpDocs {
+		if _, ok := builtins[name]; !ok {
+			t.Errorf("help() entry %q does not correspond to any registered builtin", name)
+		}
+	}
+}
+
+// TestHelpCategoriesCoverAllDocs keeps helpCategories (used by help()'s
+// no-argument overview) in sync with helpDocs: every doc entry should
+// appear in exactly one category.
+func TestHelpCategoriesCoverAllDocs(t *testing.T) {
+	seen := map[string]bool{}
+
+	for _, cat := range helpCategories {
+		for _, name := range cat.Funcs {
+			if seen[name] {
+				t.Errorf("%q is listed in more than one help category", name)
+			}
+			seen[name] = true
+
+			if _, ok := helpDocs[name]; !ok {
+				t.Errorf("category %q lists %q but there's no help doc for it", cat.Name, name)
+			}
+		}
+	}
+
+	for name := range helpDocs {
+		if !seen[name] {
+			t.Errorf("help doc %q is not listed in any help category", name)
+		}
 	}
 }
