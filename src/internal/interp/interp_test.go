@@ -740,6 +740,52 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
+func TestStartsWith(t *testing.T) {
+	check(t, "starts_with('Hello World', 'Hello')", tBool(true))
+	check(t, "starts_with('Hello World', 'World')", tBool(false))
+	check(t, "starts_with('Hello World', '')", tBool(true))            // empty prefix always matches
+	check(t, "starts_with('', '')", tBool(true))                       // empty haystack, empty prefix
+	check(t, "starts_with('', 'a')", tBool(false))                     // empty haystack, non-empty prefix
+	check(t, "starts_with('Hello', 'Hello World')", tBool(false))      // prefix longer than string
+	check(t, "starts_with('hello', 'Hello')", tBool(false))            // case-sensitive
+	check(t, "starts_with('Hello World', 'Hello World')", tBool(true)) // exact match
+}
+
+func TestStartsWithWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "starts_with(123, 'a')")
+	expectRuntimeError(t, "starts_with('a', 123)")
+	expectRuntimeError(t, "starts_with(true, 'a')")
+	expectRuntimeError(t, "starts_with(['a'], 'a')")
+}
+
+func TestStartsWithArity(t *testing.T) {
+	expectRuntimeError(t, "starts_with('a')")
+	expectRuntimeError(t, "starts_with('a', 'b', 'c')")
+}
+
+func TestEndsWith(t *testing.T) {
+	check(t, "ends_with('Hello World', 'World')", tBool(true))
+	check(t, "ends_with('Hello World', 'Hello')", tBool(false))
+	check(t, "ends_with('Hello World', '')", tBool(true))            // empty suffix always matches
+	check(t, "ends_with('', '')", tBool(true))                       // empty haystack, empty suffix
+	check(t, "ends_with('', 'a')", tBool(false))                     // empty haystack, non-empty suffix
+	check(t, "ends_with('World', 'Hello World')", tBool(false))      // suffix longer than string
+	check(t, "ends_with('world', 'World')", tBool(false))            // case-sensitive
+	check(t, "ends_with('Hello World', 'Hello World')", tBool(true)) // exact match
+}
+
+func TestEndsWithWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "ends_with(123, 'a')")
+	expectRuntimeError(t, "ends_with('a', 123)")
+	expectRuntimeError(t, "ends_with(true, 'a')")
+	expectRuntimeError(t, "ends_with(['a'], 'a')")
+}
+
+func TestEndsWithArity(t *testing.T) {
+	expectRuntimeError(t, "ends_with('a')")
+	expectRuntimeError(t, "ends_with('a', 'b', 'c')")
+}
+
 func TestLower(t *testing.T) {
 	check(t, "lower('HELLO')", tString("hello"))
 	check(t, "lower('Hello World')", tString("hello world"))

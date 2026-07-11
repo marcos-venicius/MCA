@@ -21,6 +21,20 @@ func builtinLen(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	}
 }
 
+func builtinStartsWith(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+	prefix := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
+
+	return BoolV(strings.HasPrefix(str, prefix))
+}
+
+func builtinEndsWith(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+	suffix := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
+
+	return BoolV(strings.HasSuffix(str, suffix))
+}
+
 func builtinLower(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
 
