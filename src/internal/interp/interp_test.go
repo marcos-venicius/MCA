@@ -1186,18 +1186,18 @@ func runHelpCapturingOutput(t *testing.T, src string) string {
 }
 
 func TestHelp(t *testing.T) {
-	check(t, "help('map')", tUnit())
+	check(t, "help(map)", tUnit())
 	check(t, "help()", tUnit())
 
-	out := runHelpCapturingOutput(t, "help('map')")
+	out := runHelpCapturingOutput(t, "help(map)")
 	if !strings.Contains(out, "map(arr: array, fn: fn) -> array") {
-		t.Errorf("help('map') missing its signature line, got:\n%s", out)
+		t.Errorf("help(map) missing its signature line, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Examples:") {
-		t.Errorf("help('map') missing an examples section, got:\n%s", out)
+		t.Errorf("help(map) missing an examples section, got:\n%s", out)
 	}
 	if !strings.Contains(out, "map([1, 2, 3]") {
-		t.Errorf("help('map') missing its example call, got:\n%s", out)
+		t.Errorf("help(map) missing its example call, got:\n%s", out)
 	}
 
 	overview := runHelpCapturingOutput(t, "help()")
@@ -1213,8 +1213,7 @@ func TestHelp(t *testing.T) {
 }
 
 func TestHelpUnknownFunctionIsRuntimeError(t *testing.T) {
-	expectRuntimeError(t, "help('this_builtin_does_not_exist')")
-	expectRuntimeError(t, "help('')")
+	expectRuntimeError(t, "help(this_builtin_does_not_exist)")
 }
 
 func TestHelpWrongArgTypes(t *testing.T) {
