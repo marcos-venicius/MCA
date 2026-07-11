@@ -740,6 +740,34 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
+func TestRepeat(t *testing.T) {
+	check(t, "repeat('ab', 3)", tString("ababab"))
+	check(t, "repeat('a', 1)", tString("a")) // count of 1 -> unchanged
+	check(t, "repeat('a', 0)", tString(""))  // count of 0 -> empty string
+	check(t, "repeat('', 5)", tString(""))   // empty input -> empty regardless of count
+	check(t, "repeat('', 0)", tString(""))
+	check(t, "repeat('xy', 4)", tString("xyxyxyxy"))
+}
+
+func TestRepeatNegativeCountIsRuntimeError(t *testing.T) {
+	expectRuntimeError(t, "repeat('a', -1)")
+	expectRuntimeError(t, "repeat('a', -100)")
+	expectRuntimeError(t, "repeat('', -1)")
+}
+
+func TestRepeatWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "repeat(123, 3)")
+	expectRuntimeError(t, "repeat('a', 'b')")
+	expectRuntimeError(t, "repeat(true, 3)")
+	expectRuntimeError(t, "repeat(['a'], 3)")
+	expectRuntimeError(t, "repeat('a', 1.5)")
+}
+
+func TestRepeatArity(t *testing.T) {
+	expectRuntimeError(t, "repeat('a')")
+	expectRuntimeError(t, "repeat('a', 2, 3)")
+}
+
 func TestReplace(t *testing.T) {
 	check(t, "replace('Hello World', 'World', 'There')", tString("Hello There"))
 	check(t, "replace('aaa', 'a', 'b')", tString("bbb"))                            // all occurrences replaced

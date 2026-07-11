@@ -85,6 +85,7 @@ func init() {
 		"len":       arity("len", 1, builtinLen),
 
 		// Strings
+		"repeat":      arity("repeat", 2, builtinRepeat),
 		"replace":     arity("replace", 3, builtinReplace),
 		"starts_with": arity("starts_with", 2, builtinStartsWith),
 		"ends_with":   arity("ends_with", 2, builtinEndsWith),

@@ -21,6 +21,17 @@ func builtinLen(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	}
 }
 
+func builtinRepeat(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+	n := int(expectKind(args[1], in.Eval(args[1]).Value, KInt).(IntValue))
+
+	if n < 0 {
+		throw(args[1].Pos(), "repeat count cannot be negative, got %d", n)
+	}
+
+	return StringV(strings.Repeat(str, n))
+}
+
 func builtinReplace(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
 	old := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
