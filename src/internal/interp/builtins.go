@@ -108,9 +108,10 @@ func init() {
 		"map_clear": arity("map_clear", 1, builtinMapClear),
 
 		// Arrays
-		"map":    arity("map", 2, builtinMap),
-		"filter": arity("filter", 2, builtinFilter),
-		"append": arity("append", 2, builtinAppend),
+		"contains": arity("contains", 2, builtinContains),
+		"map":      arity("map", 2, builtinMap),
+		"filter":   arity("filter", 2, builtinFilter),
+		"append":   arity("append", 2, builtinAppend),
 
 		// random
 		"srand": arity("srand", 1, builtinSrand),

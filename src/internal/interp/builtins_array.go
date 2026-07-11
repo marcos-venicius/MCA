@@ -1,6 +1,45 @@
 package interp
 
-import "mca/internal/ast"
+import (
+	"mca/internal/ast"
+	"strings"
+)
+
+func builtinContains(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	target := expectKind(args[0], in.Eval(args[0]).Value, KString, KArray, KMap)
+
+	switch target.Kind() {
+	case KString:
+		substr := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
+
+		return BoolV(strings.Contains(string(target.(StringValue)), substr))
+	case KArray:
+		value := in.Eval(args[1]).Value
+
+		items := (target.(*Array)).Items
+
+		for _, v := range items {
+			if compareTwoValues(v, value) {
+				return BoolV(true)
+			}
+		}
+
+		return BoolV(false)
+	case KMap:
+		key := expectKind(args[1], in.Eval(args[1]).Value, KString, KInt)
+
+		mk, _ := mapKeyFromValue(key)
+		m := (target.(*Map)).values
+
+		if _, ok := m[mk]; ok {
+			return BoolV(true)
+		}
+
+		return BoolV(false)
+	}
+
+	panic("builtinContains: unreacheable")
+}
 
 func builtinFilter(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array).Items

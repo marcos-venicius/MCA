@@ -666,6 +666,50 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestContainsString(t *testing.T) {
+	check(t, "contains('Hello World', 'World')", tBool(true))
+	check(t, "contains('Hello World', 'world')", tBool(false)) // case-sensitive
+	check(t, "contains('Hello World', '')", tBool(true))       // empty needle always matches
+	check(t, "contains('', '')", tBool(true))
+	check(t, "contains('', 'a')", tBool(false))
+	check(t, "contains('Hello World', 'Hello World')", tBool(true)) // exact match
+	check(t, "contains('Hello World', 'xyz')", tBool(false))
+}
+
+func TestContainsArray(t *testing.T) {
+	check(t, "contains([1, 2, 3], 2)", tBool(true))
+	check(t, "contains([1, 2, 3], 5)", tBool(false))
+	check(t, "contains([], 1)", tBool(false)) // empty array
+	check(t, "contains(['a', 'b', 'c'], 'b')", tBool(true))
+	check(t, "contains(['a', 'b', 'c'], 'z')", tBool(false))
+	check(t, "contains([1, 2, 3], 2.0)", tBool(true))           // cross-kind numeric comparison
+	check(t, "contains([1, 'a', true], 'a')", tBool(true))      // mixed-type array
+	check(t, "contains([1, 2, 3], '2')", tBool(false))          // string '2' != int 2, no coercion
+	check(t, "contains([[1, 2], [3, 4]], [1, 2])", tBool(true)) // array equality by value
+}
+
+func TestContainsMap(t *testing.T) {
+	check(t, "m = {'a': 1, 'b': 2}; contains(m, 'a')", tBool(true))
+	check(t, "m = {'a': 1, 'b': 2}; contains(m, 'z')", tBool(false))
+	check(t, "m = {}; contains(m, 'a')", tBool(false)) // empty map
+	check(t, "m = {1: 'x', 2: 'y'}; contains(m, 1)", tBool(true))
+	check(t, "m = {1: 'x', 2: 'y'}; contains(m, 3)", tBool(false))
+	check(t, "m = {'a': 1}; contains(m, 'A')", tBool(false)) // case-sensitive key
+}
+
+func TestContainsWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "contains(123, 1)") // first arg must be string/array/map
+	expectRuntimeError(t, "contains(true, 1)")
+	expectRuntimeError(t, "contains('abc', 1)") // needle must be a string when haystack is a string
+	expectRuntimeError(t, "contains({}, true)") // map key must be string/int
+	expectRuntimeError(t, "contains({}, [1])")
+}
+
+func TestContainsArity(t *testing.T) {
+	expectRuntimeError(t, "contains([1, 2, 3])")
+	expectRuntimeError(t, "contains([1, 2, 3], 1, 'extra')")
+}
+
 func TestFilter(t *testing.T) {
 	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); len(a)", tInt(3))
 	check(t, "a = filter([1, 2, 3, 4, 5], \\(x) -> x > 2); a[0]", tInt(3))
