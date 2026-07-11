@@ -666,6 +666,40 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestConcat(t *testing.T) {
+	check(t, "len(concat())", tInt(0)) // no args -> empty array
+
+	check(t, "a = concat([1, 2, 3]); len(a)", tInt(3)) // single array -> same contents
+	check(t, "a = concat([1, 2, 3]); a[0]", tInt(1))
+	check(t, "a = concat([1, 2, 3]); a[2]", tInt(3))
+
+	check(t, "a = concat([1, 2], [3, 4]); len(a)", tInt(4))
+	check(t, "a = concat([1, 2], [3, 4]); a[0]", tInt(1))
+	check(t, "a = concat([1, 2], [3, 4]); a[1]", tInt(2))
+	check(t, "a = concat([1, 2], [3, 4]); a[2]", tInt(3))
+	check(t, "a = concat([1, 2], [3, 4]); a[3]", tInt(4))
+
+	check(t, "a = concat([1], [2], [3]); len(a)", tInt(3)) // more than two arrays
+	check(t, "a = concat([1], [2], [3]); a[1]", tInt(2))
+
+	check(t, "a = concat([], [1, 2]); len(a)", tInt(2)) // leading empty array
+	check(t, "a = concat([1, 2], []); len(a)", tInt(2)) // trailing empty array
+	check(t, "a = concat([], []); len(a)", tInt(0))     // all empty
+
+	check(t, "a = concat(['a', 1, true]); a[2]", tBool(true)) // mixed-type elements preserved
+
+	// the returned array is a fresh copy -- mutating it doesn't touch the sources
+	check(t, "a = [1, 2]; b = concat(a, [3]); append(b, 4); len(a)", tInt(2))
+}
+
+func TestConcatWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "concat(123)")
+	expectRuntimeError(t, "concat('not an array')")
+	expectRuntimeError(t, "concat([1, 2], 123)") // fails on the first non-array
+	expectRuntimeError(t, "concat([1, 2], true)")
+	expectRuntimeError(t, "concat({}, [1, 2])") // map, not array
+}
+
 func TestContainsString(t *testing.T) {
 	check(t, "contains('Hello World', 'World')", tBool(true))
 	check(t, "contains('Hello World', 'world')", tBool(false)) // case-sensitive

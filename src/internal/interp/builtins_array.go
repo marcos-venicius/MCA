@@ -5,6 +5,22 @@ import (
 	"strings"
 )
 
+func builtinConcat(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	out := make([]Value, 0)
+
+	for _, arg := range args {
+		value := expectKind(arg, in.Eval(arg).Value, KArray).(*Array)
+
+		out = append(out, value.Items...)
+	}
+
+	arr := Array{
+		Items: out,
+	}
+
+	return ArrayV(&arr)
+}
+
 func builtinContains(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	target := expectKind(args[0], in.Eval(args[0]).Value, KString, KArray, KMap)
 
