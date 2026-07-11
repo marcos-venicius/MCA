@@ -21,6 +21,14 @@ func builtinLen(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	}
 }
 
+func builtinReplace(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
+	old := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))
+	new := string(expectKind(args[2], in.Eval(args[2]).Value, KString).(StringValue))
+
+	return StringV(strings.ReplaceAll(str, old, new))
+}
+
 func builtinStartsWith(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	str := string(expectKind(args[0], in.Eval(args[0]).Value, KString).(StringValue))
 	prefix := string(expectKind(args[1], in.Eval(args[1]).Value, KString).(StringValue))

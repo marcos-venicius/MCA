@@ -740,6 +740,30 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
+func TestReplace(t *testing.T) {
+	check(t, "replace('Hello World', 'World', 'There')", tString("Hello There"))
+	check(t, "replace('aaa', 'a', 'b')", tString("bbb"))                            // all occurrences replaced
+	check(t, "replace('Hello World', 'x', 'y')", tString("Hello World"))            // no match -> unchanged
+	check(t, "replace('Hello World', '', 'x')", tString("xHxexlxlxox xWxoxrxlxdx")) // empty old -- matches between every rune, matching strings.ReplaceAll
+	check(t, "replace('Hello World', 'World', '')", tString("Hello "))              // empty new -- deletes matches
+	check(t, "replace('', 'a', 'b')", tString(""))                                  // empty haystack
+	check(t, "replace('aaaa', 'aa', 'b')", tString("bb"))                           // overlapping-looking matches consumed left to right, non-overlapping
+	check(t, "replace('Hello', 'hello', 'x')", tString("Hello"))                    // case-sensitive
+}
+
+func TestReplaceWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "replace(123, 'a', 'b')")
+	expectRuntimeError(t, "replace('a', 123, 'b')")
+	expectRuntimeError(t, "replace('a', 'a', 123)")
+	expectRuntimeError(t, "replace(true, 'a', 'b')")
+	expectRuntimeError(t, "replace(['a'], 'a', 'b')")
+}
+
+func TestReplaceArity(t *testing.T) {
+	expectRuntimeError(t, "replace('a', 'b')")
+	expectRuntimeError(t, "replace('a', 'b', 'c', 'd')")
+}
+
 func TestStartsWith(t *testing.T) {
 	check(t, "starts_with('Hello World', 'Hello')", tBool(true))
 	check(t, "starts_with('Hello World', 'World')", tBool(false))
