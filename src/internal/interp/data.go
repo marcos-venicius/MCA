@@ -40,7 +40,13 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 	m := NewMap()
 
 	for i := range e.Keys {
-		keyVal := expectKind(e.Keys[i], in.Eval(e.Keys[i]).Value, KInt, KString)
+		var keyVal Value
+
+		if ident, ok := e.Keys[i].(*ast.Ident); ok {
+			keyVal = StringV(ident.Name)
+		} else {
+			keyVal = expectKind(e.Keys[i], in.Eval(e.Keys[i]).Value, KInt, KString)
+		}
 		mk, _ := mapKeyFromValue(keyVal)
 
 		valVal := expectKind(e.Values[i], in.Eval(e.Values[i]).Value, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)

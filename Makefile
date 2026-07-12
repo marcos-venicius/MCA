@@ -28,4 +28,7 @@ exec_examples:
 	./examples/help.mca
 	cd ./examples/module && ./main.mca '$(shell echo -e '1, 2,      3, \n456    ')' && cd ../../
 
+clean:
+	rm ./bin/mca
+
 .PHONY: ./bin/mca exec_examples
