@@ -2,8 +2,34 @@ package interp
 
 import (
 	"mca/internal/ast"
+	"slices"
 	"strings"
 )
+
+func builtinSort(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	array := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+	lambda := expectKind(args[1], in.Eval(args[1]).Value, KFn).(*FnValue)
+
+	if len(lambda.Node.Params) != 2 {
+		throw(args[1].Pos(), "expected two arguments but got %d", len(lambda.Node.Params))
+	}
+
+	copy := slices.Clone(array.Items)
+
+	slices.SortFunc(copy, func(a, b Value) int {
+		result := in.callFnValue(lambda, args[1].Pos(), calleeLabel(nil), []Value{a, b})
+
+		if result.Kind() != KInt {
+			throw(args[1].Pos(), "the sorting function should return an integer but returned %s. try `help(sort)`", result.Kind())
+		}
+
+		return int(result.(IntValue))
+	})
+
+	return ArrayV(&Array{
+		Items: copy,
+	})
+}
 
 func builtinReverse(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	value := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)

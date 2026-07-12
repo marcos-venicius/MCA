@@ -667,6 +667,53 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestSort(t *testing.T) {
+	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); len(a)`, tInt(3))
+	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); a[0]`, tInt(1))
+	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); a[1]`, tInt(2))
+	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); a[2]`, tInt(3))
+
+	check(t, `a = sort([3, 1, 2], \(x, y) -> y - x); a[0]`, tInt(3)) // descending, via a flipped comparator
+	check(t, `a = sort([3, 1, 2], \(x, y) -> y - x); a[2]`, tInt(1))
+
+	check(t, `len(sort([], \(x, y) -> x - y))`, tInt(0))         // empty array
+	check(t, `a = sort([5], \(x, y) -> x - y); len(a)`, tInt(1)) // single element -- unchanged
+	check(t, `a = sort([5], \(x, y) -> x - y); a[0]`, tInt(5))
+
+	check(t, `a = sort([3, 1, 2, 1, 3], \(x, y) -> x - y); format(a[0], a[1], a[2], a[3], a[4])`, tString("11233")) // duplicates preserved
+
+	// comparator must itself return an int -- int subtraction works
+	// directly, but a float comparator has to say explicitly which way it
+	// goes since a - b would come out a float
+	check(t,
+		`cmp = \(x, y) -> if (x < y) { -1 } elif (x > y) { 1 } else { 0 };`+
+			`a = sort([1.5, 0.5, 2.5], cmp); format(a[0], a[1], a[2])`,
+		tString("0.51.52.5"))
+
+	// composes with other array builtins
+	check(t, `a = sort(reverse([1, 2, 3]), \(x, y) -> x - y); format(a[0], a[1], a[2])`, tString("123"))
+
+	// the source array is untouched, and the result is a fresh array
+	check(t, `a = [3, 1, 2]; b = sort(a, \(x, y) -> x - y); a[0]`, tInt(3))
+	check(t, `a = [3, 1, 2]; b = sort(a, \(x, y) -> x - y); append(b, 9); len(a)`, tInt(3))
+}
+
+func TestSortWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, `sort(123, \(x, y) -> x - y)`) // first arg must be an array
+	expectRuntimeError(t, `sort('not an array', \(x, y) -> x - y)`)
+	expectRuntimeError(t, `sort([1, 2, 3], 123)`)       // second arg must be a function
+	expectRuntimeError(t, `sort([1, 2, 3], \(x) -> x)`) // comparator must take exactly two arguments
+	expectRuntimeError(t, `sort([1, 2, 3], \(x, y, z) -> x)`)
+	expectRuntimeError(t, `sort([1, 2, 3], \(x, y) -> x > y)`)  // comparator must return an int, not a bool
+	expectRuntimeError(t, `sort([1, 2, 3], \(x, y) -> 'lt')`)   // ... nor a string
+	expectRuntimeError(t, `sort([1.5, 0.5], \(x, y) -> x - y)`) // ... nor a float (x - y on floats)
+}
+
+func TestSortArity(t *testing.T) {
+	expectRuntimeError(t, `sort([1, 2, 3])`)
+	expectRuntimeError(t, `sort([1, 2, 3], \(x, y) -> x - y, 'extra')`)
+}
+
 func TestReverse(t *testing.T) {
 	check(t, "a = reverse([1, 2, 3]); len(a)", tInt(3))
 	check(t, "a = reverse([1, 2, 3]); a[0]", tInt(3))

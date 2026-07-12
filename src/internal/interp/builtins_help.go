@@ -55,7 +55,7 @@ var helpCategories = []struct {
 		"keys", "values", "map_del", "map_clear",
 	}},
 	{"Arrays", []string{
-		"concat", "contains", "map", "filter", "append", "reverse",
+		"concat", "contains", "map", "filter", "append", "reverse", "sort",
 	}},
 	{"Random", []string{
 		"srand", "rand",
@@ -378,6 +378,15 @@ var helpDocs = map[string]helpDoc{
 
 	// ---- Arrays ----
 
+	"sort": {
+		Params:      []helpParam{p("arr", "array"), p("cmp", "fn")},
+		Returns:     "array",
+		Description: "A new, sorted array holding the elements of arr. cmp must take exactly two arguments and return an int: negative if the first should sort before the second, positive if after, zero if they're equal. Does not mutate arr.",
+		Examples: []string{
+			`sort([3, 1, 2], \(a, b) -> a - b)  ->  [1, 2, 3]`,
+			`sort([3, 1, 2], \(a, b) -> b - a)  ->  [3, 2, 1]`,
+		},
+	},
 	"concat": {
 		Params:      []helpParam{pv("arrays", "array")},
 		Returns:     "array",
