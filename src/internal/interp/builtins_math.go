@@ -31,6 +31,34 @@ func mathBuiltin(f func(float64) float64) BuiltinFn {
 func builtinPI(in *Interp, caller ast.Expr, args []ast.Expr) Value { return FloatV(math.Pi) }
 func builtinE(in *Interp, caller ast.Expr, args []ast.Expr) Value  { return FloatV(math.E) }
 
+func builtinSum(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+
+	hasFloat := false
+
+	var r float64 = 0
+
+	for _, v := range arr.Items {
+		if v.Kind() != KInt && v.Kind() != KFloat {
+			throw(args[0].Pos(), "expected int | float but got %s", v.Kind())
+		}
+
+		if v.Kind() == KFloat {
+			hasFloat = true
+
+			r += float64(v.(FloatValue))
+		} else {
+			r += float64(v.(IntValue))
+		}
+	}
+
+	if hasFloat {
+		return FloatV(r)
+	}
+
+	return IntV(int64(r))
+}
+
 func builtinAbs(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	arg := expectKind(args[0], in.Eval(args[0]).Value, KInt, KFloat, KBool)
 

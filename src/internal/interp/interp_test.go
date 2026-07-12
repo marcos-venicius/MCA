@@ -177,6 +177,42 @@ func TestBinaryOperatorsEqualityAndRelational(t *testing.T) {
 	check(t, "'Hello' != 'Hello'", tBool(false))
 }
 
+func TestSum(t *testing.T) {
+	check(t, "sum([1, 2, 3])", tInt(6))
+	check(t, "sum([-1, -2, 3])", tInt(0))
+	check(t, "sum([5])", tInt(5)) // single element
+	check(t, "sum([])", tInt(0))  // empty array -- sums to int 0
+	check(t, "sum([1.5, 2.5])", tFloat(4.0))
+	check(t, "sum([1, 2.5])", tFloat(3.5)) // any float present -> promotes to float
+	check(t, "sum([1, 2.5, 3])", tFloat(6.5))
+
+	check(t, "type(sum([1, 2, 3]))", tString("int"))
+	check(t, "type(sum([1, 2.0, 3]))", tString("float"))
+
+	// composes with other array builtins
+	check(t, "sum(reverse([1, 2, 3]))", tInt(6))
+	check(t, "sum(sort([3, 1, 2], \\(x, y) -> x - y))", tInt(6))
+	check(t, "sum(map([1, 2, 3], \\(x) -> x * 2))", tInt(12))
+	check(t, "sum(filter([1, 2, 3, 4], \\(x) -> x > 2))", tInt(7))
+
+	// source array untouched
+	check(t, "a = [1, 2, 3]; sum(a); len(a)", tInt(3))
+}
+
+func TestSumWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "sum(123)") // must be an array
+	expectRuntimeError(t, "sum('not an array')")
+	expectRuntimeError(t, "sum({})")
+	expectRuntimeError(t, "sum([1, 2, 'a'])") // every element must be int|float
+	expectRuntimeError(t, "sum([1, true])")   // bools aren't accepted, unlike abs/max/min
+	expectRuntimeError(t, "sum([1, [2]])")
+}
+
+func TestSumArity(t *testing.T) {
+	expectRuntimeError(t, "sum()")
+	expectRuntimeError(t, "sum([1, 2], [3])")
+}
+
 func TestCallBuiltinFunctions(t *testing.T) {
 	check(t, "abs(abs(-1) - 2)", tInt(1))
 	check(t, "(abs(-1) * 2) ^ 2", tInt(4))

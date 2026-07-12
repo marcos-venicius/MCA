@@ -40,6 +40,7 @@ func init() {
 		// Math related
 		"PI":    arity("PI", 0, builtinPI),
 		"E":     arity("E", 0, builtinE),
+		"sum":   arity("sum", 1, builtinSum),
 		"abs":   arity("abs", 1, builtinAbs),
 		"max":   arity("max", -1, builtinMax),
 		"min":   arity("min", -1, builtinMin),

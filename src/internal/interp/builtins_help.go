@@ -34,7 +34,7 @@ var helpCategories = []struct {
 	Funcs []string
 }{
 	{"Math", []string{
-		"PI", "E", "abs", "max", "min", "sin", "cos", "asin", "acos", "tan",
+		"PI", "E", "sum", "abs", "max", "min", "sin", "cos", "asin", "acos", "tan",
 		"rad", "deg", "sqrt", "log", "log10", "exp", "floor", "ceil", "round",
 	}},
 	{"I/O & System", []string{
@@ -85,6 +85,15 @@ var helpDocs = map[string]helpDoc{
 		Examples: []string{
 			`abs(-15.5)  ->  15.5`,
 			`abs(-1)  ->  1`,
+		},
+	},
+	"sum": {
+		Params:      []helpParam{p("arr", "array")},
+		Returns:     "int|float",
+		Description: "Sum of every element of arr. Every element must be an int or a float (unlike abs/max/min, bools aren't accepted). Stays int if every element is an int, otherwise promotes to float. Sums to 0 for an empty array.",
+		Examples: []string{
+			`sum([1, 2, 3])  ->  6`,
+			`sum([1, 2.5])  ->  3.5`,
 		},
 	},
 	"max": {
