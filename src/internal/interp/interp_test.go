@@ -667,6 +667,37 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestReverse(t *testing.T) {
+	check(t, "a = reverse([1, 2, 3]); len(a)", tInt(3))
+	check(t, "a = reverse([1, 2, 3]); a[0]", tInt(3))
+	check(t, "a = reverse([1, 2, 3]); a[1]", tInt(2))
+	check(t, "a = reverse([1, 2, 3]); a[2]", tInt(1))
+
+	check(t, "len(reverse([]))", tInt(0))         // empty array
+	check(t, "a = reverse([1]); len(a)", tInt(1)) // single element -- unchanged
+	check(t, "a = reverse([1]); a[0]", tInt(1))
+	check(t, "a = reverse(['a', 'b', 'c']); a[0]", tString("c")) // non-numeric elements
+	check(t, "a = reverse([1, 'two', true]); a[0]", tBool(true)) // mixed-type elements preserved
+
+	check(t, "a = reverse(reverse([1, 2, 3])); a[0]", tInt(1)) // reversing twice round-trips
+
+	// the source array is untouched, and the result is a fresh array
+	check(t, "a = [1, 2, 3]; b = reverse(a); a[0]", tInt(1))
+	check(t, "a = [1, 2, 3]; b = reverse(a); append(b, 4); len(a)", tInt(3))
+}
+
+func TestReverseWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "reverse(123)")
+	expectRuntimeError(t, "reverse('a string')")
+	expectRuntimeError(t, "reverse(true)")
+	expectRuntimeError(t, "reverse({})")
+}
+
+func TestReverseArity(t *testing.T) {
+	expectRuntimeError(t, "reverse()")
+	expectRuntimeError(t, "reverse([1, 2, 3], 'extra')")
+}
+
 func TestConcat(t *testing.T) {
 	check(t, "len(concat())", tInt(0)) // no args -> empty array
 

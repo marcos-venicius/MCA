@@ -5,6 +5,22 @@ import (
 	"strings"
 )
 
+func builtinReverse(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	value := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+
+	out := make([]Value, len(value.Items))
+
+	for i := range value.Items {
+		out[i] = value.Items[len(value.Items)-i-1]
+	}
+
+	arr := Array{
+		Items: out,
+	}
+
+	return ArrayV(&arr)
+}
+
 func builtinConcat(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	out := make([]Value, 0)
 

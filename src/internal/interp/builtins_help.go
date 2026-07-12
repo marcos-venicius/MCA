@@ -55,7 +55,7 @@ var helpCategories = []struct {
 		"keys", "values", "map_del", "map_clear",
 	}},
 	{"Arrays", []string{
-		"concat", "contains", "map", "filter", "append",
+		"concat", "contains", "map", "filter", "append", "reverse",
 	}},
 	{"Random", []string{
 		"srand", "rand",
@@ -410,6 +410,12 @@ var helpDocs = map[string]helpDoc{
 		Returns:     "array",
 		Description: "Appends value to the end of arr in place, and returns arr.",
 		Examples:    []string{`a = [1]; append(a, 2); a  ->  [1, 2]`},
+	},
+	"reverse": {
+		Params:      []helpParam{p("arr", "array")},
+		Returns:     "array",
+		Description: "A new array with the same values of the original but in the reverse order. Does not mutate arr.",
+		Examples:    []string{`a = [1, 2, 3, 4, 5]; reverse(a)  -> [5, 4, 3, 2, 1]`},
 	},
 
 	// ---- Random ----

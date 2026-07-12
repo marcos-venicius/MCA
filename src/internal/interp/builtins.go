@@ -109,6 +109,7 @@ func init() {
 		"map_clear": arity("map_clear", 1, builtinMapClear),
 
 		// Arrays
+		"reverse":  arity("reverse", 1, builtinReverse),
 		"concat":   arity("concat", -1, builtinConcat),
 		"contains": arity("contains", 2, builtinContains),
 		"map":      arity("map", 2, builtinMap),
