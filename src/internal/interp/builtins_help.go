@@ -55,7 +55,7 @@ var helpCategories = []struct {
 		"keys", "values", "map_del", "map_clear",
 	}},
 	{"Arrays", []string{
-		"concat", "contains", "map", "filter", "append", "reverse", "sort",
+		"concat", "contains", "map", "filter", "append", "delete", "reverse", "sort",
 	}},
 	{"Random", []string{
 		"srand", "rand",
@@ -419,6 +419,15 @@ var helpDocs = map[string]helpDoc{
 		Returns:     "array",
 		Description: "Appends value to the end of arr in place, and returns arr.",
 		Examples:    []string{`a = [1]; append(a, 2); a  ->  [1, 2]`},
+	},
+	"delete": {
+		Params:      []helpParam{p("arr", "array"), p("start", "int"), p("end", "int")},
+		Returns:     "array",
+		Description: "Removes elements from arr in place and returns arr. With just start, removes that single index. With end too, removes the half-open range [start, end) -- start through end-1. Throws a runtime error if start or end is out of range, or start > end.",
+		Examples: []string{
+			`a = [1, 2, 3, 4, 5]; delete(a, 2); a  ->  [1, 2, 4, 5]`,
+			`a = [1, 2, 3, 4, 5]; delete(a, 1, 4); a  ->  [1, 5]`,
+		},
 	},
 	"reverse": {
 		Params:      []helpParam{p("arr", "array")},

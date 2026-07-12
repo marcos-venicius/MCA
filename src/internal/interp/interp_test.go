@@ -714,6 +714,50 @@ func TestSortArity(t *testing.T) {
 	expectRuntimeError(t, `sort([1, 2, 3], \(x, y) -> x - y, 'extra')`)
 }
 
+func TestDelete(t *testing.T) {
+	// single-index form
+	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); len(a)", tInt(4))
+	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); format(a[0], a[1], a[2], a[3])", tString("1245"))
+	check(t, "a = [1]; delete(a, 0); len(a)", tInt(0)) // delete the only element
+
+	// range form -- half-open [start, end), matching select()
+	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); len(a)", tInt(2))
+	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); format(a[0], a[1])", tString("15"))
+	check(t, "a = [1, 2, 3]; delete(a, 0, 3); len(a)", tInt(0)) // delete the whole array
+	check(t, "a = [1, 2, 3]; delete(a, 0, 0); len(a)", tInt(3)) // empty range -- nothing removed
+	check(t, "a = [1, 2, 3]; delete(a, 1, 1); format(a[0], a[1], a[2])", tString("123"))
+
+	// mutates in place and returns the same array (identity, not a copy)
+	check(t, "a = [1, 2, 3]; b = delete(a, 0); a == b", tBool(true))
+	check(t, "a = [1, 2, 3]; b = delete(a, 0); len(b)", tInt(2))
+	check(t, "a = [1, 2, 3]; delete(a, 0); len(a)", tInt(2)) // a itself reflects the mutation
+
+	// composes with other array builtins
+	check(t, "a = delete(reverse([1, 2, 3]), 0); format(a[0], a[1])", tString("21"))
+}
+
+func TestDeleteOutOfRange(t *testing.T) {
+	expectRuntimeError(t, "delete([1, 2, 3], -1)")    // negative start
+	expectRuntimeError(t, "delete([1, 2, 3], 3)")     // start == length
+	expectRuntimeError(t, "delete([1, 2, 3], 0, 4)")  // end > length
+	expectRuntimeError(t, "delete([1, 2, 3], 0, -1)") // negative end
+	expectRuntimeError(t, "delete([1, 2, 3], 2, 1)")  // start > end
+	expectRuntimeError(t, "delete([], 0)")            // empty array
+}
+
+func TestDeleteWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "delete(123, 0)") // first arg must be an array
+	expectRuntimeError(t, "delete('not an array', 0)")
+	expectRuntimeError(t, "delete([1, 2, 3], 'a')")    // start must be an int
+	expectRuntimeError(t, "delete([1, 2, 3], 0, 'a')") // end must be an int
+	expectRuntimeError(t, "delete([1, 2, 3], true)")
+}
+
+func TestDeleteArity(t *testing.T) {
+	expectRuntimeError(t, "delete([1, 2, 3])")
+	expectRuntimeError(t, "delete([1, 2, 3], 0, 1, 2)")
+}
+
 func TestReverse(t *testing.T) {
 	check(t, "a = reverse([1, 2, 3]); len(a)", tInt(3))
 	check(t, "a = reverse([1, 2, 3]); a[0]", tInt(3))

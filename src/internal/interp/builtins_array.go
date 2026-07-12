@@ -164,3 +164,39 @@ func builtinAppend(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 
 	return arrVal
 }
+
+// builtinDelete implements delete(array, start, end?): removes the single
+// index start, or the range [start, end) when end is given -- same
+// half-open convention as select()'s [from, to). Mutates array in place and
+// returns it.
+func builtinDelete(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	if len(args) > 3 {
+		throw(caller.Pos(), "too many arguments delete(...). expected 2 or 3 but got %d", len(args))
+	} else if len(args) < 2 {
+		throw(caller.Pos(), "too few arguments delete(...). expected 2 or 3 but got %d", len(args))
+	}
+
+	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+	start := intOf(expectKind(args[1], in.Eval(args[1]).Value, KInt))
+
+	length := int64(len(arr.Items))
+
+	end := start + 1
+	if len(args) == 3 {
+		end = intOf(expectKind(args[2], in.Eval(args[2]).Value, KInt))
+	}
+
+	if start < 0 || start >= length {
+		throw(args[1].Pos(), "start '%d' is out of range. The size of the array is %d", start, length)
+	}
+	if end < 0 || end > length {
+		throw(args[len(args)-1].Pos(), "end '%d' is out of range. The size of the array is %d", end, length)
+	}
+	if start > end {
+		throw(args[1].Pos(), "start '%d' cannot be greater than end '%d'", start, end)
+	}
+
+	arr.Items = append(arr.Items[:start], arr.Items[end:]...)
+
+	return ArrayV(arr)
+}

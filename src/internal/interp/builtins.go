@@ -116,6 +116,7 @@ func init() {
 		"map":      arity("map", 2, builtinMap),
 		"filter":   arity("filter", 2, builtinFilter),
 		"append":   arity("append", 2, builtinAppend),
+		"delete":   arity("delete", -1, builtinDelete),
 
 		// random
 		"srand": arity("srand", 1, builtinSrand),
