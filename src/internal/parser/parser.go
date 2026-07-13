@@ -1097,6 +1097,15 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 		return nil
 	}
 
+	// `const` is a soft keyword, like if/while/else: it is only a declaration
+	// when an identifier follows it, so an existing variable named `const`
+	// keeps working in every other position.
+	var constTok *lexer.Token
+	if isKeyword(p.cur(), "const") && p.checkAhead(lexer.Ident) {
+		constTok = p.cur()
+		p.next()
+	}
+
 	firstTok := p.cur()
 
 	left := p.parseLogicalExpr()
@@ -1121,6 +1130,20 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 			missingMsg = fmt.Sprintf("missing right operand for subtraction assignment '%s -= ...'", firstTok.Value)
 		}
 
+		if constTok != nil {
+			if op != ast.Assign {
+				p.errorAt(opTok, fmt.Sprintf("a constant must be initialized with '=', not '%s'", op))
+				p.synchronize()
+				return nil
+			}
+
+			if _, isIdent := left.(*ast.Ident); !isIdent {
+				p.errorAt(constTok, "only a plain identifier can be declared 'const'")
+				p.synchronize()
+				return nil
+			}
+		}
+
 		p.next() // skip '=', '+=', '-='
 
 		right := p.parseExpr()
@@ -1130,7 +1153,19 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 			return nil
 		}
 
-		return &ast.AssignExpr{Base: ast.NewBase(p.posOf(opTok)), Op: op, Left: left, Right: right}
+		return &ast.AssignExpr{
+			Base:  ast.NewBase(p.posOf(opTok)),
+			Op:    op,
+			Const: constTok != nil,
+			Left:  left,
+			Right: right,
+		}
+	}
+
+	if constTok != nil {
+		p.errorAt(constTok, "a constant must be given a value: 'const name = ...'")
+		p.synchronize()
+		return nil
 	}
 
 	return left

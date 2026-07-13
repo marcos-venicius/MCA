@@ -2,8 +2,6 @@ package interp
 
 import (
 	"math"
-
-	"mca/internal/ast"
 )
 
 func calcRad(degrees float64) float64 { return degrees * (math.Pi / 180.0) }
@@ -16,8 +14,8 @@ func calcDeg(radians float64) float64 { return radians * (180.0 / math.Pi) }
 // TODO: Is this behavior fine? I need to investigate better how languages like python
 // handles this problem.
 func mathBuiltin(f func(float64) float64) BuiltinFn {
-	return func(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-		arg := expectKind(args[0], in.Eval(args[0]).Value, KInt, KFloat, KBool)
+	return func(in *Interp, c *Call) Value {
+		arg := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
 		result := f(asFloat(arg))
 
 		if math.Mod(result, 1.0) != 0.0 {
@@ -28,11 +26,11 @@ func mathBuiltin(f func(float64) float64) BuiltinFn {
 }
 
 // TODO: later I need to think about constants
-func builtinPI(in *Interp, caller ast.Expr, args []ast.Expr) Value { return FloatV(math.Pi) }
-func builtinE(in *Interp, caller ast.Expr, args []ast.Expr) Value  { return FloatV(math.E) }
+func builtinPI(in *Interp, c *Call) Value { return FloatV(math.Pi) }
+func builtinE(in *Interp, c *Call) Value  { return FloatV(math.E) }
 
-func builtinSum(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	arr := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+func builtinSum(in *Interp, c *Call) Value {
+	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
 
 	hasFloat := false
 
@@ -40,7 +38,7 @@ func builtinSum(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 
 	for _, v := range arr.Items {
 		if v.Kind() != KInt && v.Kind() != KFloat {
-			throw(args[0].Pos(), "expected int | float but got %s", v.Kind())
+			throw(c.At(0), "expected int | float but got %s", v.Kind())
 		}
 
 		if v.Kind() == KFloat {
@@ -59,8 +57,8 @@ func builtinSum(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return IntV(int64(r))
 }
 
-func builtinAbs(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	arg := expectKind(args[0], in.Eval(args[0]).Value, KInt, KFloat, KBool)
+func builtinAbs(in *Interp, c *Call) Value {
+	arg := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
 
 	if arg.Kind() == KInt || arg.Kind() == KBool {
 		return IntV(absInt64(asIntLike(arg)))
@@ -75,15 +73,15 @@ func absInt64(v int64) int64 {
 	return v
 }
 
-func builtinMax(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	if len(args) < 1 {
-		throw(caller.Pos(), "this function expects at least one argument")
+func builtinMax(in *Interp, c *Call) Value {
+	if c.N() < 1 {
+		throw(c.Site, "this function expects at least one argument")
 	}
 
-	x := expectKind(args[0], in.Eval(args[0]).Value, KInt, KFloat, KBool)
+	x := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
 
-	for i := 1; i < len(args); i++ {
-		y := expectKind(args[i], in.Eval(args[i]).Value, KInt, KFloat, KBool)
+	for i := 1; i < c.N(); i++ {
+		y := expectKindAt(c.At(i), c.Args[i], KInt, KFloat, KBool)
 
 		if x.Kind() == KInt && y.Kind() == KInt {
 			if intOf(y) > intOf(x) {
@@ -97,15 +95,15 @@ func builtinMax(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return x
 }
 
-func builtinMin(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	if len(args) < 1 {
-		throw(caller.Pos(), "this function expects at least one argument")
+func builtinMin(in *Interp, c *Call) Value {
+	if c.N() < 1 {
+		throw(c.Site, "this function expects at least one argument")
 	}
 
-	x := expectKind(args[0], in.Eval(args[0]).Value, KInt, KFloat, KBool)
+	x := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
 
-	for i := 1; i < len(args); i++ {
-		y := expectKind(args[i], in.Eval(args[i]).Value, KInt, KFloat, KBool)
+	for i := 1; i < c.N(); i++ {
+		y := expectKindAt(c.At(i), c.Args[i], KInt, KFloat, KBool)
 
 		if x.Kind() == KInt && y.Kind() == KInt {
 			if intOf(y) < intOf(x) {

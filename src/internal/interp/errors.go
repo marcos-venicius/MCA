@@ -43,10 +43,17 @@ func throw(pos ast.Pos, format string, args ...any) {
 // expected a 'X | Y' but got a 'Z'" if v's kind isn't one of the allowed
 // kinds; returns v unchanged otherwise so call sites can chain it.
 func expectKind(at ast.Expr, v Value, allowed ...Kind) Value {
+	return expectKindAt(at.Pos(), v, allowed...)
+}
+
+// expectKindAt is expectKind for callers that hold a position rather than the
+// expression it came from -- builtins, whose arguments arrive already
+// evaluated and may not have any argument syntax behind them at all.
+func expectKindAt(pos ast.Pos, v Value, allowed ...Kind) Value {
 	if slices.Contains(allowed, v.Kind()) {
 		return v
 	}
 
-	throw(at.Pos(), "unexpected data type. expected a '%s' but got a '%s'", KindsName(allowed...), v.Kind())
+	throw(pos, "unexpected data type. expected a '%s' but got a '%s'", KindsName(allowed...), v.Kind())
 	panic("unreachable")
 }

@@ -66,17 +66,52 @@ type StringValue string
 
 func (StringValue) Kind() Kind { return KString }
 
-// FnValue pairs a function literal with the environment captured at the
-// moment *that evaluation* of the literal ran. Each evaluation of a \(...)->
-// literal produces its own FnValue with its own captured Env, so two values
-// produced from the same literal (e.g. across loop iterations) never alias
-// each other's closure state.
+// Native is a builtin's implementation, wrapped so it can be handed around as
+// an ordinary MCA value. Arity is the exact argument count the shared call
+// path enforces before dispatching; -1 means the builtin is variadic and
+// checks its own argument count.
+type Native struct {
+	Name  string
+	Arity int
+	Fn    BuiltinFn
+}
+
+// FnValue is every callable in MCA: either a user function literal or a
+// builtin.
+//
+// For a user function it pairs the literal with the environment captured at
+// the moment *that evaluation* of the literal ran. Each evaluation of a
+// \(...)-> literal produces its own FnValue with its own captured Env, so two
+// values produced from the same literal (e.g. across loop iterations) never
+// alias each other's closure state.
+//
+// For a builtin, Native is set and Node/Env are nil. Both shapes share one
+// Kind (KFn) and one Go type deliberately: it is what lets a builtin be
+// stored, passed to map/filter/sort, and called through exactly the same
+// paths as anything the user wrote.
 type FnValue struct {
-	Node *ast.FnExpr
-	Env  *Env
+	Node   *ast.FnExpr // nil for builtins
+	Env    *Env        // nil for builtins
+	Native *Native     // nil for user functions
 }
 
 func (*FnValue) Kind() Kind { return KFn }
+
+// Arity is how many arguments the function takes; -1 for a variadic builtin.
+func (f *FnValue) Arity() int {
+	if f.Native != nil {
+		return f.Native.Arity
+	}
+	return len(f.Node.Params)
+}
+
+// Accepts reports whether the function can be called with n arguments. A
+// variadic builtin accepts any count, which is what lets `map(arr, println)`
+// work alongside `map(arr, upper)`.
+func (f *FnValue) Accepts(n int) bool {
+	a := f.Arity()
+	return a < 0 || a == n
+}
 
 func UnitV() Value             { return UnitValue{} }
 func IntV(i int64) Value       { return IntValue(i) }

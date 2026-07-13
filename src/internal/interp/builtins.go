@@ -3,138 +3,129 @@ package interp
 import (
 	"fmt"
 	"math"
-
-	"mca/internal/ast"
 )
 
-// arity wraps a BuiltinFn with a fixed-arity check, run before the
-// builtin's own implementation. n == -1 means variadic (no check).
-func arity(name string, n int, fn BuiltinFn) BuiltinFn {
-	if n < 0 {
-		return fn
-	}
-
-	return func(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-		if len(args) > n {
-			throw(caller.Pos(), "too many arguments %s(...). expected %d but got %d", name, n, len(args))
-		} else if len(args) < n {
-			throw(caller.Pos(), "too few arguments %s(...). expected %d but got %d", name, n, len(args))
-		}
-		return fn(in, caller, args)
-	}
+// native describes one builtin. n is its exact argument count, enforced by
+// the shared call path before the implementation runs; n == -1 means variadic
+// (the builtin checks its own argument count).
+func native(name string, n int, fn BuiltinFn) *Native {
+	return &Native{Name: name, Arity: n, Fn: fn}
 }
 
-// builtins is the flat registration table shared by every Interp instance.
+// builtins is the flat registration table every Interp is seeded from: New()
+// binds each entry into the global scope as a constant, so builtins are
+// ordinary values rather than a side table consulted at call time.
+//
 // Declared without an initializer and populated from init() rather than a
 // `var builtins = map[...]{...}` literal: nearly every builtin's body calls
-// in.Eval, which dispatches back through evalCall's builtins lookup -- a
-// real call-graph cycle, but not a *value* cycle, since none of it runs
-// during package initialization. Go's initializer-cycle check can't tell the
-// difference for a direct var initializer and rejects it regardless; moving
-// the literal into init() (a plain function body, not a variable initializer
-// expression) sidesteps that static check entirely.
-var builtins map[string]BuiltinFn
+// back into in.Eval / in.callFnValue -- a real call-graph cycle, but not a
+// *value* cycle, since none of it runs during package initialization. Go's
+// initializer-cycle check can't tell the difference for a direct var
+// initializer and rejects it regardless; moving the literal into init() (a
+// plain function body, not a variable initializer expression) sidesteps that
+// static check entirely.
+var builtins map[string]*Native
 
 func init() {
-	builtins = map[string]BuiltinFn{
+	builtins = map[string]*Native{
 		// Math related
-		"PI":    arity("PI", 0, builtinPI),
-		"E":     arity("E", 0, builtinE),
-		"sum":   arity("sum", 1, builtinSum),
-		"abs":   arity("abs", 1, builtinAbs),
-		"max":   arity("max", -1, builtinMax),
-		"min":   arity("min", -1, builtinMin),
-		"sin":   arity("sin", 1, mathBuiltin(math.Sin)),
-		"cos":   arity("cos", 1, mathBuiltin(math.Cos)),
-		"asin":  arity("asin", 1, mathBuiltin(math.Asin)),
-		"acos":  arity("acos", 1, mathBuiltin(math.Acos)),
-		"tan":   arity("tan", 1, mathBuiltin(math.Tan)),
-		"rad":   arity("rad", 1, mathBuiltin(calcRad)),
-		"deg":   arity("deg", 1, mathBuiltin(calcDeg)),
-		"sqrt":  arity("sqrt", 1, mathBuiltin(math.Sqrt)),
-		"log":   arity("log", 1, mathBuiltin(math.Log)),
-		"log10": arity("log10", 1, mathBuiltin(math.Log10)),
-		"exp":   arity("exp", 1, mathBuiltin(math.Exp)),
-		"floor": arity("floor", 1, mathBuiltin(math.Floor)),
-		"ceil":  arity("ceil", 1, mathBuiltin(math.Ceil)),
-		"round": arity("round", 1, mathBuiltin(math.Round)),
+		"PI":    native("PI", 0, builtinPI),
+		"E":     native("E", 0, builtinE),
+		"sum":   native("sum", 1, builtinSum),
+		"abs":   native("abs", 1, builtinAbs),
+		"max":   native("max", -1, builtinMax),
+		"min":   native("min", -1, builtinMin),
+		"sin":   native("sin", 1, mathBuiltin(math.Sin)),
+		"cos":   native("cos", 1, mathBuiltin(math.Cos)),
+		"asin":  native("asin", 1, mathBuiltin(math.Asin)),
+		"acos":  native("acos", 1, mathBuiltin(math.Acos)),
+		"tan":   native("tan", 1, mathBuiltin(math.Tan)),
+		"rad":   native("rad", 1, mathBuiltin(calcRad)),
+		"deg":   native("deg", 1, mathBuiltin(calcDeg)),
+		"sqrt":  native("sqrt", 1, mathBuiltin(math.Sqrt)),
+		"log":   native("log", 1, mathBuiltin(math.Log)),
+		"log10": native("log10", 1, mathBuiltin(math.Log10)),
+		"exp":   native("exp", 1, mathBuiltin(math.Exp)),
+		"floor": native("floor", 1, mathBuiltin(math.Floor)),
+		"ceil":  native("ceil", 1, mathBuiltin(math.Ceil)),
+		"round": native("round", 1, mathBuiltin(math.Round)),
 
 		// I/O / System related
-		"println":          arity("println", -1, builtinPrintln),
-		"print":            arity("print", -1, builtinPrint),
-		"read_entire_file": arity("read_entire_file", 1, builtinReadEntireFile),
-		"exit":             arity("exit", 1, builtinExit),
+		"println":          native("println", -1, builtinPrintln),
+		"print":            native("print", -1, builtinPrint),
+		"read_entire_file": native("read_entire_file", 1, builtinReadEntireFile),
+		"exit":             native("exit", 1, builtinExit),
 
 		// language specifics
-		"import": arity("import", 1, builtinImport),
-		"help":   arity("help", -1, builtinHelp),
+		"import": native("import", 1, builtinImport),
+		"help":   native("help", -1, builtinHelp),
 
-		"type":      arity("type", 1, builtinType),
-		"argc":      arity("argc", 0, builtinArgc),
-		"argv":      arity("argv", 1, builtinArgv),
-		"as_int":    arity("as_int", 1, builtinAsInt),
-		"as_float":  arity("as_float", 1, builtinAsFloat),
-		"as_bool":   arity("as_bool", 1, builtinAsBool),
-		"as_string": arity("as_string", 1, builtinAsString),
-		"is_int":    arity("is_int", 1, isTypeBuiltin(KInt)),
-		"is_float":  arity("is_float", 1, isTypeBuiltin(KFloat)),
-		"is_bool":   arity("is_bool", 1, isTypeBuiltin(KBool)),
-		"is_string": arity("is_string", 1, isTypeBuiltin(KString)),
-		"is_unit":   arity("is_unit", 1, isTypeBuiltin(KUnit)),
-		"is_array":  arity("is_array", 1, isTypeBuiltin(KArray)),
-		"is_map":    arity("is_map", 1, isTypeBuiltin(KMap)),
-		"is_fn":     arity("is_fn", 1, isTypeBuiltin(KFn)),
-		"len":       arity("len", 1, builtinLen),
+		"type":      native("type", 1, builtinType),
+		"argc":      native("argc", 0, builtinArgc),
+		"argv":      native("argv", 1, builtinArgv),
+		"as_int":    native("as_int", 1, builtinAsInt),
+		"as_float":  native("as_float", 1, builtinAsFloat),
+		"as_bool":   native("as_bool", 1, builtinAsBool),
+		"as_string": native("as_string", 1, builtinAsString),
+		"is_int":    native("is_int", 1, isTypeBuiltin(KInt)),
+		"is_float":  native("is_float", 1, isTypeBuiltin(KFloat)),
+		"is_bool":   native("is_bool", 1, isTypeBuiltin(KBool)),
+		"is_string": native("is_string", 1, isTypeBuiltin(KString)),
+		"is_unit":   native("is_unit", 1, isTypeBuiltin(KUnit)),
+		"is_array":  native("is_array", 1, isTypeBuiltin(KArray)),
+		"is_map":    native("is_map", 1, isTypeBuiltin(KMap)),
+		"is_fn":     native("is_fn", 1, isTypeBuiltin(KFn)),
+		"len":       native("len", 1, builtinLen),
 
 		// Strings
-		"repeat":      arity("repeat", 2, builtinRepeat),
-		"replace":     arity("replace", 3, builtinReplace),
-		"starts_with": arity("starts_with", 2, builtinStartsWith),
-		"ends_with":   arity("ends_with", 2, builtinEndsWith),
-		"lower":       arity("lower", 1, builtinLower),
-		"upper":       arity("upper", 1, builtinUpper),
-		"trim":        arity("trim", 1, builtinTrim),
-		"ltrim":       arity("ltrim", 1, builtinLTrim),
-		"rtrim":       arity("rtrim", 1, builtinRTrim),
-		"join":        arity("join", 2, builtinJoin),
-		"split":       arity("split", 2, builtinSplit),
-		"select":      arity("select", 3, builtinSelect),
-		"ord":         arity("ord", 1, builtinOrd),
-		"chr":         arity("chr", 1, builtinChr),
-		"format":      arity("format", -1, builtinFormat),
+		"repeat":      native("repeat", 2, builtinRepeat),
+		"replace":     native("replace", 3, builtinReplace),
+		"starts_with": native("starts_with", 2, builtinStartsWith),
+		"ends_with":   native("ends_with", 2, builtinEndsWith),
+		"lower":       native("lower", 1, builtinLower),
+		"upper":       native("upper", 1, builtinUpper),
+		"trim":        native("trim", 1, builtinTrim),
+		"ltrim":       native("ltrim", 1, builtinLTrim),
+		"rtrim":       native("rtrim", 1, builtinRTrim),
+		"join":        native("join", 2, builtinJoin),
+		"split":       native("split", 2, builtinSplit),
+		"select":      native("select", 3, builtinSelect),
+		"ord":         native("ord", 1, builtinOrd),
+		"chr":         native("chr", 1, builtinChr),
+		"format":      native("format", -1, builtinFormat),
 
 		// Maps
-		"keys":      arity("keys", 1, builtinMapKeys),
-		"values":    arity("values", 1, builtinMapValues),
-		"map_del":   arity("map_del", 2, builtinMapDel),
-		"map_clear": arity("map_clear", 1, builtinMapClear),
+		"keys":      native("keys", 1, builtinMapKeys),
+		"values":    native("values", 1, builtinMapValues),
+		"map_del":   native("map_del", 2, builtinMapDel),
+		"map_clear": native("map_clear", 1, builtinMapClear),
 
 		// Arrays
-		"indexes_to_keys": arity("indexes_to_keys", 2, builtinIndexesToKeys),
-		"sort":            arity("sort", 2, builtinSort),
-		"reverse":         arity("reverse", 1, builtinReverse),
-		"concat":          arity("concat", -1, builtinConcat),
-		"contains":        arity("contains", 2, builtinContains),
-		"map":             arity("map", 2, builtinMap),
-		"filter":          arity("filter", 2, builtinFilter),
-		"append":          arity("append", 2, builtinAppend),
-		"delete":          arity("delete", -1, builtinDelete),
+		"indexes_to_keys": native("indexes_to_keys", 2, builtinIndexesToKeys),
+		"sort":            native("sort", 2, builtinSort),
+		"reverse":         native("reverse", 1, builtinReverse),
+		"concat":          native("concat", -1, builtinConcat),
+		"contains":        native("contains", 2, builtinContains),
+		"map":             native("map", 2, builtinMap),
+		"filter":          native("filter", 2, builtinFilter),
+		"append":          native("append", 2, builtinAppend),
+		"delete":          native("delete", -1, builtinDelete),
 
 		// random
-		"srand": arity("srand", 1, builtinSrand),
-		"rand":  arity("rand", 2, builtinRand),
+		"srand": native("srand", 1, builtinSrand),
+		"rand":  native("rand", 2, builtinRand),
 
 		// TODO: may I have a 'Date' value type?
 		// datetime related
-		"time":        arity("time", 0, builtinTime),
-		"year":        arity("year", 1, builtinYear),
-		"month":       arity("month", 1, builtinMonth),
-		"date":        arity("date", 1, builtinDate),
-		"day":         arity("day", 1, builtinDay),
-		"hour":        arity("hour", 1, builtinHour),
-		"minute":      arity("minute", 1, builtinMinute),
-		"second":      arity("second", 1, builtinSecond),
-		"millisecond": arity("millisecond", 0, builtinMillisecond),
+		"time":        native("time", 0, builtinTime),
+		"year":        native("year", 1, builtinYear),
+		"month":       native("month", 1, builtinMonth),
+		"date":        native("date", 1, builtinDate),
+		"day":         native("day", 1, builtinDay),
+		"hour":        native("hour", 1, builtinHour),
+		"minute":      native("minute", 1, builtinMinute),
+		"second":      native("second", 1, builtinSecond),
+		"millisecond": native("millisecond", 0, builtinMillisecond),
 	}
 }
 
@@ -163,7 +154,11 @@ func printValue(in *Interp, v Value, wrapStrings bool) {
 	case *Map:
 		printMap(in, vv)
 	case *FnValue:
-		fmt.Fprintf(in.Out, "fn(...%d)", len(vv.Node.Params))
+		if vv.Native != nil {
+			fmt.Fprintf(in.Out, "builtin %s(...)", vv.Native.Name)
+		} else {
+			fmt.Fprintf(in.Out, "fn(...%d)", len(vv.Node.Params))
+		}
 	case *Array:
 		printArray(in, vv)
 	}

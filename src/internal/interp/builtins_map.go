@@ -1,27 +1,25 @@
 package interp
 
-import "mca/internal/ast"
-
 // TODO: since we have GO's GC on our behalf, do we need to have a map clear?
 //       What if we just assign an empty object to the map?
 
-func builtinMapDel(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
-	key := expectKind(args[1], in.Eval(args[1]).Value, KInt, KString)
+func builtinMapDel(in *Interp, c *Call) Value {
+	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
+	key := expectKindAt(c.At(1), c.Args[1], KInt, KString)
 
 	mk, _ := mapKeyFromValue(key)
 
 	return BoolV(m.Del(mk))
 }
 
-func builtinMapClear(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
+func builtinMapClear(in *Interp, c *Call) Value {
+	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
 	m.Clear()
 	return UnitV()
 }
 
-func builtinMapKeys(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
+func builtinMapKeys(in *Interp, c *Call) Value {
+	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
 
 	values := make([]Value, 0, m.Len())
 
@@ -38,8 +36,8 @@ func builtinMapKeys(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	return ArrayV(&out)
 }
 
-func builtinMapValues(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	m := expectKind(args[0], in.Eval(args[0]).Value, KMap).(*Map)
+func builtinMapValues(in *Interp, c *Call) Value {
+	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
 
 	values := make([]Value, 0, m.Len())
 

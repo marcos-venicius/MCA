@@ -1,7 +1,5 @@
 package interp
 
-import "mca/internal/ast"
-
 // glibcRand reimplements glibc's default rand()/srand() algorithm exactly
 // (the TYPE_3 additive-feedback generator, degree 31 / separation 3,
 // originally from 4.3BSD random.c) so that seeded sequences are bit-for-bit
@@ -76,18 +74,18 @@ func (r *glibcRand) next() int32 {
 	return result
 }
 
-func builtinSrand(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	seed := intOf(expectKind(args[0], in.Eval(args[0]).Value, KInt))
+func builtinSrand(in *Interp, c *Call) Value {
+	seed := intOf(expectKindAt(c.At(0), c.Args[0], KInt))
 	globalRand.seed(uint32(seed))
 	return UnitV()
 }
 
-func builtinRand(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	min := intOf(expectKind(args[0], in.Eval(args[0]).Value, KInt))
-	max := intOf(expectKind(args[1], in.Eval(args[1]).Value, KInt))
+func builtinRand(in *Interp, c *Call) Value {
+	min := intOf(expectKindAt(c.At(0), c.Args[0], KInt))
+	max := intOf(expectKindAt(c.At(1), c.Args[1], KInt))
 
 	if min > max {
-		throw(args[0].Pos(), "invalid range for rand(). min (%d) cannot be greater than max (%d)", min, max)
+		throw(c.At(0), "invalid range for rand(). min (%d) cannot be greater than max (%d)", min, max)
 	}
 
 	r := int64(globalRand.next())%(max-min+1) + min

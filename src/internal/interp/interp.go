@@ -32,17 +32,41 @@ type EvalResult struct {
 
 func normal(v Value) EvalResult { return EvalResult{Value: v, Flow: FlowNormal} }
 
-// BuiltinFn is a builtin's implementation. Builtins receive unevaluated
-// argument AST nodes (not values) and evaluate them themselves -- this is
-// what lets print/println control their own per-arg formatting, and lets
-// type() etc. avoid unwanted evaluation side effects. caller is used for
-// error positions (arity errors, etc).
-type BuiltinFn func(in *Interp, caller ast.Expr, args []ast.Expr) Value
+// BuiltinFn is a builtin's implementation. Builtins receive their arguments
+// already evaluated, exactly like a user function does -- which is what makes
+// a builtin storable in a variable and passable to map/filter/sort. They took
+// raw AST nodes and evaluated them by hand once, back when a builtin could
+// only ever be *called*; nothing needed that laziness, and the positions the
+// error messages actually wanted are carried by Call instead.
+type BuiltinFn func(in *Interp, c *Call) Value
+
+// Call is a single builtin invocation: the argument values, plus the source
+// positions its diagnostics point at.
+type Call struct {
+	Name string  // the builtin's registered name, for error messages
+	Site ast.Pos // where the call itself appears
+
+	Args   []Value
+	argPos []ast.Pos // per-argument positions; empty when there is no arg syntax
+}
+
+// At is the position to blame for argument i. A builtin reached indirectly
+// (map(arr, upper), or any other call through a value) has no argument syntax
+// to point at, so its diagnostics collapse onto the call site.
+func (c *Call) At(i int) ast.Pos {
+	if i < len(c.argPos) {
+		return c.argPos[i]
+	}
+	return c.Site
+}
+
+// N is the number of arguments passed. Only variadic builtins need it; the
+// shared call path has already enforced the count for every other one.
+func (c *Call) N() int { return len(c.Args) }
 
 // Interp is one running MCA program. Out/Err are settable so tests (and the
 // CLI) can redirect them. Args holds the language-level argv, with Args[0]
-// conventionally the script path. Builtins are looked up from the shared
-// package-level `builtins` table rather than stored per-instance.
+// conventionally the script path.
 type Interp struct {
 	Global  *Env
 	Current *Env
@@ -54,6 +78,16 @@ type Interp struct {
 
 func New() *Interp {
 	g := NewEnv(nil)
+
+	// Builtins are ordinary global constants, not a side table consulted at
+	// call time. That is what makes them first-class -- `sort` is a value you
+	// can pass around, not just a name you may write before a '(' -- and
+	// constness is what keeps the guarantee that `sort` still means sort:
+	// assigning to one is a runtime error rather than a silent clobber.
+	for name, b := range builtins {
+		g.DefineConst(name, &FnValue{Native: b})
+	}
+
 	return &Interp{Global: g, Current: g, Out: os.Stdout, Err: os.Stderr}
 }
 
@@ -541,7 +575,11 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 
 	switch left := e.Left.(type) {
 	case *ast.Ident:
-		in.Current.Assign(left.Name, rightRes.Value)
+		if e.Const {
+			in.declareConst(left, rightRes.Value)
+		} else if !in.Current.Assign(left.Name, rightRes.Value) {
+			throw(left.Pos(), "you cannot modify constant values. '%s' is a constant", left.Name)
+		}
 		return rightRes
 
 	case *ast.SquareExpr:
@@ -554,6 +592,19 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 	}
 
 	return rightRes
+}
+
+// declareConst introduces `const name = value` in the current scope. It
+// refuses to overwrite a name this scope already owns -- a constant you can
+// redeclare next to itself isn't one -- but says nothing about outer scopes,
+// so an inner scope may still shadow a constant (including a builtin) with a
+// binding of its own.
+func (in *Interp) declareConst(name *ast.Ident, v Value) {
+	if in.Current.HasLocal(name.Name) {
+		throw(name.Pos(), "'%s' is already defined in this scope, so it cannot be declared as a constant", name.Name)
+	}
+
+	in.Current.DefineConst(name.Name, v)
 }
 
 // evalAssignRightSide computes the value (and, for plain `=` only, the
@@ -750,19 +801,22 @@ func calleeLabel(e ast.Expr) string {
 	return "<anonymous function>"
 }
 
-func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
-	// Builtins are only recognized for a bare, unshadowed identifier callee
-	// -- a user variable of the same name always wins, and every other
-	// callee shape (m.f(...), arr[0](...), (\()->1)(), ...) always goes
-	// through the generic value path below.
-	if ident, isIdent := e.Callee.(*ast.Ident); isIdent {
-		if _, isVar := in.Current.Get(ident.Name); !isVar {
-			if builtin, ok := builtins[ident.Name]; ok {
-				return normal(builtin(in, e, e.Args))
-			}
-		}
+// evalCall has no special case for builtins: a builtin is just a global
+// constant holding an FnValue, so a bare `sort(...)` callee resolves through
+// the ordinary identifier lookup below, exactly like `m.f(...)`, `arr[0](...)`
+// or `(\() -> 1)()` always did.
+// fnLabel names a callable that a builtin is about to invoke on the user's
+// behalf (map/filter/sort applying their callback). There is no callee syntax
+// to read a name from in that position, so a builtin passed as the callback
+// answers with its own registered name and anything else stays anonymous.
+func fnLabel(fv *FnValue) string {
+	if fv.Native != nil {
+		return fv.Native.Name
 	}
+	return "<anonymous function>"
+}
 
+func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
 	calleeVal := in.Eval(e.Callee).Value
 
 	fv, ok := calleeVal.(*FnValue)
@@ -773,41 +827,51 @@ func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
 	return normal(in.callFn(fv, e.Pos(), calleeLabel(e.Callee), e.Args))
 }
 
-// callFn evaluates a function call: arguments are evaluated in the caller's
-// (current) environment, then bound into a fresh call frame whose parent is
-// the function's *captured* environment (fv.Env, not the caller's
-// environment) -- this is what makes MCA's functions lexically-scoped
-// closures rather than dynamically-scoped ones.
+// callFn is a call written in source: the arguments are evaluated left to
+// right in the caller's (current) environment, and their positions are kept
+// so a builtin can still blame the exact argument that was wrong.
 func (in *Interp) callFn(fv *FnValue, callPos ast.Pos, name string, argExprs []ast.Expr) Value {
-	if len(argExprs) > len(fv.Node.Params) {
-		throw(callPos, "too many arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(argExprs))
-	} else if len(argExprs) < len(fv.Node.Params) {
-		throw(callPos, "too few arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(argExprs))
-	}
-
 	args := make([]Value, len(argExprs))
+	argPos := make([]ast.Pos, len(argExprs))
+
 	for i, argExpr := range argExprs {
 		args[i] = in.Eval(argExpr).Value
+		argPos[i] = argExpr.Pos()
 	}
 
-	fnEnv := NewEnv(fv.Env)
-	for i, param := range fv.Node.Params {
-		fnEnv.Define(param.Name, args[i])
-	}
-
-	callerEnv := in.Current
-	in.Current = fnEnv
-	result := in.evalBlock(fv.Node.Body)
-	in.Current = callerEnv
-
-	return result.Value
+	return in.call(fv, callPos, name, args, argPos)
 }
 
+// callFnValue is a call made from Go with values already in hand (map/filter/
+// sort applying their callback). There is no argument syntax to point at, so
+// argPos is empty and any diagnostic falls back to the call site.
 func (in *Interp) callFnValue(fv *FnValue, callPos ast.Pos, name string, args []Value) Value {
-	if len(args) > len(fv.Node.Params) {
-		throw(callPos, "too many arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(args))
-	} else if len(args) < len(fv.Node.Params) {
-		throw(callPos, "too few arguments %s(...). expected %d but got %d", name, len(fv.Node.Params), len(args))
+	return in.call(fv, callPos, name, args, nil)
+}
+
+// call is the one place a callable is entered, builtin or not: check the
+// argument count, then either hand the values to the native implementation or
+// bind them into a fresh call frame.
+//
+// That frame's parent is the function's *captured* environment (fv.Env, not
+// the caller's environment) -- this is what makes MCA's functions
+// lexically-scoped closures rather than dynamically-scoped ones.
+func (in *Interp) call(fv *FnValue, callPos ast.Pos, name string, args []Value, argPos []ast.Pos) Value {
+	if n := fv.Arity(); n >= 0 {
+		if len(args) > n {
+			throw(callPos, "too many arguments %s(...). expected %d but got %d", name, n, len(args))
+		} else if len(args) < n {
+			throw(callPos, "too few arguments %s(...). expected %d but got %d", name, n, len(args))
+		}
+	}
+
+	if fv.Native != nil {
+		return fv.Native.Fn(in, &Call{
+			Name:   fv.Native.Name,
+			Site:   callPos,
+			Args:   args,
+			argPos: argPos,
+		})
 	}
 
 	fnEnv := NewEnv(fv.Env)

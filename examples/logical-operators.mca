@@ -6,15 +6,15 @@ C = 0 or 0
 
 println(A, B, C)
 
-n    = 0
-year = year(0)
+n            = 0
+current_year = year(0)
 
 while n < 15 {
-  text = if ((year % 4 == 0 and year % 100 != 0) or (year % 400 == 0)) 'is a lap year' else 'is not a lap year'
+  text = if ((current_year % 4 == 0 and current_year % 100 != 0) or (current_year % 400 == 0)) 'is a lap year' else 'is not a lap year'
 
-  println(year, text)
+  println(current_year, text)
 
-  year -= 1
+  current_year -= 1
 
   n += 1
 }

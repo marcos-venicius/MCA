@@ -3,8 +3,6 @@ package interp
 import (
 	"sort"
 	"strings"
-
-	"mca/internal/ast"
 )
 
 // helpParam is one documented parameter of a builtin. Variadic marks the
@@ -528,33 +526,41 @@ func dtDoc(name, field, returns string) helpDoc {
 	}
 }
 
-func builtinHelp(in *Interp, caller ast.Expr, args []ast.Expr) Value {
-	if len(args) > 1 {
-		throw(caller.Pos(), "too many arguments help(...). expected 0 or 1 but got %d", len(args))
+// builtinHelp documents a builtin named either by the function itself --
+// help(sort), which now evaluates to the builtin's value like any other
+// identifier -- or by its name, help('sort').
+func builtinHelp(in *Interp, c *Call) Value {
+	if c.N() > 1 {
+		throw(c.Site, "too many arguments help(...). expected 0 or 1 but got %d", c.N())
 	}
 
-	if len(args) == 0 {
+	if c.N() == 0 {
 		printHelpOverview(in)
 		return UnitV()
 	}
 
-	if ident, ok := args[0].(*ast.Ident); ok {
-		name := ident.Name
+	var name string
 
-		doc, ok := helpDocs[name]
-
-		if !ok {
-			throw(args[0].Pos(), "no help available for '%s' -- run help() to list all builtin functions", name)
+	switch v := c.Args[0].(type) {
+	case StringValue:
+		name = string(v)
+	case *FnValue:
+		if v.Native == nil {
+			throw(c.At(0), "there is no help for a function you wrote yourself -- help only documents builtins")
 		}
-
-		printHelpEntry(in, name, doc)
-
-		return UnitV()
+		name = v.Native.Name
+	default:
+		throw(c.At(0), "expected a builtin function or its name as a string, but got a '%s'", v.Kind())
 	}
 
-	throw(args[0].Pos(), "expected a valid builtin identifier")
+	doc, ok := helpDocs[name]
+	if !ok {
+		throw(c.At(0), "no help available for '%s' -- run help() to list all builtin functions", name)
+	}
 
-	panic("unreacheable")
+	printHelpEntry(in, name, doc)
+
+	return UnitV()
 }
 
 func helpSignature(name string, d helpDoc) string {

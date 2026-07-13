@@ -107,6 +107,20 @@ func expectRuntimeError(t *testing.T, src string) {
 	}
 }
 
+// expectParseError asserts src is rejected before it ever runs -- for things
+// the grammar itself forbids, like `const` without an initializer.
+func expectParseError(t *testing.T, src string) {
+	t.Helper()
+
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+
+	prog := parser.Parse("", toks)
+	if len(prog.Errors) == 0 {
+		t.Fatalf("%q: expected a parse error, got none", src)
+	}
+}
+
 func TestTopLevel(t *testing.T) {
 	check(t, "", tUnit())
 	check(t, ";", tUnit())
@@ -557,11 +571,101 @@ func TestCalleeMustBeAFunction(t *testing.T) {
 	expectRuntimeError(t, "(1 + 1)()")
 }
 
-func TestUserVariableShadowsBuiltinAsCallee(t *testing.T) {
-	// A bare-identifier callee only falls back to the builtins table when
-	// no user variable of that name is in scope -- a same-named variable
-	// always wins.
-	check(t, `len = \(x) -> 999; len('hi')`, tInt(999))
+func TestBuiltinsAreGlobalConstants(t *testing.T) {
+	// Builtins are ordinary global constants, so assigning to one is the same
+	// error as assigning to any other constant -- it no longer silently
+	// shadows the builtin, at any depth.
+	expectRuntimeError(t, `len = \(x) -> 999; len('hi')`)
+	expectRuntimeError(t, `f = \() -> { len = 1 }; f()`)
+	expectRuntimeError(t, `for i : 3 { sort = 1 }`)
+	expectRuntimeError(t, `const len = 1`)
+
+	// ... but a *binding* introduced by this scope (a parameter, a loop
+	// variable) still shadows one, since neither of those reassigns anything.
+	check(t, `f = \(len) -> len + 1; f(10)`, tInt(11))
+	check(t, `r = 0; for len : 4 { r += len }; r`, tInt(6))
+}
+
+func TestConst(t *testing.T) {
+	check(t, `const x = 42; x`, tInt(42))
+	check(t, `const x = 1 + 2; x * 2`, tInt(6))
+	check(t, `const x = 5`, tInt(5)) // a declaration evaluates to its value
+	check(t, `const f = \(x) -> x * 2; f(21)`, tInt(42))
+
+	// const freezes the *name*, not the value it points at: the binding can
+	// never be rewritten, but a mutable value reached through it still is.
+	check(t, `const a = [1, 2]; a[0] = 9; a[0]`, tInt(9))
+	check(t, `const a = [1, 2]; append(a, 3); len(a)`, tInt(3))
+	check(t, `const m = {}; m.k = 7; m.k`, tInt(7))
+
+	// An inner scope may shadow an outer constant with a binding of its own,
+	// and doing so leaves the outer one untouched.
+	check(t, `const x = 1; f = \(x) -> x * 10; f(5)`, tInt(50))
+	check(t, `const x = 1; f = \(x) -> x * 10; f(5); x`, tInt(1))
+	check(t, `const x = 1; if true { const x = 2 }; x`, tInt(1))
+
+	// A const declaration in a loop body is fresh on every iteration, since
+	// each iteration gets its own scope.
+	check(t, `r = 0; for i : 3 { const c = i * 2; r += c }; r`, tInt(6))
+	check(t, `i = 0; r = 0; while i < 3 { const c = 2; r += c; i += 1 }; r`, tInt(6))
+}
+
+func TestConstCannotBeReassigned(t *testing.T) {
+	expectRuntimeError(t, `const x = 1; x = 2`)
+	expectRuntimeError(t, `const x = 1; x += 1`)
+	expectRuntimeError(t, `const x = 1; x -= 1`)
+
+	// Reassignment is refused however deep the write is: Assign climbs to the
+	// constant and stops there rather than quietly creating a local.
+	expectRuntimeError(t, `const x = 1; f = \() -> { x = 2 }; f()`)
+	expectRuntimeError(t, `const x = 1; if true { x = 2 }`)
+	expectRuntimeError(t, `const x = 1; for i : 3 { x = 2 }`)
+
+	// Redeclaring a constant next to itself isn't a constant.
+	expectRuntimeError(t, `const x = 1; const x = 2`)
+	expectRuntimeError(t, `x = 1; const x = 2`)
+
+	// The value survives the failed writes above (each program is its own
+	// run, so this just re-checks the binding is intact after a caught error).
+	check(t, `const x = 1; x`, tInt(1))
+}
+
+func TestConstParseErrors(t *testing.T) {
+	expectParseError(t, `const x`)
+	expectParseError(t, `const x += 1`)
+	expectParseError(t, `const 5 = 1`)
+
+	// `const` is a soft keyword, like if/while: it is only a declaration when
+	// an identifier follows, so it stays usable as a plain variable name.
+	check(t, `const = 7; const + 1`, tInt(8))
+}
+
+func TestBuiltinsAreFirstClassValues(t *testing.T) {
+	check(t, `type(len)`, tString("fn"))
+	check(t, `is_fn(sort)`, tBool(true))
+
+	// Stored in a variable, then called through it.
+	check(t, `f = upper; f('hi')`, tString("HI"))
+	check(t, `m = {'f': len}; m.f('hello')`, tInt(5))
+	check(t, `fns = [lower, upper]; fns[1]('hi')`, tString("HI"))
+
+	// Passed to the higher-order builtins as a callback.
+	check(t, `join(map(['a', 'b'], upper), '')`, tString("AB"))
+	check(t, `len(filter(['', 'a', ''], as_bool))`, tInt(1))
+	check(t, `join(map([1, 2], as_string), ',')`, tString("1,2"))
+
+	// Passed to a user function, and returned from one.
+	check(t, `apply = \(f, x) -> f(x); apply(abs, -3)`, tInt(3))
+	check(t, `pick = \() -> upper; pick()('hi')`, tString("HI"))
+
+	// A variadic builtin accepts any argument count, so it is usable wherever
+	// a callback of a fixed arity is expected.
+	check(t, `len(map([1, 2], format))`, tInt(2))
+
+	// Arity is still enforced when a builtin is called through a value.
+	expectRuntimeError(t, `f = upper; f()`)
+	expectRuntimeError(t, `f = upper; f('a', 'b')`)
+	expectRuntimeError(t, `map([1, 2], sort)`)
 }
 
 func TestReturn(t *testing.T) {

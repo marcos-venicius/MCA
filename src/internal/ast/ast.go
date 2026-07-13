@@ -156,9 +156,15 @@ type UnaryExpr struct {
 	Operand Expr
 }
 
+// AssignExpr is `left = right` and its compound forms. Const marks a
+// `const name = ...` declaration: it always introduces a *new* binding in the
+// current scope (never reassigns an outer one) and that binding then rejects
+// every later write. Const is only ever set when Op is Assign and Left is an
+// *Ident -- the parser rejects `const a[0] = ...` and `const x += ...`.
 type AssignExpr struct {
 	Base
 	Op          AssignOp
+	Const       bool
 	Left, Right Expr
 }
 
