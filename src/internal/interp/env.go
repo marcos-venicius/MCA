@@ -12,13 +12,27 @@ type binding struct {
 // no ref-counting here the way C needed, Go's GC keeps an Env reachable for
 // exactly as long as something (a parent chain, or a closure's captured Env)
 // still points to it.
+//
+// builtin marks the one frame that holds the builtins, which sits *beneath*
+// the global scope rather than inside it. Reads climb into it like any other
+// parent, but a write never lands there: assigning to a builtin's name binds
+// a fresh variable in the writing scope instead, leaving the builtin itself
+// intact. That keeps `len` meaning len for everyone else while still letting
+// a program use `year` or `help` as an ordinary variable name.
 type Env struct {
-	vars   map[string]*binding
-	parent *Env
+	vars    map[string]*binding
+	parent  *Env
+	builtin bool
 }
 
 func NewEnv(parent *Env) *Env {
 	return &Env{vars: make(map[string]*binding), parent: parent}
+}
+
+// NewBuiltinEnv is the root frame the builtins are bound into; the global
+// scope is its child.
+func NewBuiltinEnv() *Env {
+	return &Env{vars: make(map[string]*binding), builtin: true}
 }
 
 // Get climbs the parent chain looking for an existing binding.
@@ -75,14 +89,30 @@ func (e *Env) IsConst(name string) bool {
 // *this* scope i.e. Python-like
 // implicit-declare-on-first-assign semantics.
 //
-// It returns false, writing nothing, when the binding it lands on is a
-// constant -- the caller turns that into a runtime error, since it has the
-// source position needed to report one.
+// The two kinds of constant it can land on are treated differently, which is
+// the whole reason builtins get a frame of their own:
+//
+//   - a constant the program declared is never writable, at any depth. Assign
+//     returns false and writes nothing; the caller turns that into a runtime
+//     error, since it has the source position needed to report one.
+//   - a builtin is shadowed rather than written: the name is bound afresh in
+//     the assigning scope. `year = year(0)` keeps working, and the builtin is
+//     still there for every scope that didn't shadow it.
 func (e *Env) Assign(name string, v Value) bool {
-	if b, ok := e.lookup(name); ok {
+	for env := e; env != nil; env = env.parent {
+		b, ok := env.vars[name]
+		if !ok {
+			continue
+		}
+
+		if env.builtin {
+			break
+		}
+
 		if b.isConst {
 			return false
 		}
+
 		b.value = v
 		return true
 	}

@@ -571,17 +571,27 @@ func TestCalleeMustBeAFunction(t *testing.T) {
 	expectRuntimeError(t, "(1 + 1)()")
 }
 
-func TestBuiltinsAreGlobalConstants(t *testing.T) {
-	// Builtins are ordinary global constants, so assigning to one is the same
-	// error as assigning to any other constant -- it no longer silently
-	// shadows the builtin, at any depth.
-	expectRuntimeError(t, `len = \(x) -> 999; len('hi')`)
-	expectRuntimeError(t, `f = \() -> { len = 1 }; f()`)
-	expectRuntimeError(t, `for i : 3 { sort = 1 }`)
-	expectRuntimeError(t, `const len = 1`)
+func TestBuiltinsCanBeShadowed(t *testing.T) {
+	// Builtins live in a frame below the global scope, so an assignment to one
+	// of their names binds a new variable in the assigning scope rather than
+	// writing through to the builtin -- a program is free to use `len` or
+	// `year` as a variable name.
+	check(t, `len = \(x) -> 999; len('hi')`, tInt(999))
+	check(t, `len = 3; len`, tInt(3))
+	check(t, `const len = 3; len`, tInt(3))
 
-	// ... but a *binding* introduced by this scope (a parameter, a loop
-	// variable) still shadows one, since neither of those reassigns anything.
+	// The right-hand side still sees the builtin, which is what makes the
+	// `year = year(0)` idiom in the examples work.
+	check(t, `upper = upper('hi'); upper`, tString("HI"))
+
+	// Shadowing is confined to the scope that did it: the builtin is untouched
+	// everywhere else, including after the shadowing scope has been left.
+	check(t, `f = \() -> { len = 1; len }; f(); len('hi')`, tInt(2))
+	check(t, `f = \() -> { len = 1; len }; f()`, tInt(1))
+	check(t, `for i : 3 { sort = 1 }; len(sort([2, 1], \(a, b) -> a - b))`, tInt(2))
+
+	// A binding introduced by the scope itself (a parameter, a loop variable)
+	// shadows a builtin too.
 	check(t, `f = \(len) -> len + 1; f(10)`, tInt(11))
 	check(t, `r = 0; for len : 4 { r += len }; r`, tInt(6))
 }

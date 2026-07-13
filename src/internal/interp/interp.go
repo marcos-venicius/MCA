@@ -77,16 +77,20 @@ type Interp struct {
 }
 
 func New() *Interp {
-	g := NewEnv(nil)
-
-	// Builtins are ordinary global constants, not a side table consulted at
-	// call time. That is what makes them first-class -- `sort` is a value you
-	// can pass around, not just a name you may write before a '(' -- and
-	// constness is what keeps the guarantee that `sort` still means sort:
-	// assigning to one is a runtime error rather than a silent clobber.
-	for name, b := range builtins {
-		g.DefineConst(name, &FnValue{Native: b})
+	// Builtins are ordinary constant values, not a side table consulted at
+	// call time -- that is what makes them first-class: `sort` is a value you
+	// can pass around, not just a name you may write before a '('.
+	//
+	// They get a frame of their own, one below the global scope, so that a
+	// program can still bind `year` or `help` as a variable (an assignment
+	// shadows the builtin in the assigning scope) without any program
+	// anywhere being able to *overwrite* what `sort` means.
+	b := NewBuiltinEnv()
+	for name, n := range builtins {
+		b.DefineConst(name, &FnValue{Native: n})
 	}
+
+	g := NewEnv(b)
 
 	return &Interp{Global: g, Current: g, Out: os.Stdout, Err: os.Stderr}
 }
