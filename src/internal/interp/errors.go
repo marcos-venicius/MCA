@@ -39,6 +39,13 @@ func throw(pos ast.Pos, format string, args ...any) {
 	})
 }
 
+// Throw is throw for native packages, which live outside this package and so
+// cannot reach the unexported one. Position it at c.Site for a fault with the
+// call as a whole, or c.At(i) to blame one argument.
+func Throw(pos ast.Pos, format string, args ...any) {
+	throw(pos, format, args...)
+}
+
 // expectKind raises a RuntimeError formatted as "unexpected data type.
 // expected a 'X | Y' but got a 'Z'" if v's kind isn't one of the allowed
 // kinds; returns v unchanged otherwise so call sites can chain it.

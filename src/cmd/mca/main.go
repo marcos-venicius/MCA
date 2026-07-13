@@ -7,6 +7,9 @@ import (
 	"mca/internal/interp"
 	"mca/internal/lexer"
 	"mca/internal/parser"
+
+	// Registers the native packages import() can resolve ('crypt', ...).
+	_ "mca/internal/packages"
 )
 
 const version string = "0.1.0-go"

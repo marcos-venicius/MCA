@@ -64,6 +64,16 @@ func (c *Call) At(i int) ast.Pos {
 // shared call path has already enforced the count for every other one.
 func (c *Call) N() int { return len(c.Args) }
 
+// StringArg is argument i, required to be a string: the same
+// expect-then-unwrap the builtins in this package spell out by hand, exported
+// so a native package (internal/packages/...) can validate its arguments
+// without reaching for interp's unexported helpers. Raises the usual
+// "unexpected data type" runtime error, blamed on argument i, if it is not a
+// string.
+func (c *Call) StringArg(i int) string {
+	return stringOf(expectKindAt(c.At(i), c.Args[i], KString))
+}
+
 // Interp is one running MCA program. Out/Err are settable so tests (and the
 // CLI) can redirect them. Args holds the language-level argv, with Args[0]
 // conventionally the script path.

@@ -1,0 +1,14 @@
+#!/usr/local/bin/mca
+
+# packages are not loaded unless you ask for them
+const crypt = import('crypt')
+
+println(crypt.md5('hello'))
+
+# a package function is an ordinary value, like any other builtin
+println(map(['a', 'b', 'c'], crypt.md5))
+
+# help('crypt') lists the package, help('crypt.md5') documents one function
+help('crypt')
+
+# vim: set syntax=r :
