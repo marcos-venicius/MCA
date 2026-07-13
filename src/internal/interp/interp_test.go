@@ -703,6 +703,50 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+func TestIndexesToKeys(t *testing.T) {
+	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); len(r)", tInt(2))
+	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); r['first']", tString("x"))
+	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); r['third']", tString("z"))
+
+	check(t, "len(indexes_to_keys(['x', 'y', 'z'], {}))", tInt(0)) // empty obj -> empty result
+	check(t, "len(indexes_to_keys([], {}))", tInt(0))              // empty array, empty obj
+
+	check(t, "r = indexes_to_keys([1, 2, 3], {1: 'mid'}); r['mid']", tInt(2))   // non-string array elements
+	check(t, "r = indexes_to_keys(['x', 'y'], {0: 100}); r[100]", tString("x")) // int target key, not just string
+
+	// obj's value doesn't have to be the same kind as the array's elements,
+	// and picking every index just renames them all
+	check(t, "r = indexes_to_keys(['a', 'b'], {0: 0, 1: 1}); format(r[0], r[1])", tString("ab"))
+
+	// source array is untouched, and a fresh map is returned each call
+	check(t, "a = [1, 2, 3]; indexes_to_keys(a, {0: 'x'}); len(a)", tInt(3))
+	check(t, "a = ['x', 'y']; r1 = indexes_to_keys(a, {0: 'k'}); r2 = indexes_to_keys(a, {0: 'k'}); map_del(r1, 'k'); len(r2)", tInt(1))
+}
+
+func TestIndexesToKeysErrors(t *testing.T) {
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {'not_int': 'a'})") // obj key must be an int
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {5: 'a'})")         // index out of range (too high)
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {-1: 'a'})")        // index out of range (negative)
+	expectRuntimeError(t, "indexes_to_keys([], {0: 'a'})")                 // any index into an empty array
+
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: true})") // obj value must be a valid map key
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: 1.5})")
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: [1]})")
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: {}})")
+}
+
+func TestIndexesToKeysWrongArgTypes(t *testing.T) {
+	expectRuntimeError(t, "indexes_to_keys(123, {0: 'a'})") // first arg must be an array
+	expectRuntimeError(t, "indexes_to_keys('not an array', {0: 'a'})")
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], 123)") // second arg must be a map
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], ['a'])")
+}
+
+func TestIndexesToKeysArity(t *testing.T) {
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'])")
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: 'a'}, 'extra')")
+}
+
 func TestSort(t *testing.T) {
 	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); len(a)`, tInt(3))
 	check(t, `a = sort([3, 1, 2], \(x, y) -> x - y); a[0]`, tInt(1))

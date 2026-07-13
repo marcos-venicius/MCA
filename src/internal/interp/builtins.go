@@ -110,14 +110,15 @@ func init() {
 		"map_clear": arity("map_clear", 1, builtinMapClear),
 
 		// Arrays
-		"sort":     arity("sort", 2, builtinSort),
-		"reverse":  arity("reverse", 1, builtinReverse),
-		"concat":   arity("concat", -1, builtinConcat),
-		"contains": arity("contains", 2, builtinContains),
-		"map":      arity("map", 2, builtinMap),
-		"filter":   arity("filter", 2, builtinFilter),
-		"append":   arity("append", 2, builtinAppend),
-		"delete":   arity("delete", -1, builtinDelete),
+		"indexes_to_keys": arity("indexes_to_keys", 2, builtinIndexesToKeys),
+		"sort":            arity("sort", 2, builtinSort),
+		"reverse":         arity("reverse", 1, builtinReverse),
+		"concat":          arity("concat", -1, builtinConcat),
+		"contains":        arity("contains", 2, builtinContains),
+		"map":             arity("map", 2, builtinMap),
+		"filter":          arity("filter", 2, builtinFilter),
+		"append":          arity("append", 2, builtinAppend),
+		"delete":          arity("delete", -1, builtinDelete),
 
 		// random
 		"srand": arity("srand", 1, builtinSrand),

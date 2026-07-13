@@ -6,6 +6,35 @@ import (
 	"strings"
 )
 
+func builtinIndexesToKeys(in *Interp, caller ast.Expr, args []ast.Expr) Value {
+	array := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
+	obj := expectKind(args[1], in.Eval(args[1]).Value, KMap).(*Map)
+
+	out := make(map[MapKey]Value)
+
+	for k, v := range obj.values {
+		if k.Kind != KInt {
+			throw(args[1].Pos(), "'%s' is not an integer", k.String())
+		}
+
+		idx := int(k.I)
+
+		if idx < 0 || idx >= len(array.Items) {
+			throw(args[1].Pos(), "index %d is out of range. array has %d elements", idx, len(array.Items))
+		}
+
+		if !isValidMapKeyType(v.Kind()) {
+			throw(args[1].Pos(), "%s is not a valid map key data type", v.Kind())
+		}
+
+		mk, _ := mapKeyFromValue(v)
+
+		out[mk] = array.Items[idx]
+	}
+
+	return MapV(&Map{values: out})
+}
+
 func builtinSort(in *Interp, caller ast.Expr, args []ast.Expr) Value {
 	array := expectKind(args[0], in.Eval(args[0]).Value, KArray).(*Array)
 	lambda := expectKind(args[1], in.Eval(args[1]).Value, KFn).(*FnValue)

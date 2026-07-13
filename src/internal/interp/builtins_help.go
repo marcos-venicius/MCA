@@ -56,6 +56,7 @@ var helpCategories = []struct {
 	}},
 	{"Arrays", []string{
 		"concat", "contains", "map", "filter", "append", "delete", "reverse", "sort",
+		"indexes_to_keys",
 	}},
 	{"Random", []string{
 		"srand", "rand",
@@ -387,6 +388,15 @@ var helpDocs = map[string]helpDoc{
 
 	// ---- Arrays ----
 
+	"indexes_to_keys": {
+		Params:      []helpParam{p("arr", "array"), p("obj", "map")},
+		Returns:     "map",
+		Description: "Builds a new map by picking elements out of arr at the indexes named in obj. Every key of obj must be an int (an index into arr, in range) and every value of obj must be a valid map key itself (an int or a string) -- that value becomes the key in the result, mapped to arr's element at that index. Does not mutate arr.",
+		Examples: []string{
+			`indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'})  ->  {'first': 'x', 'third': 'z'}`,
+			`indexes_to_keys(['x', 'y', 'z'], {})  ->  {}`,
+		},
+	},
 	"sort": {
 		Params:      []helpParam{p("arr", "array"), p("cmp", "fn")},
 		Returns:     "array",
