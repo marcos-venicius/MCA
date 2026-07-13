@@ -193,10 +193,15 @@ func builtinAppend(in *Interp, c *Call) Value {
 	return arrVal
 }
 
-// builtinDelete implements delete(array, start, end?): removes the single
-// index start, or the range [start, end) when end is given -- same
-// half-open convention as select()'s [from, to). Mutates array in place and
-// returns it.
+// builtinDelete implements delete on both containers, mutating in place and
+// returning the container.
+//
+// delete(array, start, end?) removes the single index start, or the range
+// [start, end) when end is given -- same half-open convention as
+// string.select()'s [from, to).
+//
+// delete(map, key) removes key (an int or string) from the map; a key that
+// was never present is not an error. This subsumed map_del.
 func builtinDelete(in *Interp, c *Call) Value {
 	if c.N() > 3 {
 		throw(c.Site, "too many arguments delete(...). expected 2 or 3 but got %d", c.N())
@@ -204,7 +209,21 @@ func builtinDelete(in *Interp, c *Call) Value {
 		throw(c.Site, "too few arguments delete(...). expected 2 or 3 but got %d", c.N())
 	}
 
-	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
+	target := expectKindAt(c.At(0), c.Args[0], KArray, KMap)
+
+	if m, ok := target.(*Map); ok {
+		if c.N() != 2 {
+			throw(c.Site, "delete on a map takes exactly one key, delete(m, key)")
+		}
+
+		key := expectKindAt(c.At(1), c.Args[1], KInt, KString)
+		mk, _ := mapKeyFromValue(key)
+		m.Del(mk)
+
+		return target
+	}
+
+	arr := target.(*Array)
 	start := intOf(expectKindAt(c.At(1), c.Args[1], KInt))
 
 	length := int64(len(arr.Items))

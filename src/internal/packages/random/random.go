@@ -1,4 +1,35 @@
-package interp
+// Package random is MCA's `random` package, reached with
+// `const random = import('random')`. It holds srand/rand, moved out of the
+// always-bound builtins; the generator itself is unchanged.
+package random
+
+import (
+	"mca/internal/interp"
+)
+
+func init() {
+	interp.RegisterModule(&interp.Module{
+		Name: "random",
+		Fns: map[string]*interp.Native{
+			"srand": interp.NewNative("random.srand", 1, srand),
+			"rand":  interp.NewNative("random.rand", 2, rand),
+		},
+		Docs: map[string]interp.Doc{
+			"srand": {
+				Params:      []interp.Param{{Name: "seed", Type: "int"}},
+				Returns:     "unit",
+				Description: "Seeds the random number generator (a glibc-compatible rand()/srand() implementation). This is process-global state, shared even across import()ed modules.",
+				Examples:    []string{`random.srand(4)`},
+			},
+			"rand": {
+				Params:      []interp.Param{{Name: "min", Type: "int"}, {Name: "max", Type: "int"}},
+				Returns:     "int",
+				Description: "A pseudo-random integer in the inclusive range [min, max]. Throws a runtime error if min > max.",
+				Examples:    []string{`random.srand(4); random.rand(1, 10)  ->  2`},
+			},
+		},
+	})
+}
 
 // glibcRand reimplements glibc's default rand()/srand() algorithm exactly
 // (the TYPE_3 additive-feedback generator, degree 31 / separation 3,
@@ -74,21 +105,20 @@ func (r *glibcRand) next() int32 {
 	return result
 }
 
-func builtinSrand(in *Interp, c *Call) Value {
-	seed := intOf(expectKindAt(c.At(0), c.Args[0], KInt))
-	globalRand.seed(uint32(seed))
-	return UnitV()
+func srand(in *interp.Interp, c *interp.Call) interp.Value {
+	globalRand.seed(uint32(c.IntArg(0)))
+	return interp.UnitV()
 }
 
-func builtinRand(in *Interp, c *Call) Value {
-	min := intOf(expectKindAt(c.At(0), c.Args[0], KInt))
-	max := intOf(expectKindAt(c.At(1), c.Args[1], KInt))
+func rand(in *interp.Interp, c *interp.Call) interp.Value {
+	min := c.IntArg(0)
+	max := c.IntArg(1)
 
 	if min > max {
-		throw(c.At(0), "invalid range for rand(). min (%d) cannot be greater than max (%d)", min, max)
+		interp.Throw(c.At(0), "invalid range for rand(). min (%d) cannot be greater than max (%d)", min, max)
 	}
 
 	r := int64(globalRand.next())%(max-min+1) + min
 
-	return IntV(r)
+	return interp.IntV(r)
 }

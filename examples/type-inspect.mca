@@ -6,10 +6,12 @@
 println(0, type(0))
 println(0.1, type(0.1))
 
+const math = import('math')
+
 a = 10
 b = 10
-c = PI()
-d = E()
+c = math.PI()
+d = math.E()
 
 println(a / b, type(a / b))
 

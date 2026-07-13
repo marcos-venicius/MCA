@@ -1,6 +1,8 @@
 #!/usr/local/bin/mca
 # This program gets all three angles of a triangle
 
+const math = import('math')
+
 # insert your values here
 a = if (argc() >= 2) as_int(argv(1))
 b = if (argc() >= 3) as_int(argv(2))
@@ -34,11 +36,11 @@ sin_angle_two = SIDE_TWO / MAX
 
 # extracting the angles of the triangle
 println(
-  deg(asin(sin_angle_one)), # angle opposite the first cateto
+  math.deg(math.asin(sin_angle_one)), # angle opposite the first cateto
   ' ',
-  deg(asin(sin_angle_two)), # angle opposite the second cateto
+  math.deg(math.asin(sin_angle_two)), # angle opposite the second cateto
   ' ',
-  deg(asin(MAX / MAX)) # angle opposite to the hypotenuse
+  math.deg(math.asin(MAX / MAX)) # angle opposite to the hypotenuse
 )
 
 # vim: set syntax=r :

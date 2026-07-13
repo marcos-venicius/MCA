@@ -86,6 +86,40 @@ func checkArgs(t *testing.T, src string, want expected, args ...string) {
 	}
 }
 
+// checkPrints runs src and asserts on what it wrote to stdout. It replaces
+// the format(...)-based result serialization these tests used before format
+// moved to the 'string' package: native packages register from init()s that
+// interp's own tests never link (importing one here would be an import
+// cycle), so anything moved out is unreachable from this file -- println's
+// value printing serializes arrays just as well.
+func checkPrints(t *testing.T, src, want string) {
+	t.Helper()
+
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		t.Fatalf("%q: lex errors: %v", src, l.Errors)
+	}
+
+	prog := parser.Parse("", toks)
+	if len(prog.Errors) > 0 {
+		t.Fatalf("%q: parse errors: %v", src, prog.Errors)
+	}
+
+	var buf bytes.Buffer
+	in := New()
+	in.Out = &buf
+	in.Err = io.Discard
+
+	if _, err := in.Run(prog.Stmts); err != nil {
+		t.Fatalf("%q: unexpected runtime error: %v", src, err)
+	}
+
+	if got := buf.String(); got != want {
+		t.Fatalf("%q: printed %q, want %q", src, got, want)
+	}
+}
+
 func expectRuntimeError(t *testing.T, src string) {
 	t.Helper()
 
@@ -228,34 +262,15 @@ func TestSumArity(t *testing.T) {
 }
 
 func TestCallBuiltinFunctions(t *testing.T) {
-	check(t, "abs(abs(-1) - 2)", tInt(1))
-	check(t, "(abs(-1) * 2) ^ 2", tInt(4))
-	check(t, "abs(min(abs(-1), max(-5, -4)) * 1)", tInt(4))
-	check(t, "max(abs(-12), 8) * sin(rad(30)) + (16 / 2)", tFloat(14))
-	check(t, "PI()", tFloat(math.Pi))
-	check(t, "E()", tFloat(math.E))
-	check(t, "abs(-15.5)", tFloat(15.5))
+	// sin, sqrt, abs and friends moved to the 'math' package, select/ord/
+	// format to 'string', srand/rand to 'random', read_entire_file to 'io' --
+	// each is tested in its own package (internal/packages/...), since their
+	// registering init()s never run in this test binary.
+	check(t, "max(min(3, 8), 2) * min(4, 5)", tInt(12))
 	check(t, "max(10.5, 20.0)", tFloat(20.0))
 	check(t, "min(10.5, 20.0)", tFloat(10.5))
-	check(t, "sin(0)", tInt(0))
-	check(t, "deg(asin(1))", tInt(90))
-	check(t, "deg(acos(0))", tInt(90))
-	check(t, "cos(0)", tInt(1))
-	check(t, "tan(0)", tInt(0))
-	check(t, "rad(180)", tFloat(math.Pi))
-	check(t, "deg(3.14159265358979323846)", tInt(180))
-	check(t, "sqrt(25)", tInt(5))
-	check(t, "log(1)", tInt(0))
-	check(t, "log10(1000)", tInt(3))
-	check(t, "exp(1)", tFloat(math.E))
-	check(t, "floor(4.8)", tInt(4))
-	check(t, "ceil(4.2)", tInt(5))
-	check(t, "round(4.5)", tInt(5))
-	check(t, "round(4.4)", tInt(4))
 	check(t, "type(4.4)", tString("float"))
 	check(t, "type(4)", tString("int"))
-	check(t, "srand(4)", tUnit())
-	check(t, "rand(1, 10)", tInt(2)) // glibc-compatible RNG, verified against the C binary
 	check(t, "len('Hello World')", tInt(11))
 	checkArgs(t, "argc()", tInt(0))
 	checkArgs(t, "argc()", tInt(1), "fakename.mca")
@@ -272,36 +287,22 @@ func TestCallBuiltinFunctions(t *testing.T) {
 	check(t, "is_unit(1)", tBool(false))
 	check(t, "is_unit(?)", tBool(true))
 	check(t, "'Hello, World'[7]", tString("W"))
-	check(t, "select('Hello, World', 7, 12)", tString("World"))
-	check(t, "select('heyhey', 0, 6)", tString("heyhey"))
-	check(t, "select('heyhey', 2, 3)", tString("y"))
-	check(t, "select('heyhey', 3, 6)", tString("hey"))
-	check(t, "ord('a')", tInt(int64('a')))
-	check(t, "ord('b')", tInt(int64('b')))
-	check(t, "ord('z')", tInt(int64('z')))
-	check(t, "format('Hello ', 'World!', ' I am ', 5, ' years old. And ', 5.6, ' feet. I am a ', true, ' tall. I am not ', false)",
-		tString("Hello World! I am 5 years old. And 5.6 feet. I am a true tall. I am not false"))
-}
-
-func TestReadEntireFile(t *testing.T) {
-	// TODO: fix this path to use a local one
-	check(t, "read_entire_file('../../../test/file.txt')", tString("Hello World\n"))
 }
 
 func TestPrintingReturnsLastArgument(t *testing.T) {
 	check(t, "print()", tUnit())
-	check(t, "print(PI())", tFloat(math.Pi))
-	check(t, "print(PI(), E(), 10)", tInt(10))
+	check(t, "print(3.14)", tFloat(3.14))
+	check(t, "print(3.14, 2.71, 10)", tInt(10))
 	check(t, "println()", tUnit())
-	check(t, "println(PI())", tFloat(math.Pi))
-	check(t, "println(PI(), E(), 10)", tInt(10))
+	check(t, "println(3.14)", tFloat(3.14))
+	check(t, "println(3.14, 2.71, 10)", tInt(10))
 }
 
 func TestGlobalVariables(t *testing.T) {
 	check(t, "x = 10", tInt(10))
 	check(t, "y = x = 10", tInt(10))
 	check(t, "y = x = 10;y", tInt(10))
-	check(t, "x = 10; y = -5.5; z = abs(x * y); println(x, y, z, x + y + z)", tFloat(59.5))
+	check(t, "x = 10; y = -5.5; z = -(x * y); println(x, y, z, x + y + z)", tFloat(59.5))
 }
 
 func TestAssignment(t *testing.T) {
@@ -312,7 +313,8 @@ func TestAssignment(t *testing.T) {
 	check(t, "i = 10; i += 2; i", tInt(12))
 	check(t, "i = 10; i -= 2", tInt(8))
 	check(t, "i = 10; i -= 2; i", tInt(8))
-	check(t, "m = {}; m['name'] = 'Fred'; m['age'] = 32; format(m['name'], ' is ', m['age'], ' years old')", tString("Fred is 32 years old"))
+	check(t, "m = {}; m['name'] = 'Fred'; m['age'] = 32; m['name']", tString("Fred"))
+	check(t, "m = {}; m['name'] = 'Fred'; m['age'] = 32; m['age']", tInt(32))
 }
 
 func TestWhileLoops(t *testing.T) {
@@ -337,7 +339,7 @@ func TestForLoops(t *testing.T) {
 func TestBreak(t *testing.T) {
 	check(t, "r = while 1 { n = 10; break 11.3; println(0); }; r", tFloat(11.3))
 	check(t, "r = while 1 { n = 10; break; println(10); }; r", tUnit())
-	check(t, "r = while 1 { n = 10; break floor(10 * 10 - cos(45)); println(10); }; r", tInt(99))
+	check(t, "r = while 1 { n = 10; break 10 * 10 - 1; println(10); }; r", tInt(99))
 }
 
 func TestForLoopBreakIsFixed(t *testing.T) {
@@ -353,7 +355,7 @@ func TestIfs(t *testing.T) {
 	check(t, "if false 0 elif false 1 else true 2", tInt(2))
 	check(t, "if false { 0 } elif false { 1 } else true 2", tInt(2))
 	check(t, "if false { 0 } elif false { 1 } else { 2; 3; 4; }", tInt(4))
-	check(t, "srand(4); a = if rand(0, 10) % 2 == 0 'Ok' else 'Fail'; println(a)", tString("Ok"))
+	check(t, "n = 4; a = if n % 2 == 0 'Ok' else 'Fail'; println(a)", tString("Ok"))
 }
 
 func TestElifs(t *testing.T) {
@@ -582,7 +584,7 @@ func TestBuiltinsCanBeShadowed(t *testing.T) {
 
 	// The right-hand side still sees the builtin, which is what makes the
 	// `year = year(0)` idiom in the examples work.
-	check(t, `upper = upper('hi'); upper`, tString("HI"))
+	check(t, `len = len('hi'); len`, tInt(2))
 
 	// Shadowing is confined to the scope that did it: the builtin is untouched
 	// everywhere else, including after the shadowing scope has been left.
@@ -655,26 +657,26 @@ func TestBuiltinsAreFirstClassValues(t *testing.T) {
 	check(t, `is_fn(sort)`, tBool(true))
 
 	// Stored in a variable, then called through it.
-	check(t, `f = upper; f('hi')`, tString("HI"))
+	check(t, `f = len; f('hi')`, tInt(2))
 	check(t, `m = {'f': len}; m.f('hello')`, tInt(5))
-	check(t, `fns = [lower, upper]; fns[1]('hi')`, tString("HI"))
+	check(t, `fns = [min, max]; fns[1](1, 2)`, tInt(2))
 
 	// Passed to the higher-order builtins as a callback.
-	check(t, `join(map(['a', 'b'], upper), '')`, tString("AB"))
+	check(t, `sum(map(['a', 'bb'], len))`, tInt(3))
 	check(t, `len(filter(['', 'a', ''], as_bool))`, tInt(1))
-	check(t, `join(map([1, 2], as_string), ',')`, tString("1,2"))
+	check(t, `map([1, 2], as_string)[1]`, tString("2"))
 
 	// Passed to a user function, and returned from one.
-	check(t, `apply = \(f, x) -> f(x); apply(abs, -3)`, tInt(3))
-	check(t, `pick = \() -> upper; pick()('hi')`, tString("HI"))
+	check(t, `apply = \(f, x) -> f(x); apply(len, 'abc')`, tInt(3))
+	check(t, `pick = \() -> len; pick()('hi')`, tInt(2))
 
 	// A variadic builtin accepts any argument count, so it is usable wherever
 	// a callback of a fixed arity is expected.
-	check(t, `len(map([1, 2], format))`, tInt(2))
+	check(t, `len(map([1, 2], println))`, tInt(2))
 
 	// Arity is still enforced when a builtin is called through a value.
-	expectRuntimeError(t, `f = upper; f()`)
-	expectRuntimeError(t, `f = upper; f('a', 'b')`)
+	expectRuntimeError(t, `f = len; f()`)
+	expectRuntimeError(t, `f = len; f('a', 'b')`)
 	expectRuntimeError(t, `map([1, 2], sort)`)
 }
 
@@ -715,14 +717,19 @@ func TestHashmaps(t *testing.T) {
 	expectRuntimeError(t, "m = {}; m[1] = 'Hello, World'; m[2]")
 	check(t, "m = {}; m[1] = 'Hello, World';", tString("Hello, World"))
 	check(t, "m = { 'name': 'John Doe', 'age': 32, 'weight': 67.56, 'is_dead': false, 10: 'test' }; m['age']", tInt(32))
-	check(t,
-		"m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'};"+
-			"format(len(m), ';', m['name'], ';', m['age'], ';', m['weight'], ';', m['is_dead'], ';', m[10])",
-		tString("5;John Doe;32;67.56;false;test"))
+	check(t, "m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'}; len(m)", tInt(5))
+	check(t, "m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'}; m['name']", tString("John Doe"))
+	check(t, "m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'}; m['weight']", tFloat(67.56))
+	check(t, "m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'}; m['is_dead']", tBool(false))
+	check(t, "m = {'name': 'John Doe','age': 32,'weight': 67.56,'is_dead': false,10: 'test'}; m[10]", tString("test"))
 	check(t, "m = {}; len(m);", tInt(0))
-	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; map_del(m, 'height')", tBool(true))
-	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; map_del(m, 'Height')", tBool(false))
-	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; map_clear(m); len(m)", tInt(0))
+
+	// Key removal is delete(m, key) -- the same builtin as on arrays; map_del
+	// and map_clear are gone (clearing is rebinding to {}).
+	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; delete(m, 'height'); len(m)", tInt(2))
+	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; m['z-index'] = 999; delete(m, 'height'); contains(m, 'height')", tBool(false))
+	check(t, "m = {}; m['width'] = '3rem'; m['height'] = '3rem'; delete(m, 'Height'); len(m)", tInt(2)) // case-sensitive; missing key is not an error
+	check(t, "m = {'a': 1}; m = {}; len(m)", tInt(0))
 }
 
 func TestMapKeys(t *testing.T) {
@@ -830,11 +837,12 @@ func TestIndexesToKeys(t *testing.T) {
 
 	// obj's value doesn't have to be the same kind as the array's elements,
 	// and picking every index just renames them all
-	check(t, "r = indexes_to_keys(['a', 'b'], {0: 0, 1: 1}); format(r[0], r[1])", tString("ab"))
+	check(t, "r = indexes_to_keys(['a', 'b'], {0: 0, 1: 1}); r[0]", tString("a"))
+	check(t, "r = indexes_to_keys(['a', 'b'], {0: 0, 1: 1}); r[1]", tString("b"))
 
 	// source array is untouched, and a fresh map is returned each call
 	check(t, "a = [1, 2, 3]; indexes_to_keys(a, {0: 'x'}); len(a)", tInt(3))
-	check(t, "a = ['x', 'y']; r1 = indexes_to_keys(a, {0: 'k'}); r2 = indexes_to_keys(a, {0: 'k'}); map_del(r1, 'k'); len(r2)", tInt(1))
+	check(t, "a = ['x', 'y']; r1 = indexes_to_keys(a, {0: 'k'}); r2 = indexes_to_keys(a, {0: 'k'}); delete(r1, 'k'); len(r2)", tInt(1))
 }
 
 func TestIndexesToKeysErrors(t *testing.T) {
@@ -874,18 +882,18 @@ func TestSort(t *testing.T) {
 	check(t, `a = sort([5], \(x, y) -> x - y); len(a)`, tInt(1)) // single element -- unchanged
 	check(t, `a = sort([5], \(x, y) -> x - y); a[0]`, tInt(5))
 
-	check(t, `a = sort([3, 1, 2, 1, 3], \(x, y) -> x - y); format(a[0], a[1], a[2], a[3], a[4])`, tString("11233")) // duplicates preserved
+	checkPrints(t, `println(sort([3, 1, 2, 1, 3], \(x, y) -> x - y))`, "[1, 1, 2, 3, 3]\n") // duplicates preserved
 
 	// comparator must itself return an int -- int subtraction works
 	// directly, but a float comparator has to say explicitly which way it
 	// goes since a - b would come out a float
-	check(t,
+	checkPrints(t,
 		`cmp = \(x, y) -> if (x < y) { -1 } elif (x > y) { 1 } else { 0 };`+
-			`a = sort([1.5, 0.5, 2.5], cmp); format(a[0], a[1], a[2])`,
-		tString("0.51.52.5"))
+			`println(sort([1.5, 0.5, 2.5], cmp))`,
+		"[0.500000, 1.500000, 2.500000]\n")
 
 	// composes with other array builtins
-	check(t, `a = sort(reverse([1, 2, 3]), \(x, y) -> x - y); format(a[0], a[1], a[2])`, tString("123"))
+	checkPrints(t, `println(sort(reverse([1, 2, 3]), \(x, y) -> x - y))`, "[1, 2, 3]\n")
 
 	// the source array is untouched, and the result is a fresh array
 	check(t, `a = [3, 1, 2]; b = sort(a, \(x, y) -> x - y); a[0]`, tInt(3))
@@ -911,15 +919,15 @@ func TestSortArity(t *testing.T) {
 func TestDelete(t *testing.T) {
 	// single-index form
 	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); len(a)", tInt(4))
-	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); format(a[0], a[1], a[2], a[3])", tString("1245"))
+	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); println(a)", "[1, 2, 4, 5]\n")
 	check(t, "a = [1]; delete(a, 0); len(a)", tInt(0)) // delete the only element
 
-	// range form -- half-open [start, end), matching select()
+	// range form -- half-open [start, end), matching string.select()
 	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); len(a)", tInt(2))
-	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); format(a[0], a[1])", tString("15"))
+	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); println(a)", "[1, 5]\n")
 	check(t, "a = [1, 2, 3]; delete(a, 0, 3); len(a)", tInt(0)) // delete the whole array
 	check(t, "a = [1, 2, 3]; delete(a, 0, 0); len(a)", tInt(3)) // empty range -- nothing removed
-	check(t, "a = [1, 2, 3]; delete(a, 1, 1); format(a[0], a[1], a[2])", tString("123"))
+	checkPrints(t, "a = [1, 2, 3]; delete(a, 1, 1); println(a)", "[1, 2, 3]\n")
 
 	// mutates in place and returns the same array (identity, not a copy)
 	check(t, "a = [1, 2, 3]; b = delete(a, 0); a == b", tBool(true))
@@ -927,7 +935,28 @@ func TestDelete(t *testing.T) {
 	check(t, "a = [1, 2, 3]; delete(a, 0); len(a)", tInt(2)) // a itself reflects the mutation
 
 	// composes with other array builtins
-	check(t, "a = delete(reverse([1, 2, 3]), 0); format(a[0], a[1])", tString("21"))
+	checkPrints(t, "println(delete(reverse([1, 2, 3]), 0))", "[2, 1]\n")
+}
+
+func TestDeleteOnMaps(t *testing.T) {
+	// delete(m, key) removes a key -- the replacement for map_del.
+	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); len(m)", tInt(1))
+	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); contains(m, 'a')", tBool(false))
+	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); m['b']", tInt(2))
+	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0)) // int keys too
+
+	// a key that was never present is not an error
+	check(t, "m = {'a': 1}; delete(m, 'missing'); len(m)", tInt(1))
+	check(t, "m = {}; delete(m, 'a'); len(m)", tInt(0))
+
+	// mutates in place and returns the same map (identity, not a copy)
+	check(t, "m = {'a': 1}; n = delete(m, 'a'); m == n", tBool(true))
+
+	// the key must be an int or a string, and the range form is array-only
+	expectRuntimeError(t, "delete({'a': 1}, 1.5)")
+	expectRuntimeError(t, "delete({'a': 1}, true)")
+	expectRuntimeError(t, "delete({'a': 1}, [1])")
+	expectRuntimeError(t, "delete({'a': 1}, 'a', 2)")
 }
 
 func TestDeleteOutOfRange(t *testing.T) {
@@ -940,7 +969,7 @@ func TestDeleteOutOfRange(t *testing.T) {
 }
 
 func TestDeleteWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "delete(123, 0)") // first arg must be an array
+	expectRuntimeError(t, "delete(123, 0)") // first arg must be an array or a map
 	expectRuntimeError(t, "delete('not an array', 0)")
 	expectRuntimeError(t, "delete([1, 2, 3], 'a')")    // start must be an int
 	expectRuntimeError(t, "delete([1, 2, 3], 0, 'a')") // end must be an int
@@ -1200,295 +1229,9 @@ func TestStrings(t *testing.T) {
 	check(t, "'Hello World'[6]", tString("W"))
 }
 
-func TestRepeat(t *testing.T) {
-	check(t, "repeat('ab', 3)", tString("ababab"))
-	check(t, "repeat('a', 1)", tString("a")) // count of 1 -> unchanged
-	check(t, "repeat('a', 0)", tString(""))  // count of 0 -> empty string
-	check(t, "repeat('', 5)", tString(""))   // empty input -> empty regardless of count
-	check(t, "repeat('', 0)", tString(""))
-	check(t, "repeat('xy', 4)", tString("xyxyxyxy"))
-}
-
-func TestRepeatNegativeCountIsRuntimeError(t *testing.T) {
-	expectRuntimeError(t, "repeat('a', -1)")
-	expectRuntimeError(t, "repeat('a', -100)")
-	expectRuntimeError(t, "repeat('', -1)")
-}
-
-func TestRepeatWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "repeat(123, 3)")
-	expectRuntimeError(t, "repeat('a', 'b')")
-	expectRuntimeError(t, "repeat(true, 3)")
-	expectRuntimeError(t, "repeat(['a'], 3)")
-	expectRuntimeError(t, "repeat('a', 1.5)")
-}
-
-func TestRepeatArity(t *testing.T) {
-	expectRuntimeError(t, "repeat('a')")
-	expectRuntimeError(t, "repeat('a', 2, 3)")
-}
-
-func TestReplace(t *testing.T) {
-	check(t, "replace('Hello World', 'World', 'There')", tString("Hello There"))
-	check(t, "replace('aaa', 'a', 'b')", tString("bbb"))                            // all occurrences replaced
-	check(t, "replace('Hello World', 'x', 'y')", tString("Hello World"))            // no match -> unchanged
-	check(t, "replace('Hello World', '', 'x')", tString("xHxexlxlxox xWxoxrxlxdx")) // empty old -- matches between every rune, matching strings.ReplaceAll
-	check(t, "replace('Hello World', 'World', '')", tString("Hello "))              // empty new -- deletes matches
-	check(t, "replace('', 'a', 'b')", tString(""))                                  // empty haystack
-	check(t, "replace('aaaa', 'aa', 'b')", tString("bb"))                           // overlapping-looking matches consumed left to right, non-overlapping
-	check(t, "replace('Hello', 'hello', 'x')", tString("Hello"))                    // case-sensitive
-}
-
-func TestReplaceWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "replace(123, 'a', 'b')")
-	expectRuntimeError(t, "replace('a', 123, 'b')")
-	expectRuntimeError(t, "replace('a', 'a', 123)")
-	expectRuntimeError(t, "replace(true, 'a', 'b')")
-	expectRuntimeError(t, "replace(['a'], 'a', 'b')")
-}
-
-func TestReplaceArity(t *testing.T) {
-	expectRuntimeError(t, "replace('a', 'b')")
-	expectRuntimeError(t, "replace('a', 'b', 'c', 'd')")
-}
-
-func TestStartsWith(t *testing.T) {
-	check(t, "starts_with('Hello World', 'Hello')", tBool(true))
-	check(t, "starts_with('Hello World', 'World')", tBool(false))
-	check(t, "starts_with('Hello World', '')", tBool(true))            // empty prefix always matches
-	check(t, "starts_with('', '')", tBool(true))                       // empty haystack, empty prefix
-	check(t, "starts_with('', 'a')", tBool(false))                     // empty haystack, non-empty prefix
-	check(t, "starts_with('Hello', 'Hello World')", tBool(false))      // prefix longer than string
-	check(t, "starts_with('hello', 'Hello')", tBool(false))            // case-sensitive
-	check(t, "starts_with('Hello World', 'Hello World')", tBool(true)) // exact match
-}
-
-func TestStartsWithWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "starts_with(123, 'a')")
-	expectRuntimeError(t, "starts_with('a', 123)")
-	expectRuntimeError(t, "starts_with(true, 'a')")
-	expectRuntimeError(t, "starts_with(['a'], 'a')")
-}
-
-func TestStartsWithArity(t *testing.T) {
-	expectRuntimeError(t, "starts_with('a')")
-	expectRuntimeError(t, "starts_with('a', 'b', 'c')")
-}
-
-func TestEndsWith(t *testing.T) {
-	check(t, "ends_with('Hello World', 'World')", tBool(true))
-	check(t, "ends_with('Hello World', 'Hello')", tBool(false))
-	check(t, "ends_with('Hello World', '')", tBool(true))            // empty suffix always matches
-	check(t, "ends_with('', '')", tBool(true))                       // empty haystack, empty suffix
-	check(t, "ends_with('', 'a')", tBool(false))                     // empty haystack, non-empty suffix
-	check(t, "ends_with('World', 'Hello World')", tBool(false))      // suffix longer than string
-	check(t, "ends_with('world', 'World')", tBool(false))            // case-sensitive
-	check(t, "ends_with('Hello World', 'Hello World')", tBool(true)) // exact match
-}
-
-func TestEndsWithWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "ends_with(123, 'a')")
-	expectRuntimeError(t, "ends_with('a', 123)")
-	expectRuntimeError(t, "ends_with(true, 'a')")
-	expectRuntimeError(t, "ends_with(['a'], 'a')")
-}
-
-func TestEndsWithArity(t *testing.T) {
-	expectRuntimeError(t, "ends_with('a')")
-	expectRuntimeError(t, "ends_with('a', 'b', 'c')")
-}
-
-func TestLower(t *testing.T) {
-	check(t, "lower('HELLO')", tString("hello"))
-	check(t, "lower('Hello World')", tString("hello world"))
-	check(t, "lower('already lower')", tString("already lower"))
-	check(t, "lower('')", tString(""))
-	check(t, "lower('MiXeD123!')", tString("mixed123!"))
-}
-
-func TestLowerWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "lower(123)")
-	expectRuntimeError(t, "lower(true)")
-	expectRuntimeError(t, "lower(['a'])")
-}
-
-func TestLowerArity(t *testing.T) {
-	expectRuntimeError(t, "lower()")
-	expectRuntimeError(t, "lower('a', 'b')")
-}
-
-func TestUpper(t *testing.T) {
-	check(t, "upper('hello')", tString("HELLO"))
-	check(t, "upper('Hello World')", tString("HELLO WORLD"))
-	check(t, "upper('ALREADY UPPER')", tString("ALREADY UPPER"))
-	check(t, "upper('')", tString(""))
-	check(t, "upper('MiXeD123!')", tString("MIXED123!"))
-}
-
-func TestUpperWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "upper(123)")
-	expectRuntimeError(t, "upper(true)")
-	expectRuntimeError(t, "upper(['a'])")
-}
-
-func TestUpperArity(t *testing.T) {
-	expectRuntimeError(t, "upper()")
-	expectRuntimeError(t, "upper('a', 'b')")
-}
-
-func TestTrim(t *testing.T) {
-	check(t, "trim('  hello  ')", tString("hello"))
-	check(t, "trim('hello')", tString("hello"))                     // nothing to trim
-	check(t, "trim('   ')", tString(""))                            // all whitespace
-	check(t, "trim('')", tString(""))                               // empty input
-	check(t, "trim('\t\\n hello \\n\t')", tString("hello"))         // tabs/newlines too (MCA only supports \n as an escape, tab is a raw byte)
-	check(t, "trim('  hello   world  ')", tString("hello   world")) // interior spaces preserved
-}
-
-func TestTrimWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "trim(123)")
-	expectRuntimeError(t, "trim(true)")
-	expectRuntimeError(t, "trim(['a'])")
-}
-
-func TestTrimArity(t *testing.T) {
-	expectRuntimeError(t, "trim()")
-	expectRuntimeError(t, "trim('a', 'b')")
-}
-
-func TestLTrim(t *testing.T) {
-	check(t, "ltrim('  hello  ')", tString("hello  ")) // only leading whitespace removed
-	check(t, "ltrim('hello')", tString("hello"))
-	check(t, "ltrim('   ')", tString(""))
-	check(t, "ltrim('')", tString(""))
-	check(t, "ltrim('\t\\n hello')", tString("hello"))
-}
-
-func TestLTrimWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "ltrim(123)")
-	expectRuntimeError(t, "ltrim(true)")
-	expectRuntimeError(t, "ltrim(['a'])")
-}
-
-func TestLTrimArity(t *testing.T) {
-	expectRuntimeError(t, "ltrim()")
-	expectRuntimeError(t, "ltrim('a', 'b')")
-}
-
-func TestRTrim(t *testing.T) {
-	check(t, "rtrim('  hello  ')", tString("  hello")) // only trailing whitespace removed
-	check(t, "rtrim('hello')", tString("hello"))
-	check(t, "rtrim('   ')", tString(""))
-	check(t, "rtrim('')", tString(""))
-	check(t, "rtrim('hello \\n\t')", tString("hello"))
-}
-
-func TestRTrimWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "rtrim(123)")
-	expectRuntimeError(t, "rtrim(true)")
-	expectRuntimeError(t, "rtrim(['a'])")
-}
-
-func TestRTrimArity(t *testing.T) {
-	expectRuntimeError(t, "rtrim()")
-	expectRuntimeError(t, "rtrim('a', 'b')")
-}
-
-func TestJoin(t *testing.T) {
-	check(t, "join(['a', 'b', 'c'], ',')", tString("a,b,c"))
-	check(t, "join(['a', 'b', 'c'], '')", tString("abc"))
-	check(t, "join(['a', 'b', 'c'], ' -- ')", tString("a -- b -- c"))
-	check(t, "join(['solo'], ',')", tString("solo"))
-	check(t, "join([], ',')", tString(""))
-}
-
-func TestJoinRejectsNonStringItemsAndWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "join([1, 2, 3], ',')")      // ints, not strings
-	expectRuntimeError(t, "join(['a', 2, 'c'], ',')")  // mixed -- fails on the first non-string
-	expectRuntimeError(t, "join('not an array', ',')") // first arg must be an array
-	expectRuntimeError(t, "join(['a', 'b'], 1)")       // separator must be a string
-}
-
-func TestJoinArity(t *testing.T) {
-	expectRuntimeError(t, "join(['a', 'b'])")
-	expectRuntimeError(t, "join(['a', 'b'], ',', 'extra')")
-}
-
-func TestSplit(t *testing.T) {
-	check(t, "s = split('a,b,c', ','); len(s)", tInt(3))
-	check(t, "s = split('a,b,c', ','); s[0]", tString("a"))
-	check(t, "s = split('a,b,c', ','); s[1]", tString("b"))
-	check(t, "s = split('a,b,c', ','); s[2]", tString("c"))
-	check(t, "join(split('a,b,c', ','), ',')", tString("a,b,c")) // round-trips through join
-
-	check(t, "s = split('a::b::c', '::'); len(s)", tInt(3)) // multi-char separator
-	check(t, "s = split('a::b::c', '::'); s[1]", tString("b"))
-
-	check(t, "s = split('hello', ','); len(s)", tInt(1)) // separator not present -> whole string, unsplit
-	check(t, "s = split('hello', ','); s[0]", tString("hello"))
-
-	check(t, "s = split('', ','); len(s)", tInt(1)) // empty input -> single empty-string element
-	check(t, "s = split('', ','); s[0]", tString(""))
-
-	check(t, "s = split('a,,b', ','); len(s)", tInt(3)) // consecutive separators -> empty element between them
-	check(t, "s = split('a,,b', ','); s[1]", tString(""))
-
-	check(t, "s = split(',a,', ','); len(s)", tInt(3)) // leading/trailing separators -> empty elements at the ends
-	check(t, "s = split(',a,', ','); s[0]", tString(""))
-	check(t, "s = split(',a,', ','); s[2]", tString(""))
-
-	check(t, "s = split('abc', ''); len(s)", tInt(3)) // empty separator -> split between every rune
-	check(t, "s = split('abc', ''); s[0]", tString("a"))
-	check(t, "s = split('abc', ''); s[2]", tString("c"))
-}
-
-func TestSplitWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "split(123, ',')")   // first arg must be a string
-	expectRuntimeError(t, "split('a,b', 123)") // separator must be a string
-	expectRuntimeError(t, "split(['a'], ',')")
-}
-
-func TestSplitArity(t *testing.T) {
-	expectRuntimeError(t, "split('a,b')")
-	expectRuntimeError(t, "split('a,b', ',', 'extra')")
-}
-
-func TestChr(t *testing.T) {
-	check(t, "chr(65)", tString("A"))
-	check(t, "chr(97)", tString("a"))
-	check(t, "chr(48)", tString("0"))
-	check(t, "chr(32)", tString(" "))
-
-	check(t, "chr(128512)", tString("\U0001F600")) // multi-byte code point (an emoji)
-	check(t, "len(chr(128512))", tInt(4))          // ... encoded as 4 UTF-8 bytes
-
-	// round-trips through ord() for single-byte code points (ord() indexes
-	// by byte, not rune, so this doesn't hold for multi-byte code points).
-	check(t, "ord(chr(65))", tInt(65))
-	check(t, "chr(ord('Q'))", tString("Q"))
-}
-
-func TestChrOnInvalidCodepoints(t *testing.T) {
-	// Out-of-range code points (negative, or beyond the max valid rune
-	// 0x10FFFF) fall back to the Unicode replacement character (U+FFFD)
-	// rather than erroring, matching Go's string(rune(...)) conversion.
-	check(t, "chr(-1)", tString("�"))
-	check(t, "chr(2000000)", tString("�"))
-	check(t, "len(chr(-1))", tInt(3))
-	check(t, "len(chr(2000000))", tInt(3))
-}
-
-func TestChrWrongArgTypes(t *testing.T) {
-	expectRuntimeError(t, "chr('a')")
-	expectRuntimeError(t, "chr(1.5)")
-	expectRuntimeError(t, "chr(true)")
-	expectRuntimeError(t, "chr([65])")
-}
-
-func TestChrArity(t *testing.T) {
-	expectRuntimeError(t, "chr()")
-	expectRuntimeError(t, "chr(65, 66)")
-}
+// The string-manipulation builtins (repeat, replace, upper, join, split,
+// select, ord, chr, format, ...) moved to the 'string' native package; their
+// tests live in internal/packages/string.
 
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))

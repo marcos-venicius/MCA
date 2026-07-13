@@ -32,11 +32,10 @@ var helpCategories = []struct {
 	Funcs []string
 }{
 	{"Math", []string{
-		"PI", "E", "sum", "abs", "max", "min", "sin", "cos", "asin", "acos", "tan",
-		"rad", "deg", "sqrt", "log", "log10", "exp", "floor", "ceil", "round",
+		"sum", "max", "min",
 	}},
 	{"I/O & System", []string{
-		"println", "print", "read_entire_file", "exit", "argc", "argv",
+		"println", "print", "exit", "argc", "argv",
 	}},
 	{"Language", []string{
 		"import", "type", "is_int", "is_float", "is_bool", "is_string",
@@ -45,19 +44,12 @@ var helpCategories = []struct {
 	{"Casting", []string{
 		"as_int", "as_float", "as_bool", "as_string",
 	}},
-	{"Strings", []string{
-		"repeat", "replace", "starts_with", "ends_with", "lower", "upper",
-		"trim", "ltrim", "rtrim", "join", "split", "select", "ord", "chr", "format",
-	}},
 	{"Maps", []string{
-		"keys", "values", "map_del", "map_clear",
+		"keys", "values",
 	}},
 	{"Arrays", []string{
 		"concat", "contains", "map", "filter", "append", "delete", "reverse", "sort",
 		"indexes_to_keys",
-	}},
-	{"Random", []string{
-		"srand", "rand",
 	}},
 	{"Date & Time", []string{
 		"time", "year", "month", "date", "day", "hour", "minute", "second", "millisecond",
@@ -67,25 +59,6 @@ var helpCategories = []struct {
 var helpDocs = map[string]Doc{
 	// ---- Math ----
 
-	"PI": {
-		Returns:     "float",
-		Description: "The constant pi (3.14159...).",
-		Examples:    []string{`PI()  ->  3.141593`},
-	},
-	"E": {
-		Returns:     "float",
-		Description: "The constant e (2.71828...).",
-		Examples:    []string{`E()  ->  2.718282`},
-	},
-	"abs": {
-		Params:      []Param{p("x", "int|float|bool")},
-		Returns:     "int|float",
-		Description: "Absolute value of x. Returns an int if x is an int or bool, a float if x is a float.",
-		Examples: []string{
-			`abs(-15.5)  ->  15.5`,
-			`abs(-1)  ->  1`,
-		},
-	},
 	"sum": {
 		Params:      []Param{p("arr", "array")},
 		Returns:     "int|float",
@@ -113,31 +86,6 @@ var helpDocs = map[string]Doc{
 			`min(3, 8, 1)  ->  1`,
 		},
 	},
-	"sin":  mathDoc("sin", "Sine of x, in radians."),
-	"cos":  mathDoc("cos", "Cosine of x, in radians."),
-	"asin": mathDoc("asin", "Arcsine of x, result in radians."),
-	"acos": mathDoc("acos", "Arccosine of x, result in radians."),
-	"tan":  mathDoc("tan", "Tangent of x, in radians."),
-	"rad": {
-		Params:      []Param{p("degrees", "int|float|bool")},
-		Returns:     "int|float",
-		Description: "Converts degrees to radians.",
-		Examples:    []string{`rad(180)  ->  3.141593`},
-	},
-	"deg": {
-		Params:      []Param{p("radians", "int|float|bool")},
-		Returns:     "int|float",
-		Description: "Converts radians to degrees.",
-		Examples:    []string{`deg(PI())  ->  180`},
-	},
-	"sqrt":  mathDoc("sqrt", "Square root of x."),
-	"log":   mathDoc("log", "Natural logarithm (base e) of x."),
-	"log10": mathDoc("log10", "Base-10 logarithm of x."),
-	"exp":   mathDoc("exp", "e raised to the power of x."),
-	"floor": mathDoc("floor", "x rounded down to the nearest whole number."),
-	"ceil":  mathDoc("ceil", "x rounded up to the nearest whole number."),
-	"round": mathDoc("round", "x rounded to the nearest whole number (half away from zero)."),
-
 	// ---- I/O & System ----
 
 	"println": {
@@ -154,12 +102,6 @@ var helpDocs = map[string]Doc{
 		Returns:     "any",
 		Description: "Prints zero or more values with no separator and no trailing newline, to standard output. Returns the last value printed (or unit if called with no arguments).",
 		Examples:    []string{`print('a', 'b', 'c')  -- prints: abc`},
-	},
-	"read_entire_file": {
-		Params:      []Param{p("path", "string")},
-		Returns:     "string",
-		Description: "Reads the whole contents of the file at path and returns it as a string. Throws a runtime error if the file cannot be read.",
-		Examples:    []string{`read_entire_file('data.txt')`},
 	},
 	"exit": {
 		Params:      []Param{p("code", "int")},
@@ -184,8 +126,11 @@ var helpDocs = map[string]Doc{
 	"import": {
 		Params:      []Param{p("path", "string")},
 		Returns:     "any",
-		Description: "Loads, parses, and runs the .mca file at path as a fresh module (its own isolated environment) and returns the value of its last top-level expression -- typically a map used as the module's exported interface. A path starting with '.' resolves relative to the importing file's own directory.",
-		Examples:    []string{`u = import('./utils.mca'); u.double(21)`},
+		Description: "A bare name ('math', 'string', ...) imports a native package: returns a fresh map of that package's functions, loading nothing from disk. Anything path-shaped (starts with '.', absolute, or ends in '.mca') loads, parses, and runs that .mca file as a fresh module (its own isolated environment) and returns the value of its last top-level expression -- typically a map used as the module's exported interface. A path starting with '.' resolves relative to the importing file's own directory. Run help() to list the packages.",
+		Examples: []string{
+			`const math = import('math'); math.sqrt(25)`,
+			`u = import('./utils.mca'); u.double(21)`,
+		},
 	},
 	"type": {
 		Params:      []Param{p("value", "any")},
@@ -206,8 +151,11 @@ var helpDocs = map[string]Doc{
 	"is_fn": {
 		Params:      []Param{p("value", "any")},
 		Returns:     "bool",
-		Description: "True if value is a function (a closure created with \\(...) -> ...). Builtins are not first-class values, so this never applies to them.",
-		Examples:    []string{`is_fn(\(x) -> x)  ->  true`},
+		Description: "True if value is a function: a closure created with \\(...) -> ..., a builtin, or a package function -- they are all ordinary values of kind 'fn'.",
+		Examples: []string{
+			`is_fn(\(x) -> x)  ->  true`,
+			`is_fn(len)  ->  true`,
+		},
 	},
 	"len": {
 		Params:      []Param{p("value", "string|array|map")},
@@ -221,7 +169,7 @@ var helpDocs = map[string]Doc{
 	"help": {
 		Params:      []Param{p("name", "string")},
 		Returns:     "unit",
-		Description: "Prints documentation for a builtin function: its signature, parameter types, return type, a description, and usage examples. name is optional -- called with no arguments, prints an overview listing every builtin grouped by category instead. Only builtins are documented -- user-defined functions have no help entry.",
+		Description: "Prints documentation for a builtin or package function: its signature, parameter types, return type, a description, and usage examples. Takes the function value itself (help(sort)), its name (help('sort')), a package name (help('math')), or a qualified name (help('math.sqrt')). Called with no arguments, prints an overview listing every builtin grouped by category, plus the importable packages. User-defined functions have no help entry.",
 		Examples: []string{
 			`help(map)`,
 			`help()`,
@@ -261,102 +209,6 @@ var helpDocs = map[string]Doc{
 		},
 	},
 
-	// ---- Strings ----
-
-	"repeat": {
-		Params:      []Param{p("str", "string"), p("count", "int")},
-		Returns:     "string",
-		Description: "str repeated count times, concatenated with no separator. Throws a runtime error if count is negative.",
-		Examples:    []string{`repeat('ab', 3)  ->  'ababab'`},
-	},
-	"replace": {
-		Params:      []Param{p("str", "string"), p("old", "string"), p("new", "string")},
-		Returns:     "string",
-		Description: "str with every non-overlapping occurrence of old replaced by new.",
-		Examples: []string{
-			`replace('Hello World', 'World', 'There')  ->  'Hello There'`,
-			`replace('aaa', 'a', 'b')  ->  'bbb'`,
-		},
-	},
-	"starts_with": {
-		Params:      []Param{p("str", "string"), p("prefix", "string")},
-		Returns:     "bool",
-		Description: "True if str starts with prefix. Case-sensitive; an empty prefix always matches.",
-		Examples:    []string{`starts_with('Hello World', 'Hello')  ->  true`},
-	},
-	"ends_with": {
-		Params:      []Param{p("str", "string"), p("suffix", "string")},
-		Returns:     "bool",
-		Description: "True if str ends with suffix. Case-sensitive; an empty suffix always matches.",
-		Examples:    []string{`ends_with('Hello World', 'World')  ->  true`},
-	},
-	"lower": {
-		Params:      []Param{p("str", "string")},
-		Returns:     "string",
-		Description: "str with every letter lowercased.",
-		Examples:    []string{`lower('HELLO')  ->  'hello'`},
-	},
-	"upper": {
-		Params:      []Param{p("str", "string")},
-		Returns:     "string",
-		Description: "str with every letter uppercased.",
-		Examples:    []string{`upper('hello')  ->  'HELLO'`},
-	},
-	"trim": {
-		Params:      []Param{p("str", "string")},
-		Returns:     "string",
-		Description: "str with leading and trailing whitespace removed.",
-		Examples:    []string{`trim('  hello  ')  ->  'hello'`},
-	},
-	"ltrim": {
-		Params:      []Param{p("str", "string")},
-		Returns:     "string",
-		Description: "str with leading whitespace removed.",
-		Examples:    []string{`ltrim('  hello  ')  ->  'hello  '`},
-	},
-	"rtrim": {
-		Params:      []Param{p("str", "string")},
-		Returns:     "string",
-		Description: "str with trailing whitespace removed.",
-		Examples:    []string{`rtrim('  hello  ')  ->  '  hello'`},
-	},
-	"join": {
-		Params:      []Param{p("items", "array"), p("sep", "string")},
-		Returns:     "string",
-		Description: "Concatenates items (every element must be a string) with sep placed between each pair.",
-		Examples:    []string{`join(['a', 'b', 'c'], ',')  ->  'a,b,c'`},
-	},
-	"split": {
-		Params:      []Param{p("str", "string"), p("sep", "string")},
-		Returns:     "array",
-		Description: "Splits str on every occurrence of sep into an array of strings. If sep doesn't occur, returns a single-element array holding the whole string.",
-		Examples:    []string{`split('a,b,c', ',')  ->  ['a', 'b', 'c']`},
-	},
-	"select": {
-		Params:      []Param{p("str", "string"), p("from", "int"), p("to", "int")},
-		Returns:     "string",
-		Description: "Byte substring of str from index from (inclusive) to index to (exclusive). Throws a runtime error if the range is out of bounds or from > to.",
-		Examples:    []string{`select('Hello, World', 7, 12)  ->  'World'`},
-	},
-	"ord": {
-		Params:      []Param{p("char", "string")},
-		Returns:     "int",
-		Description: "Byte value of char, which must be a string of length exactly 1.",
-		Examples:    []string{`ord('a')  ->  97`},
-	},
-	"chr": {
-		Params:      []Param{p("codepoint", "int")},
-		Returns:     "string",
-		Description: "The UTF-8 string for the Unicode codepoint. Codepoints outside the valid range fall back to the replacement character (U+FFFD) rather than erroring.",
-		Examples:    []string{`chr(65)  ->  'A'`},
-	},
-	"format": {
-		Params:      []Param{pv("values", "int|string|float|bool")},
-		Returns:     "string",
-		Description: "Concatenates one or more values into a single string with no separator (ints/floats/bools are stringified). Requires at least one argument.",
-		Examples:    []string{`format('I am ', 5, ' years old')  ->  'I am 5 years old'`},
-	},
-
 	// ---- Maps ----
 
 	"keys": {
@@ -371,19 +223,6 @@ var helpDocs = map[string]Doc{
 		Description: "A new array holding every value in m. Iteration order isn't guaranteed and is randomized independently on every call -- see keys().",
 		Examples:    []string{`m = {'a': 1, 'b': 2}; values(m)  ->  [1, 2]  (order not guaranteed)`},
 	},
-	"map_del": {
-		Params:      []Param{p("m", "map"), p("key", "int|string")},
-		Returns:     "bool",
-		Description: "Removes key from m. Returns true if the key existed (and was removed), false if it wasn't present.",
-		Examples:    []string{`m = {'a': 1}; map_del(m, 'a')  ->  true`},
-	},
-	"map_clear": {
-		Params:      []Param{p("m", "map")},
-		Returns:     "unit",
-		Description: "Removes every entry from m in place.",
-		Examples:    []string{`map_clear(m); len(m)  ->  0`},
-	},
-
 	// ---- Arrays ----
 
 	"indexes_to_keys": {
@@ -438,12 +277,13 @@ var helpDocs = map[string]Doc{
 		Examples:    []string{`a = [1]; append(a, 2); a  ->  [1, 2]`},
 	},
 	"delete": {
-		Params:      []Param{p("arr", "array"), p("start", "int"), p("end", "int")},
-		Returns:     "array",
-		Description: "Removes elements from arr in place and returns arr. With just start, removes that single index. With end too, removes the half-open range [start, end) -- start through end-1. Throws a runtime error if start or end is out of range, or start > end.",
+		Params:      []Param{p("target", "array|map"), p("start", "int|string"), p("end", "int")},
+		Returns:     "array|map",
+		Description: "Removes elements from target in place and returns target. On an array: with just start (an int), removes that single index; with end too, removes the half-open range [start, end) -- start through end-1. Throws a runtime error if start or end is out of range, or start > end. On a map: delete(m, key) removes key (an int or string); a key that was never present is not an error, and the end argument is not allowed.",
 		Examples: []string{
 			`a = [1, 2, 3, 4, 5]; delete(a, 2); a  ->  [1, 2, 4, 5]`,
 			`a = [1, 2, 3, 4, 5]; delete(a, 1, 4); a  ->  [1, 5]`,
+			`m = {'a': 1, 'b': 2}; delete(m, 'a'); m  ->  {'b': 2}`,
 		},
 	},
 	"reverse": {
@@ -451,21 +291,6 @@ var helpDocs = map[string]Doc{
 		Returns:     "array",
 		Description: "A new array with the same values of the original but in the reverse order. Does not mutate arr.",
 		Examples:    []string{`a = [1, 2, 3, 4, 5]; reverse(a)  -> [5, 4, 3, 2, 1]`},
-	},
-
-	// ---- Random ----
-
-	"srand": {
-		Params:      []Param{p("seed", "int")},
-		Returns:     "unit",
-		Description: "Seeds the random number generator (a glibc-compatible rand()/srand() implementation). This is process-global state, shared even across import()ed modules.",
-		Examples:    []string{`srand(4)`},
-	},
-	"rand": {
-		Params:      []Param{p("min", "int"), p("max", "int")},
-		Returns:     "int",
-		Description: "A pseudo-random integer in the inclusive range [min, max]. Throws a runtime error if min > max.",
-		Examples:    []string{`srand(4); rand(1, 10)  ->  2`},
 	},
 
 	// ---- Date & Time ----
@@ -492,17 +317,6 @@ var helpDocs = map[string]Doc{
 		Description: "Current Unix time, in whole milliseconds. Unlike year/month/date/day/hour/minute/second, this takes no offset argument.",
 		Examples:    []string{`millisecond()`},
 	},
-}
-
-// mathDoc builds the shared doc shape for the plain float64->float64 math
-// builtins (sin, cos, sqrt, ...): one numeric argument, numeric return.
-func mathDoc(name, description string) Doc {
-	return Doc{
-		Params:      []Param{p("x", "int|float|bool")},
-		Returns:     "int|float",
-		Description: description,
-		Examples:    []string{name + "(0)"},
-	}
 }
 
 // isDoc builds the shared doc shape for the is_<kind> family.

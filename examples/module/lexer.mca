@@ -1,3 +1,5 @@
+const string = import('string')
+
 utils = import('./utils.mca')
 
 get_char = \(lexer) -> lexer.content[lexer.cursor]
@@ -38,7 +40,7 @@ pub_run_lexer = \(lexer) -> {
       if utils.is_digit(get_char(lexer)) {
         while (next_char(lexer) < lexer.size and utils.is_digit(get_char(lexer)));
 
-        append(out, as_int(select(lexer.content, bot, lexer.cursor)))
+        append(out, as_int(string.select(lexer.content, bot, lexer.cursor)))
       } else {
         print('error:', lexer.line, ':', lexer.col, ': unrecognized symbol ', get_char(lexer), '\n')
         errors += 1

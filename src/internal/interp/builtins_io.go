@@ -4,6 +4,9 @@ import (
 	"os"
 )
 
+// File access (read_entire_file) lives in the 'io' native package
+// (internal/packages/io); print, println and exit stay builtins.
+
 func builtinPrint(in *Interp, c *Call) Value {
 	last := UnitV()
 
@@ -40,16 +43,4 @@ func builtinExit(in *Interp, c *Call) Value {
 	code := intOf(expectKindAt(c.At(0), c.Args[0], KInt))
 	os.Exit(int(code))
 	panic("unreachable")
-}
-
-// TODO: make file path relative when starting with '.'
-func builtinReadEntireFile(in *Interp, c *Call) Value {
-	path := stringOf(expectKindAt(c.At(0), c.Args[0], KString))
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		throw(c.Site, "could not read file '%s': %s", path, err)
-	}
-
-	return StringV(string(content))
 }

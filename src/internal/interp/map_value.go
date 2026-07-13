@@ -55,8 +55,4 @@ func (m *Map) Del(k MapKey) bool {
 	return true
 }
 
-func (m *Map) Clear() {
-	m.values = make(map[MapKey]Value)
-}
-
 func (m *Map) Len() int { return len(m.values) }

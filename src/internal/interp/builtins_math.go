@@ -1,33 +1,8 @@
 package interp
 
-import (
-	"math"
-)
-
-func calcRad(degrees float64) float64 { return degrees * (math.Pi / 180.0) }
-func calcDeg(radians float64) float64 { return radians * (180.0 / math.Pi) }
-
-// mathBuiltin adapts a plain float64->float64 math function into a
-// BuiltinFn: accepts int/float/bool, computes in float64, and collapses back
-// to int if the result has zero fractional part (so e.g. sin(0) is int 0,
-// not float 0.0).
-// TODO: Is this behavior fine? I need to investigate better how languages like python
-// handles this problem.
-func mathBuiltin(f func(float64) float64) BuiltinFn {
-	return func(in *Interp, c *Call) Value {
-		arg := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
-		result := f(asFloat(arg))
-
-		if math.Mod(result, 1.0) != 0.0 {
-			return FloatV(result)
-		}
-		return IntV(int64(result))
-	}
-}
-
-// TODO: later I need to think about constants
-func builtinPI(in *Interp, c *Call) Value { return FloatV(math.Pi) }
-func builtinE(in *Interp, c *Call) Value  { return FloatV(math.E) }
+// The rest of the numeric functions (sin, sqrt, floor, ...) live in the
+// 'math' native package (internal/packages/math); sum, max and min stay
+// builtins because they are everyday list operations more than mathematics.
 
 func builtinSum(in *Interp, c *Call) Value {
 	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
@@ -55,22 +30,6 @@ func builtinSum(in *Interp, c *Call) Value {
 	}
 
 	return IntV(int64(r))
-}
-
-func builtinAbs(in *Interp, c *Call) Value {
-	arg := expectKindAt(c.At(0), c.Args[0], KInt, KFloat, KBool)
-
-	if arg.Kind() == KInt || arg.Kind() == KBool {
-		return IntV(absInt64(asIntLike(arg)))
-	}
-	return FloatV(math.Abs(floatOf(arg)))
-}
-
-func absInt64(v int64) int64 {
-	if v < 0 {
-		return -v
-	}
-	return v
 }
 
 func builtinMax(in *Interp, c *Call) Value {

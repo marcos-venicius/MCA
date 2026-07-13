@@ -74,6 +74,20 @@ func (c *Call) StringArg(i int) string {
 	return stringOf(expectKindAt(c.At(i), c.Args[i], KString))
 }
 
+// IntArg is argument i, required to be an int -- see StringArg.
+func (c *Call) IntArg(i int) int64 {
+	return intOf(expectKindAt(c.At(i), c.Args[i], KInt))
+}
+
+// Arg is argument i, required to be one of the allowed kinds: the general
+// form of StringArg/IntArg for a native package whose argument may span
+// several kinds. Returns the value still wrapped, so the caller type-switches
+// on it; raises the usual "unexpected data type" runtime error, blamed on
+// argument i, otherwise.
+func (c *Call) Arg(i int, allowed ...Kind) Value {
+	return expectKindAt(c.At(i), c.Args[i], allowed...)
+}
+
 // Interp is one running MCA program. Out/Err are settable so tests (and the
 // CLI) can redirect them. Args holds the language-level argv, with Args[0]
 // conventionally the script path.

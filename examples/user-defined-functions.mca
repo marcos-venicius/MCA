@@ -1,9 +1,12 @@
 #!/usr/local/bin/mca
 
+const math = import('math')
+const string = import('string')
+
 TZ = -3
 
 # get the distance between two coordinates, one line functions.
-d = \(x1, y1, x2, y2) -> sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
+d = \(x1, y1, x2, y2) -> math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2);
 
 distance = d(10, 10, 20, 20)
 
@@ -27,7 +30,7 @@ if true {
   if true {
     if true {
       # you can pass anonymous functions as arguments to other functions
-      display_message('Hello, World', \(m) -> format('<', m, '>'))
+      display_message('Hello, World', \(m) -> string.format('<', m, '>'))
     }
   }
 }

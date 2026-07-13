@@ -1,6 +1,9 @@
 #!/usr/local/bin/mca
 
 
+const math = import('math')
+const random = import('random')
+
 # you can use '?' (unit) to declare a variable with no initial value
 max_value = ?
 min_value = ?
@@ -16,7 +19,7 @@ cicles = 0
 diff = while {
     cicles = cicles + 1
 
-    srand_return = srand(millisecond())
+    srand_return = random.srand(millisecond())
 
     # srand returns a unit value
     if srand_return != ? {
@@ -24,18 +27,18 @@ diff = while {
     }
 
     if min_value == ? {
-        min_value = rand(0, 100)
+        min_value = random.rand(0, 100)
     } else {
-        min_value = min(min_value, rand(0, 100))
+        min_value = min(min_value, random.rand(0, 100))
     }
 
     if max_value == ? {
-        max_value = rand(0, 100)
+        max_value = random.rand(0, 100)
     } else {
-        max_value = max(max_value, rand(0, 100))
+        max_value = max(max_value, random.rand(0, 100))
     }
 
-    diff = abs(max_value - min_value)
+    diff = math.abs(max_value - min_value)
 
     if diff > 50 {
         break diff;

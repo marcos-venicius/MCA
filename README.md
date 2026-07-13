@@ -54,8 +54,11 @@ Functions are first-class citizens in MCA. You can define anonymous functions an
 Anonymous function syntax uses the `\(args...) -> body` notation:
 
 ```r
+const math = import('math')
+const string = import('string')
+
 # A simple one-liner function
-distance = \(x1, y1, x2, y2) -> sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
+distance = \(x1, y1, x2, y2) -> math.sqrt((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
 
 # Multi-line function using block syntax
 display = \(message, formatter) -> {
@@ -64,7 +67,7 @@ display = \(message, formatter) -> {
 }
 
 # Passing an anonymous function as a parameter
-display('Hello World', \(m) -> format('<', m, '>'))
+display('Hello World', \(m) -> string.format('<', m, '>'))
 ```
 
 Closures capture the environment they were defined in, and each call to a function that returns a new closure gets its own independent captured state:
@@ -112,7 +115,7 @@ Builtins aren't a reserved side-table of names you may only write before a `(` �
 f = sort
 println(f([2, 1], \(a, b) -> a - b))    # [1, 2]
 
-println(map(['a', 'b'], upper))          # ['A', 'B'] -- passed by name
+println(map([1, 2], as_string))          # ['1', '2'] -- passed by name
 ```
 
 Because that scope sits *below* the global one, assigning to a builtin's name shadows it for the assigning scope rather than overwriting it — every other scope still sees the builtin. This is what lets a program use `len`, `year` or `help` as an ordinary variable name without breaking the language for everyone else:
@@ -181,15 +184,15 @@ matrix = [[1, 0], [0, 1]] # arrays can nest arrays/maps freely
 Map literals use `{ 'key': value, ... }`. Besides `m[key]` indexing, MCA sugars `m.field` and `m.method(args)` for string-keyed access and for calling a function stored in a map (handy for building simple "module"/"object" style values):
 
 ```r
-person = { 'name': 'Ada', 'greet': \(self) -> format('Hi, I am ', self.name) }
+person = { 'name': 'Ada', 'greet': \(self) -> println('Hi, I am ', self.name) }
 
 println(person['name'])   # Ada, via [] indexing
 println(person.name)      # Ada, via . property sugar
-println(person.greet(person))
+person.greet(person)
 
 person.age = 36           # assignment through . sugar too
-map_del(person, 'age')
-map_clear(person)
+delete(person, 'age')     # removes the key -- same builtin as on arrays
+person = {}               # "clearing" is just rebinding to an empty map
 ```
 
 Missing keys read as `?` (unit) rather than raising an error. Map iteration/printing order (`for k, v : m`, `println(m)`) is unspecified — don't rely on key order.
@@ -221,7 +224,9 @@ Duplicate keys are not an error: entries are written left to right, so the **las
 
 ```r
 # utils.mca
-pub_is_digit = \(c) -> ord(c) >= ord('0') and ord(c) <= ord('9')
+const string = import('string')
+
+pub_is_digit = \(c) -> string.ord(c) >= string.ord('0') and string.ord(c) <= string.ord('9')
 
 # 'pub_' prefix is just a convention of mine since we don't have any keywords
 
@@ -256,7 +261,13 @@ The two cases never overlap, so adding a package can't change what an existing f
 
 Anything that isn't a path (no leading `.`, not absolute, no `.mca` suffix) is a package name, and importing one that doesn't exist is a runtime error. Run `help()` to list the available packages, `help('crypt')` for one package's functions, and `help('crypt.md5')` for a single function. Available packages:
 
-- **`crypt`** — hashing and digests. `crypt.md5(s)` returns the MD5 digest of `s` as a 32-character lowercase hex string. (MD5 is broken as a cryptographic hash: fine for checksums and cache keys, not for signatures or passwords.)
+- **`math`** — numeric functions and constants (`sqrt`, `sin`, `abs`, `PI()`, ...)
+- **`string`** — text manipulation (`upper`, `split`, `format`, ...)
+- **`io`** — file access (`read_entire_file`)
+- **`random`** — pseudo-random numbers (`srand`, `rand`)
+- **`crypt`** — hashing and digests (`md5`)
+
+Each is summarized in the [Standard Library](#3-standard-library) section below.
 
 ## 2. Examples
 
@@ -264,7 +275,9 @@ Anything that isn't a path (no leading `.`, not absolute, no `.mca` suffix) is a
 A rich example showcasing closures, string manipulations, variables, and math:
 
 ```r
-help = \(error) -> {
+const string = import('string')
+
+usage = \(error) -> {
     program_name = argv(0)
 
     println('usage: ', program_name, ' <triangle-height>')
@@ -281,12 +294,12 @@ help = \(error) -> {
 pad                = \(padding, char) -> while ((padding -= 1) >= 0) print(char)
 next_pascal_number = \(p, x, y) -> p * (y - x + 1) / x
 
-if argc() != 2  help(?)
+if argc() != 2  usage(?)
 
 NUM_ROWS = as_int(argv(1))
 
-if (NUM_ROWS <= 0)    help(format('error: invalid triangle height: ', NUM_ROWS))
-if !is_int(NUM_ROWS)  help(format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
+if (NUM_ROWS <= 0)    usage(string.format('error: invalid triangle height: ', NUM_ROWS))
+if !is_int(NUM_ROWS)  usage(string.format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2
@@ -327,7 +340,7 @@ In fact, this code is present in the examples folder [here](./examples/pascals-t
 
 More examples, each focused on a specific feature, live in [`examples/`](./examples/):
 - [`arrays.mca`](./examples/arrays.mca) — nested arrays, recursive printing
-- [`maps.mca`](./examples/maps.mca) — map mutation, `map_del`/`map_clear`, iteration
+- [`maps.mca`](./examples/maps.mca) — map mutation, `delete(m, key)`, iteration
 - [`loops.mca`](./examples/loops.mca) — every `for` shape, plus for-of over strings/arrays/maps
 - [`user-defined-functions.mca`](./examples/user-defined-functions.mca) — closures over global/lexical scope, passing functions as arguments
 - [`module/`](./examples/module/) — a multi-file program using `import()`
@@ -336,9 +349,9 @@ More examples, each focused on a specific feature, live in [`examples/`](./examp
 
 ## 3. Standard Library
 
-MCA is bundled with built-in functions covering mathematics, strings, arrays, maps, and system utilities. They are always available — no import needed — and are [ordinary values](#builtins-are-values), though still called like any other function (e.g. `PI()`, not a bare identifier).
+The standard library is split in two. **Builtins** are always bound, no import needed: the everyday core — printing, arrays, maps, type checks. **Packages** (`math`, `string`, `io`, `random`, `crypt`) hold everything more specialized and are bound only when a program imports them, which keeps the global scope small. Both kinds are [ordinary values](#builtins-are-values), though still called like any other function (e.g. `time()`, not a bare identifier).
 
-**`help()`** documents the whole library from inside the language: `help()` lists every builtin by category (plus the importable packages), and `help('sort')` or `help(sort)` prints one function's signature, description, and examples. It is the authoritative reference — this section is a summary.
+**`help()`** documents the whole library from inside the language: `help()` lists every builtin by category (plus the importable packages), `help('sort')` or `help(sort)` prints one function's signature, description, and examples, and `help('math')` / `help('math.sqrt')` do the same for a package and its functions. It is the authoritative reference — this section is a summary.
 
 ### Type Checking, Casting, and Introspection
 - **`type(x)`**: returns the type name as a string — one of `'unit'`, `'int'`, `'float'`, `'bool'`, `'string'`, `'array'`, `'map'`, `'fn'`.
@@ -347,52 +360,53 @@ MCA is bundled with built-in functions covering mathematics, strings, arrays, ma
 - **`as_bool(x)`** — follows the [truthiness](#truthiness) rules above (so `as_bool('')` is `false`, `as_bool('x')` is `true` — it's not a `'true'`/`'false'` string parse).
 
 ### Strings
-- **`len(s)`**: length (also works on arrays and maps).
+- **`len(s)`**: byte length (also works on arrays and maps).
 - `s[index]`: indexing returns a 1-character string (0-based, no negative indices).
-- **`select(s, from, to)`**: substring from `from` (inclusive) to `to` (exclusive).
-- **`ord(s)`**, **`chr(n)`**: ASCII code of a 1-character string, and back.
-- **`format(a, b, ...)`**: concatenates any mix of int/float/bool/string arguments into one string (floats use up to 6 significant digits, unlike `as_string`'s fixed 6 decimal places).
-- **Case & whitespace**: `upper(s)`, `lower(s)`, `trim(s)`, `ltrim(s)`, `rtrim(s)`.
-- **Search & edit**: `starts_with(s, prefix)`, `ends_with(s, suffix)`, `replace(s, old, new)`, `repeat(s, n)`.
-- **Split & join**: `split(s, sep)` → array, `join(arr, sep)` → string.
+- Everything else text-related (case, trim, search, split/join, `format`, ...) lives in the [`string` package](#packages-imported-on-demand) below.
+
+### Numbers
+- **`max(x, y, ...)`**, **`min(x, y, ...)`** — largest/smallest of one or more numbers.
+- **`sum(a)`** — sum of an array's elements.
+- The rest of the numeric toolbox lives in the [`math` package](#packages-imported-on-demand) below.
 
 ### Arrays
 - **`len(a)`**, `a[index]` (0-based, no negative indices), `a[index] = value`.
-- **`append(a, value)`**, **`delete(a, start)`** / **`delete(a, start, end)`** (half-open `[start, end)`, like `select`) — both mutate `a` in place and return it.
+- **`append(a, value)`**, **`delete(a, start)`** / **`delete(a, start, end)`** (half-open `[start, end)`, like `string.select`) — both mutate `a` in place and return it.
 - **`sort(a, cmp)`**, **`reverse(a)`**, **`concat(a, b, ...)`**, **`map(a, fn)`**, **`filter(a, fn)`** — all return a *new* array. `cmp` takes two elements and returns an int: negative if the first sorts before the second, positive if after, zero if equal.
-- **`contains(a, value)`**, **`sum(a)`**.
+- **`contains(a, value)`**.
 - **`indexes_to_keys(a, m)`**: builds a new map by picking elements out of `a` at the indexes named in `m` — `indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'})` is `{'first': 'x', 'third': 'z'}`.
 
 ### Maps
 - Construct with `{ 'k': v, ... }` (or `{ k }` to [initialize a key to `?`](#maps)); read/write with `m[key]`, `m.field`, or call a stored function with `m.method(args)`.
-- **`len(m)`**, **`keys(m)`**, **`values(m)`**, **`map_del(m, key)`** (returns whether the key existed), **`map_clear(m)`**, **`contains(m, key)`**.
+- **`len(m)`**, **`keys(m)`**, **`values(m)`**, **`contains(m, key)`**.
+- **`delete(m, key)`** removes a key in place (a key that was never present is not an error) — the same builtin as on arrays. There is no `clear`: rebind to `{}` instead.
 - Iterate with `for key, value : m`. Missing keys read as `?` rather than erroring. Iteration order is unspecified.
-
-### Mathematical Constants & Functions
-- **Constants**: `PI()`, `E()`
-- **Basic Math**: `abs(x)`, `floor(x)`, `ceil(x)`, `round(x)`, `sqrt(x)`, `exp(x)`, `log(x)`, `log10(x)`, `max(x, y, ...)`, `min(x, y, ...)`
-- **Trigonometry**: `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)`. Standard evaluation is in radians. Converters: `rad(x)`, `deg(x)`.
-- **Random**: `srand(seed)`, `rand(min, max)` (inclusive on both ends).
 
 ### Environment & I/O
 - **`print(...)`**, **`println(...)`**: write to stdout; both return their last argument (or `?` if called with none).
-- **`read_entire_file(path)`**: read an entire file into a string.
 - **`argc()`**, **`argv(index)`**: CLI argument count/access. `argv(0)` is the script path itself.
 - **`exit(code)`**: abort execution immediately with a status code.
 - **`import(name)`**: load a `.mca` file, or a package by bare name; see [Modules and Packages](#modules-and-packages) above.
 - **`help(...)`**: documentation, see above.
+- File access lives in the [`io` package](#packages-imported-on-demand) below.
+
+### Date & Time
 - **`time()`**: Unix timestamp in seconds. **`millisecond()`**: current time in milliseconds.
 - **Date Utilities**, each taking an integer *hour offset* from now (in UTC): `year(offset)`, `month(offset)`, `date(offset)`, `day(offset)` (0=Sunday..6=Saturday), `hour(offset)`, `minute(offset)`, `second(offset)`. Pass `0` for "now".
 
 ### Packages (imported on demand)
 
-Unlike the builtins above, a package is only bound when a program imports it — see [Modules and Packages](#modules-and-packages).
+Unlike the builtins above, a package is only bound when a program imports it (`const math = import('math')`) — see [Modules and Packages](#modules-and-packages).
 
+- **`math`** — constants `PI()`, `E()`; basic math `abs(x)`, `floor(x)`, `ceil(x)`, `round(x)`, `sqrt(x)`, `exp(x)`, `log(x)`, `log10(x)`; trigonometry `sin(x)`, `cos(x)`, `tan(x)`, `asin(x)`, `acos(x)` (evaluated in radians) and the `rad(x)`/`deg(x)` converters. Every function accepts int/float/bool, computes in float, and collapses a whole result back to int (`math.sin(0)` is int `0`).
+- **`string`** — case & whitespace `upper(s)`, `lower(s)`, `trim(s)`, `ltrim(s)`, `rtrim(s)`; search & edit `starts_with(s, prefix)`, `ends_with(s, suffix)`, `replace(s, old, new)`, `repeat(s, n)`; `split(s, sep)` → array and `join(arr, sep)` → string; `select(s, from, to)` (substring from `from` inclusive to `to` exclusive); `ord(s)`/`chr(n)` (byte value of a 1-character string, and back); `format(a, b, ...)` (concatenates any mix of int/float/bool/string into one string — floats use up to 6 significant digits, unlike `as_string`'s fixed 6 decimal places).
+- **`io`** — `read_entire_file(path)`: read an entire file into a string. A path starting with `.` resolves relative to the *calling file's* own directory, exactly like `import()`.
+- **`random`** — `srand(seed)`, `rand(min, max)` (inclusive on both ends). The generator is glibc-compatible and process-global, shared even across imported modules.
 - **`crypt`** — `crypt.md5(s)`: MD5 digest of `s`, as a 32-character lowercase hex string.
 
 ## 4. Language Caveats
 
-1. **Mandatory Parentheses**: You cannot reference a function without calling it unless you are intentionally passing it by reference. For zero-argument function invocations, you must use parentheses (e.g., `time()` or `PI()`).
+1. **Mandatory Parentheses**: You cannot reference a function without calling it unless you are intentionally passing it by reference. For zero-argument function invocations, you must use parentheses (e.g., `time()` or `math.PI()`).
 2. **Semicolons and newlines**: statements implicitly return the value of their last expression, and newlines carry no special meaning (no automatic semicolon insertion) — most statement sequences resolve fine without explicit `;`. One notable exception: a bare `break`/`return` immediately followed by `}` (with nothing else on the line) needs an explicit `;` before the `}`, since the parser otherwise tries to parse a value expression after `break`/`return`.
 3. **Strings only support `==`/`!=`**: any other binary operator between two strings, or between a string and a non-string, raises a runtime error — there's no implicit numeric coercion for strings.
 4. **Unit (`?`) only supports `==`/`!=` as a binary operator**: using `?` with any other operator (`+`, `<`, ...) raises a runtime error. It does have a defined truthiness though — always falsy — so `if x { ... }` works fine when `x` is `?`.

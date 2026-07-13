@@ -1,4 +1,6 @@
-pub_is_digit = \(x) -> ord(x) >= ord('0') and ord(x) <= ord('9')
+const string = import('string')
+
+pub_is_digit = \(x) -> string.ord(x) >= string.ord('0') and string.ord(x) <= string.ord('9')
 
 pub_help = \(program_name) -> {
   print('Usage: ', program_name, ' <input>\n')

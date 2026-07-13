@@ -17,13 +17,13 @@ type(m['Hey'])
 print('invalid key: ')
 # type(m['non existent']) # it should not be executed cause it's gonna generate a runtime error
 
-if map_del(m, 'unused key') {
-	println('You should not see this print call #1')
-	exit(1)
-}
+# delete(m, key) removes a key in place; a key that was never present is not
+# an error, so removals are simply unconditional.
+delete(m, 'unused key')
 
-if !map_del(m, 'Hey') {
-	println('You should not see this print call #2')
+delete(m, 'Hey')
+if contains(m, 'Hey') {
+	println('You should not see this print call #1')
 	exit(1)
 }
 
@@ -31,12 +31,13 @@ println(m['hey'])
 
 println('map len:', len(m))
 
-map_clear(m)
+# clearing is just rebinding to an empty map
+m = {}
 
 println('map len:', len(m))
 
 if len(m) {
-	println('You shoudl not see this print call #3')
+	println('You shoudl not see this print call #2')
 	exit(1)
 }
 

@@ -13,4 +13,8 @@ package packages
 
 import (
 	_ "mca/internal/packages/crypt"
+	_ "mca/internal/packages/io"
+	_ "mca/internal/packages/math"
+	_ "mca/internal/packages/random"
+	_ "mca/internal/packages/string"
 )

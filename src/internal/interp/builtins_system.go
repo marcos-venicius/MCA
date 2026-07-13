@@ -9,6 +9,19 @@ import (
 	"mca/internal/parser"
 )
 
+func builtinLen(in *Interp, c *Call) Value {
+	v := expectKindAt(c.At(0), c.Args[0], KString, KMap, KArray)
+
+	switch vv := v.(type) {
+	case StringValue:
+		return IntV(int64(len(vv)))
+	case *Map:
+		return IntV(int64(vv.Len()))
+	default: // *Array
+		return IntV(int64(len(vv.(*Array).Items)))
+	}
+}
+
 func builtinArgc(in *Interp, c *Call) Value {
 	return IntV(int64(len(in.Args)))
 }
@@ -37,6 +50,28 @@ func builtinArgv(in *Interp, c *Call) Value {
 // existing file import resolves to.
 func isModulePath(s string) bool {
 	return strings.HasPrefix(s, ".") || filepath.IsAbs(s) || strings.HasSuffix(s, ".mca")
+}
+
+// ResolvePath resolves a user-supplied file path the way import() resolves a
+// module path: a path starting with '.' is relative to the *calling file's own
+// directory* (c.Site.Filename), not the process working directory; any other
+// path is returned unchanged. Exported so a native package that touches the
+// filesystem (io.read_entire_file) resolves paths identically to import().
+func (c *Call) ResolvePath(path string) string {
+	if !strings.HasPrefix(path, ".") {
+		return path
+	}
+
+	callerFile := c.Site.Filename
+	if callerFile == "" {
+		return path
+	}
+
+	combined := filepath.Join(filepath.Dir(callerFile), path)
+	if abs, err := filepath.Abs(combined); err == nil {
+		return abs
+	}
+	return combined
 }
 
 // builtinImport implements import(), which resolves one of two things.
@@ -69,19 +104,7 @@ func builtinImport(in *Interp, c *Call) Value {
 		return moduleValue(m)
 	}
 
-	resolved := pathArg
-
-	if strings.HasPrefix(pathArg, ".") {
-		callerFile := c.Site.Filename
-		if callerFile != "" {
-			combined := filepath.Join(filepath.Dir(callerFile), pathArg)
-			if abs, err := filepath.Abs(combined); err == nil {
-				resolved = abs
-			} else {
-				resolved = combined
-			}
-		}
-	}
+	resolved := c.ResolvePath(pathArg)
 
 	content, err := os.ReadFile(resolved)
 	if err != nil {

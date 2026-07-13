@@ -1,5 +1,7 @@
 #!/usr/local/bin/mca
 
+const string = import('string')
+
 css = {
   'width': '100%',
   'height': '100%',
@@ -42,7 +44,7 @@ for y, row : board {
 just_a_text = 'this is a test that is gonna be used later'
 
 for i, c : just_a_text {
-  if ord(c) % 2 != 0 {
+  if string.ord(c) % 2 != 0 {
     if i > 0 println()
 
     println(just_a_text)
@@ -57,7 +59,7 @@ for i, c : just_a_text {
 
     for j : i print(' ')
 
-    print('letter "', c ,'" which is value ', ord(c) ,' is odd\n')
+    print('letter "', c ,'" which is value ', string.ord(c) ,' is odd\n')
   }
 }
 

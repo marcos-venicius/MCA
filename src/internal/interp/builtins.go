@@ -2,7 +2,6 @@ package interp
 
 import (
 	"fmt"
-	"math"
 )
 
 // native describes one builtin. n is its exact argument count, enforced by
@@ -28,33 +27,15 @@ var builtins map[string]*Native
 
 func init() {
 	builtins = map[string]*Native{
-		// Math related
-		"PI":    native("PI", 0, builtinPI),
-		"E":     native("E", 0, builtinE),
-		"sum":   native("sum", 1, builtinSum),
-		"abs":   native("abs", 1, builtinAbs),
-		"max":   native("max", -1, builtinMax),
-		"min":   native("min", -1, builtinMin),
-		"sin":   native("sin", 1, mathBuiltin(math.Sin)),
-		"cos":   native("cos", 1, mathBuiltin(math.Cos)),
-		"asin":  native("asin", 1, mathBuiltin(math.Asin)),
-		"acos":  native("acos", 1, mathBuiltin(math.Acos)),
-		"tan":   native("tan", 1, mathBuiltin(math.Tan)),
-		"rad":   native("rad", 1, mathBuiltin(calcRad)),
-		"deg":   native("deg", 1, mathBuiltin(calcDeg)),
-		"sqrt":  native("sqrt", 1, mathBuiltin(math.Sqrt)),
-		"log":   native("log", 1, mathBuiltin(math.Log)),
-		"log10": native("log10", 1, mathBuiltin(math.Log10)),
-		"exp":   native("exp", 1, mathBuiltin(math.Exp)),
-		"floor": native("floor", 1, mathBuiltin(math.Floor)),
-		"ceil":  native("ceil", 1, mathBuiltin(math.Ceil)),
-		"round": native("round", 1, mathBuiltin(math.Round)),
+		// Math related (everything else numeric lives in the 'math' package)
+		"sum": native("sum", 1, builtinSum),
+		"max": native("max", -1, builtinMax),
+		"min": native("min", -1, builtinMin),
 
-		// I/O / System related
-		"println":          native("println", -1, builtinPrintln),
-		"print":            native("print", -1, builtinPrint),
-		"read_entire_file": native("read_entire_file", 1, builtinReadEntireFile),
-		"exit":             native("exit", 1, builtinExit),
+		// I/O / System related (file access lives in the 'io' package)
+		"println": native("println", -1, builtinPrintln),
+		"print":   native("print", -1, builtinPrint),
+		"exit":    native("exit", 1, builtinExit),
 
 		// language specifics
 		"import": native("import", 1, builtinImport),
@@ -77,28 +58,9 @@ func init() {
 		"is_fn":     native("is_fn", 1, isTypeBuiltin(KFn)),
 		"len":       native("len", 1, builtinLen),
 
-		// Strings
-		"repeat":      native("repeat", 2, builtinRepeat),
-		"replace":     native("replace", 3, builtinReplace),
-		"starts_with": native("starts_with", 2, builtinStartsWith),
-		"ends_with":   native("ends_with", 2, builtinEndsWith),
-		"lower":       native("lower", 1, builtinLower),
-		"upper":       native("upper", 1, builtinUpper),
-		"trim":        native("trim", 1, builtinTrim),
-		"ltrim":       native("ltrim", 1, builtinLTrim),
-		"rtrim":       native("rtrim", 1, builtinRTrim),
-		"join":        native("join", 2, builtinJoin),
-		"split":       native("split", 2, builtinSplit),
-		"select":      native("select", 3, builtinSelect),
-		"ord":         native("ord", 1, builtinOrd),
-		"chr":         native("chr", 1, builtinChr),
-		"format":      native("format", -1, builtinFormat),
-
-		// Maps
-		"keys":      native("keys", 1, builtinMapKeys),
-		"values":    native("values", 1, builtinMapValues),
-		"map_del":   native("map_del", 2, builtinMapDel),
-		"map_clear": native("map_clear", 1, builtinMapClear),
+		// Maps (text manipulation lives in the 'string' package)
+		"keys":   native("keys", 1, builtinMapKeys),
+		"values": native("values", 1, builtinMapValues),
 
 		// Arrays
 		"indexes_to_keys": native("indexes_to_keys", 2, builtinIndexesToKeys),
@@ -110,10 +72,6 @@ func init() {
 		"filter":          native("filter", 2, builtinFilter),
 		"append":          native("append", 2, builtinAppend),
 		"delete":          native("delete", -1, builtinDelete),
-
-		// random
-		"srand": native("srand", 1, builtinSrand),
-		"rand":  native("rand", 2, builtinRand),
 
 		// TODO: may I have a 'Date' value type?
 		// datetime related

@@ -1,22 +1,8 @@
 package interp
 
-// TODO: since we have GO's GC on our behalf, do we need to have a map clear?
-//       What if we just assign an empty object to the map?
-
-func builtinMapDel(in *Interp, c *Call) Value {
-	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
-	key := expectKindAt(c.At(1), c.Args[1], KInt, KString)
-
-	mk, _ := mapKeyFromValue(key)
-
-	return BoolV(m.Del(mk))
-}
-
-func builtinMapClear(in *Interp, c *Call) Value {
-	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
-	m.Clear()
-	return UnitV()
-}
+// Removing a key is delete(m, key) -- the same builtin that removes array
+// elements; there is no separate map_del/map_clear anymore (clearing is just
+// rebinding to {}).
 
 func builtinMapKeys(in *Interp, c *Call) Value {
 	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)

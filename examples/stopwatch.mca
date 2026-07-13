@@ -7,6 +7,8 @@
 # The program with count until the 'GAP' second by second
 # then it's gonna start to display only at the defined 'GAP'
 
+const math = import('math')
+
 GAP         = 7 # gap between display
 CURRENT_GAP = 0
 STOP_AT     = if (argc() == 2) as_int(argv(1))
@@ -43,8 +45,8 @@ while {
   duration = now - BIG_BANG
   elapsed  = duration
 
-  hours   = floor(duration / 3600)
-  minutes = floor(duration / 60) % 60
+  hours   = math.floor(duration / 3600)
+  minutes = math.floor(duration / 60) % 60
   seconds = duration % 60
 
   # display
