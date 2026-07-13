@@ -1,6 +1,7 @@
 package interp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -114,11 +115,21 @@ func builtinImport(in *Interp, c *Call) Value {
 	l := lexer.New(resolved, string(content))
 	tokens := l.Tokenize()
 	if len(l.Errors) > 0 {
+		for _, e := range l.Errors {
+			fmt.Fprintln(os.Stderr, e.Error())
+		}
+
 		throw(c.Site, "could not read module %s", resolved)
 	}
 
 	prog := parser.Parse(resolved, tokens)
 	if len(prog.Errors) > 0 {
+		for _, e := range prog.Errors {
+			fmt.Fprintln(os.Stderr, e.Error())
+		}
+
+		fmt.Fprintf(os.Stderr, "parsing failed with \033[1;31m%d\033[0m errors\n", len(prog.Errors))
+
 		throw(c.Site, "could not parse module %s", resolved)
 	}
 
