@@ -34,6 +34,7 @@ MCA supports dynamic data typing with automatic coercion when performing mathema
 - `bool`: itself.
 - `string`/`array`/`map`: truthy unless empty (`''`, `[]`, `{}` are falsy).
 - `unit` (`?`): always falsy.
+- `fn`: always truthy, builtins included.
 
 ```r
 if [] { println('unreachable') } else { println('empty array is falsy') }
@@ -41,7 +42,11 @@ if 'x' { println('non-empty string is truthy') }
 println(as_bool(''), as_bool('x'), as_bool(?))   # false true false
 ```
 
-`and`/`or` are stricter: they only accept `bool`/`int`/`float` operands and always short-circuit to a `bool` result — passing a string/array/map/unit to `and`/`or` is a runtime error, even though the same value would be fine in an `if`.
+`and`/`or` use these exact same rules and always short-circuit to a `bool` result — unlike most other binary operators (`+`, `<`, ...), which are strict about their operand types, `and`/`or` accept anything:
+
+```r
+println(true and 'x', true and '', false or ?)   # true false false
+```
 
 ### Functions and Closures
 Functions are first-class citizens in MCA. You can define anonymous functions and assign them to variables, pass them as arguments to other functions, and use closures to capture lexical scope.
@@ -75,6 +80,14 @@ c2 = make_counter()
 
 println(c1(), c1(), c1())   # 1 2 3
 println(c2())                # 1 -- c2 has its own independent 'n'
+```
+
+A call is just another postfix operator, `expr(args)`, so it chains onto whatever a preceding expression evaluates to — an index, a field, another call's result — not only a bare name:
+
+```r
+fns = [\(x) -> x * 2, \(x) -> x + 1]
+println(fns[0](5))          # 10 -- calling straight through an array index
+println(make_counter()())   # 1  -- calling the closure make_counter() just returned
 ```
 
 ### Constants
@@ -380,16 +393,14 @@ Unlike the builtins above, a package is only bound when a program imports it —
 ## 4. Language Caveats
 
 1. **Mandatory Parentheses**: You cannot reference a function without calling it unless you are intentionally passing it by reference. For zero-argument function invocations, you must use parentheses (e.g., `time()` or `PI()`).
-2. **Calls only work on bare names**: `f(x)` is only recognized as a call when `f` is a plain identifier immediately followed by `(` — an arbitrary expression followed by `(` (e.g. `arr[0](5)`) does *not* parse as a call. The one exception is the map `m.method(args)` sugar, which is handled specially by the indexing grammar.
-3. **Semicolons and newlines**: statements implicitly return the value of their last expression, and newlines carry no special meaning (no automatic semicolon insertion) — most statement sequences resolve fine without explicit `;`. One notable exception: a bare `break`/`return` immediately followed by `}` (with nothing else on the line) needs an explicit `;` before the `}`, since the parser otherwise tries to parse a value expression after `break`/`return`.
-4. **Strings only support `==`/`!=`**: any other binary operator between two strings, or between a string and a non-string, raises a runtime error — there's no implicit numeric coercion for strings.
-5. **Unit (`?`) only supports `==`/`!=` as a binary operator**: using `?` with any other operator (`+`, `<`, ...) raises a runtime error. It does have a defined truthiness though — always falsy — so `if x { ... }` works fine when `x` is `?`.
-6. **No negative indexing**: `a[-1]` / `s[-1]` are out-of-bounds errors, not "last element" access.
-7. **Numeric literals**: decimal only — no hex/binary/exponent notation, no digit-group separators.
-8. **`and`/`or` are stricter than `if`/`while`**: they only accept `bool`/`int`/`float` operands, unlike the wider [truthiness](#truthiness) rules `if`/`while`/`as_bool()` use.
-9. **Map iteration order is unspecified**: don't write code that depends on the order `for k, v : m` or `println(m)` visits keys in.
-10. **Duplicate map keys silently overwrite**: `{ 'a': 1, 'a': 2 }` is one entry holding `2`, not an error (see [Maps](#maps)).
-11. **Imports are re-evaluated, not cached**: importing the same file twice runs it twice, in two isolated environments. Packages are cheaper (nothing is parsed), but each `import('crypt')` still hands back a fresh map.
+2. **Semicolons and newlines**: statements implicitly return the value of their last expression, and newlines carry no special meaning (no automatic semicolon insertion) — most statement sequences resolve fine without explicit `;`. One notable exception: a bare `break`/`return` immediately followed by `}` (with nothing else on the line) needs an explicit `;` before the `}`, since the parser otherwise tries to parse a value expression after `break`/`return`.
+3. **Strings only support `==`/`!=`**: any other binary operator between two strings, or between a string and a non-string, raises a runtime error — there's no implicit numeric coercion for strings.
+4. **Unit (`?`) only supports `==`/`!=` as a binary operator**: using `?` with any other operator (`+`, `<`, ...) raises a runtime error. It does have a defined truthiness though — always falsy — so `if x { ... }` works fine when `x` is `?`.
+5. **No negative indexing**: `a[-1]` / `s[-1]` are out-of-bounds errors, not "last element" access.
+6. **Numeric literals**: decimal only — no hex/binary/exponent notation, no digit-group separators.
+7. **Map iteration order is unspecified**: don't write code that depends on the order `for k, v : m` or `println(m)` visits keys in.
+8. **Duplicate map keys silently overwrite**: `{ 'a': 1, 'a': 2 }` is one entry holding `2`, not an error (see [Maps](#maps)).
+9. **Imports are re-evaluated, not cached**: importing the same file twice runs it twice, in two isolated environments. Packages are cheaper (nothing is parsed), but each `import('crypt')` still hands back a fresh map.
 
 ## 5. Building and Running
 
