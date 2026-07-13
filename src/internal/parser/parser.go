@@ -707,8 +707,24 @@ func (p *parser) parseMapExpr() ast.Expr {
 		keyStartTok := p.cur()
 		key := p.parseUnaryExpr()
 
+		if p.check(lexer.Comma) || p.check(lexer.RCurly) {
+			m.Keys = append(m.Keys, key)
+			m.Values = append(m.Values, nil) // initializes as '?'
+
+			if p.check(lexer.RCurly) {
+				break
+			}
+
+			p.next() // skip ','
+
+			continue
+		}
+
+		// Reaching here means the key is followed by neither ',' nor '}' (the
+		// shorthand above) nor ':' -- so it is a separator that is missing,
+		// not a value: `{a: 1 b: 2}`. A value itself is optional now.
 		if !p.check(lexer.Colon) {
-			p.errorAt(keyStartTok, "missing value for key inside the map")
+			p.errorAt(keyStartTok, "expected ':' and a value, or ',' to end the key, inside the map")
 			p.synchronize()
 			return nil
 		}

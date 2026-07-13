@@ -49,7 +49,13 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 		}
 		mk, _ := mapKeyFromValue(keyVal)
 
-		valVal := expectKind(e.Values[i], in.Eval(e.Values[i]).Value, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
+		// A key written without a ': value' -- `{a, b}` -- parses with a nil
+		// value expression and initializes to unit, so there is nothing to
+		// evaluate for it.
+		valVal := UnitV()
+		if e.Values[i] != nil {
+			valVal = expectKind(e.Values[i], in.Eval(e.Values[i]).Value, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
+		}
 
 		m.Set(mk, valVal)
 	}
