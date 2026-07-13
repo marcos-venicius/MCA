@@ -269,6 +269,56 @@ func TestCurlyIsAlwaysMapOutsideBlockPositions(t *testing.T) {
 	}
 }
 
+// A key written without a ': value' parses with a *nil* value expression,
+// which is what evalMapLit reads to mean "initialize this one to unit". The
+// nil is load-bearing, so it is asserted here rather than just the entry
+// count: a shorthand key that came back with some placeholder expression
+// instead would evaluate to that placeholder, not to '?'.
+func TestMapShorthandKeyParsesWithNilValue(t *testing.T) {
+	prog := mustParseOK(t, "x = {a, b: 2, 'c', 3}")
+
+	m, ok := prog.Stmts[0].(*ast.AssignExpr).Right.(*ast.MapExpr)
+	if !ok {
+		t.Fatalf("expected map literal on assignment RHS, got %#v", prog.Stmts[0])
+	}
+
+	if len(m.Keys) != 4 || len(m.Values) != 4 {
+		t.Fatalf("expected 4 map entries, got %d keys %d values", len(m.Keys), len(m.Values))
+	}
+
+	// Keys and Values stay index-aligned: a shorthand key must not shift the
+	// entries after it, or `b` would pick up 2 as *its* key.
+	for i, wantNil := range []bool{true, false, true, true} {
+		if gotNil := m.Values[i] == nil; gotNil != wantNil {
+			t.Errorf("entry %d: value is nil = %v, want %v (value %#v)", i, gotNil, wantNil, m.Values[i])
+		}
+	}
+
+	if id, ok := m.Keys[1].(*ast.Ident); !ok || id.Name != "b" {
+		t.Errorf("expected key 1 to be Ident(b), got %#v", m.Keys[1])
+	}
+}
+
+func TestMapShorthandKeyAcceptsTrailingComma(t *testing.T) {
+	for _, src := range []string{"x = {a}", "x = {a,}", "x = {a, b,}", "x = {a: 1, b,}"} {
+		prog := mustParseOK(t, src)
+
+		if _, ok := prog.Stmts[0].(*ast.AssignExpr).Right.(*ast.MapExpr); !ok {
+			t.Errorf("%q: expected a map literal, got %#v", src, prog.Stmts[0])
+		}
+	}
+}
+
+// A value is optional now, but a separator is not: a key must be followed by
+// ':', ',' or '}'.
+func TestMapKeyWithoutSeparatorIsAParseError(t *testing.T) {
+	for _, src := range []string{"x = {a 1}", "x = {a: 1 b: 2}", "x = {a b}"} {
+		if prog := parseSrc(t, src); len(prog.Errors) == 0 {
+			t.Errorf("%q: expected a parse error, got none", src)
+		}
+	}
+}
+
 func TestBlockAcceptsBareInlineOrBraced(t *testing.T) {
 	prog := mustParseOK(t, "while true break;")
 	w := prog.Stmts[0].(*ast.WhileExpr)

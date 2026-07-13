@@ -1039,6 +1039,71 @@ func TestContainsArray(t *testing.T) {
 	check(t, "contains([[1, 2], [3, 4]], [1, 2])", tBool(true)) // array equality by value
 }
 
+// `{a, b}` -- a key with no ': value' -- initializes that key to unit, so a
+// map can be pre-shaped with the keys it will hold before it holds them.
+func TestMapShorthandKeysInitializeToUnit(t *testing.T) {
+	check(t, "{a}['a']", tUnit())
+	check(t, "is_unit({a}['a'])", tBool(true))
+	check(t, "len({a, b, c})", tInt(3))
+
+	// The key is the identifier's *name*, exactly as in `{'a': ...}` -- it is
+	// not evaluated as a variable, so an `a` in scope is irrelevant.
+	check(t, "a = 'zzz'; keys({a})[0]", tString("a"))
+	check(t, "a = 'zzz'; is_unit({a}['a'])", tBool(true))
+
+	// Non-identifier keys take the shorthand too, and keep their own kind.
+	check(t, "is_unit({1, 2}[1])", tBool(true))
+	check(t, "is_unit({'a'}['a'])", tBool(true))
+	check(t, "len({a,})", tInt(1)) // trailing comma
+}
+
+// The bug this guards: evalMapLit's nil-value check was inverted, so a key
+// *with* a value got unit stored instead of the value. Mixing both forms in
+// one literal is what catches it -- either branch alone looks fine.
+func TestMapShorthandAndExplicitValuesMix(t *testing.T) {
+	check(t, "{a: 1, b, 'c': 3}['a']", tInt(1))
+	check(t, "is_unit({a: 1, b, 'c': 3}['b'])", tBool(true))
+	check(t, "{a: 1, b, 'c': 3}['c']", tInt(3))
+	check(t, "len({a: 1, b, 'c': 3})", tInt(3))
+
+	// A plain map literal must still be untouched by any of this.
+	check(t, "{'a': 1, 'b': 2}['b']", tInt(2))
+}
+
+// A duplicate key in a literal is not an error: entries are written left to
+// right, so the last one wins and the map holds a single entry for that key.
+// This is the same rule as `m[k] = v` twice, which is what evalMapLit does.
+func TestMapLiteralDuplicateKeysLastOneWins(t *testing.T) {
+	check(t, "{'a': 1, 'a': 2}['a']", tInt(2))
+	check(t, "len({'a': 1, 'a': 2})", tInt(1))
+	check(t, "{'a': 1, 'a': 2, 'a': 3}['a']", tInt(3))
+	check(t, "{1: 'x', 1: 'y'}[1]", tString("y"))
+
+	// An identifier key and the string key of the same name are the same key,
+	// so the two forms collide with each other.
+	check(t, "{a: 1, 'a': 2}['a']", tInt(2))
+	check(t, "{'a': 1, a: 2}['a']", tInt(2))
+	check(t, "len({a: 1, 'a': 2})", tInt(1))
+
+	// The shorthand is an entry like any other, so it both overwrites and is
+	// overwritten -- a trailing `a` resets an earlier `a: 1` back to unit.
+	check(t, "{a, a: 1}['a']", tInt(1))
+	check(t, "is_unit({a: 1, a}['a'])", tBool(true))
+	check(t, "len({a, a})", tInt(1))
+
+	// Later entries overwrite, but they do not disturb the other keys.
+	check(t, "m = {'a': 1, 'b': 2, 'a': 3}; m['b']", tInt(2))
+	check(t, "len({'a': 1, 'b': 2, 'a': 3})", tInt(2))
+}
+
+// A shorthand key is an ordinary entry once the map exists: assigning to it
+// overwrites the unit it was initialized with, rather than adding a key.
+func TestMapShorthandKeysAreWritable(t *testing.T) {
+	check(t, "m = {name, age}; m['name'] = 'Marcos'; m['name']", tString("Marcos"))
+	check(t, "m = {name, age}; m['name'] = 'Marcos'; len(m)", tInt(2))
+	check(t, "m = {name}; m.name = 'Marcos'; m.name", tString("Marcos"))
+}
+
 func TestContainsMap(t *testing.T) {
 	check(t, "m = {'a': 1, 'b': 2}; contains(m, 'a')", tBool(true))
 	check(t, "m = {'a': 1, 'b': 2}; contains(m, 'z')", tBool(false))
