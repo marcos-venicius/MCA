@@ -258,18 +258,9 @@ func (in *Interp) evalUnary(e *ast.UnaryExpr) EvalResult {
 		return EvalResult{Value: out, Flow: res.Flow}
 
 	case ast.NotOp:
-		// TODO: add array, string, map and unit?
-		v := expectKind(e, res.Value, KInt, KFloat, KBool)
-		var out Value
-		switch vv := v.(type) {
-		case BoolValue:
-			out = BoolV(!bool(vv))
-		case IntValue:
-			out = BoolV(vv == 0)
-		case FloatValue:
-			out = BoolV(vv == 0)
-		}
-		return EvalResult{Value: out, Flow: res.Flow}
+		isTrue, _ := Truthy(res.Value)
+
+		return EvalResult{Value: BoolV(!isTrue), Flow: res.Flow}
 
 	case ast.FactorialOp:
 		v := expectKind(e, res.Value, KInt, KFloat)
