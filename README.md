@@ -19,7 +19,7 @@ y = while (n -= 1) > 0 { n }               # y == the last value of n before the
 ### Data Types
 MCA supports dynamic data typing with automatic coercion when performing mathematical operations (e.g., integer division with a remainder cleanly coerces to a Float).
 - **Unit**: Represents nothing/empty value (`?`). Only supports `==`/`!=` as a binary operator; always considered "falsy" (see [Truthiness](#truthiness) below).
-- **Integer**: 64-bit signed integer.
+- **Integer**: 64-bit signed integer. Supports the bitwise operators `<<`, `>>`, `&` (and), `|` (or), binary `~` (xor — `^` already means power), and prefix `~` (bitwise not); all of them are int-only, with no float/bool coercion. `>>` is an arithmetic shift (the sign is preserved), and a negative shift count is a runtime error. Precedence follows Lua rather than C: `&` over `~` over `|`, all binding tighter than the comparisons (so `a ~ b == c` is `(a ~ b) == c`) and looser than the shifts, which sit just below `+`/`-`.
 - **Float**: 64-bit floating point number.
 - **Boolean**: `true` or `false`.
 - **String**: Single-quoted character sequences (e.g. `'hello world'`), with a small set of escapes: `\\`, `\'`, `\n`.
