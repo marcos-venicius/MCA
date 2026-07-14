@@ -18,6 +18,8 @@ const (
 	MinusEqual
 	Mod
 	Pow
+	Shl
+	Shr
 
 	// unary operators
 	Exclamation
@@ -62,6 +64,8 @@ var tokenKindDisplayNameMapping = map[TokenKind]string{
 	Times:        "*",
 	Mod:          "%",
 	Pow:          "^",
+	Shl:          "<<",
+	Shr:          ">>",
 	Minus:        "-",
 	MinusEqual:   "-=",
 	Exclamation:  "!",

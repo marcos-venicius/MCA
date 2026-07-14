@@ -92,6 +92,38 @@ func TestRightAssociativePower(t *testing.T) {
 	}
 }
 
+func TestShiftPrecedence(t *testing.T) {
+	// C-style precedence: shifts bind looser than '+' and tighter than '<',
+	// so 1 + 2 << 3 < 4 is ((1 + 2) << 3) < 4.
+	prog := mustParseOK(t, "1 + 2 << 3 < 4")
+
+	cmp, ok := prog.Stmts[0].(*ast.BinaryExpr)
+	if !ok || cmp.Op != ast.LtOp {
+		t.Fatalf("expected top-level LtOp, got %#v", prog.Stmts[0])
+	}
+
+	shift, ok := cmp.Left.(*ast.BinaryExpr)
+	if !ok || shift.Op != ast.ShlOp {
+		t.Fatalf("expected ShlOp under '<', got %#v", cmp.Left)
+	}
+
+	if add, ok := shift.Left.(*ast.BinaryExpr); !ok || add.Op != ast.PlusOp {
+		t.Fatalf("expected PlusOp under '<<', got %#v", shift.Left)
+	}
+
+	// Shifts chain left-associatively: a << b >> c is (a << b) >> c.
+	prog = mustParseOK(t, "a << b >> c")
+
+	outer, ok := prog.Stmts[0].(*ast.BinaryExpr)
+	if !ok || outer.Op != ast.ShrOp {
+		t.Fatalf("expected top-level ShrOp, got %#v", prog.Stmts[0])
+	}
+
+	if inner, ok := outer.Left.(*ast.BinaryExpr); !ok || inner.Op != ast.ShlOp {
+		t.Fatalf("expected left-associative ShlOp on the left, got %#v", outer.Left)
+	}
+}
+
 func TestPrefixOperatorsDoNotStack(t *testing.T) {
 	// TODO: make it possible later
 	prog := parseSrc(t, "!!x")

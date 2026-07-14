@@ -283,15 +283,21 @@ func (l *Lexer) Tokenize() []Token {
 				l.tokenizeN(1, Assign)
 			}
 		case c == '<':
-			if l.nchr() == '=' {
+			switch l.nchr() {
+			case '=':
 				l.tokenizeN(2, Lte)
-			} else {
+			case '<':
+				l.tokenizeN(2, Shl)
+			default:
 				l.tokenizeN(1, Lt)
 			}
 		case c == '>':
-			if l.nchr() == '=' {
+			switch l.nchr() {
+			case '=':
 				l.tokenizeN(2, Gte)
-			} else {
+			case '>':
+				l.tokenizeN(2, Shr)
+			default:
 				l.tokenizeN(1, Gt)
 			}
 		case c == '#':

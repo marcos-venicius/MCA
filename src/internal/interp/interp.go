@@ -517,6 +517,24 @@ func (in *Interp) evalBinary(e *ast.BinaryExpr) EvalResult {
 		return normal(BoolV(!compareTwoValues(left, right)))
 	}
 
+	// Shifts are int-only -- no float/bool coercion, since a bit pattern only
+	// makes sense on an int. Same left-before-right check order as below.
+	if e.Op == ast.ShlOp || e.Op == ast.ShrOp {
+		l := intOf(expectKind(e.Left, left, KInt))
+		r := intOf(expectKind(e.Right, in.Eval(e.Right).Value, KInt))
+
+		if r < 0 {
+			throw(e.Right.Pos(), "negative shift count %d", r)
+		}
+
+		if e.Op == ast.ShlOp {
+			return normal(IntV(l << uint64(r)))
+		}
+		// '>>' is an arithmetic shift: the sign bit fills in from the left,
+		// so a negative left operand stays negative.
+		return normal(IntV(l >> uint64(r)))
+	}
+
 	// Unlike ==/!=, the arithmetic/relational operators below only accept
 	// int/float/bool -- type-check the left operand before evaluating the
 	// right one, so a bad left type is reported without evaluating (and

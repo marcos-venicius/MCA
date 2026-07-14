@@ -225,6 +225,45 @@ func TestBinaryOperatorsEqualityAndRelational(t *testing.T) {
 	check(t, "'Hello' != 'Hello'", tBool(false))
 }
 
+func TestShiftOperators(t *testing.T) {
+	check(t, "1 << 3", tInt(8))
+	check(t, "16 >> 2", tInt(4))
+	check(t, "1 << 0", tInt(1))
+	check(t, "5 >> 0", tInt(5))
+	check(t, "0 << 5", tInt(0))
+	check(t, "7 >> 1", tInt(3))    // low bits truncate
+	check(t, "-16 >> 2", tInt(-4)) // arithmetic shift: sign preserved
+	check(t, "-1 >> 63", tInt(-1)) // the sign bit fills all the way down
+	check(t, "1 << 64", tInt(0))   // over-wide shifts drain to 0, they don't wrap
+	check(t, "16 >> 64", tInt(0))
+	check(t, "a = 2; a << a", tInt(8))
+
+	// left-associative chain
+	check(t, "1 << 4 >> 2", tInt(4))
+
+	// precedence: '+' binds tighter, '<'/'==' bind looser
+	check(t, "1 + 1 << 2", tInt(8))
+	check(t, "1 << 2 + 1", tInt(8))
+	check(t, "16 >> 1 > 7", tBool(true))
+	check(t, "1 << 2 == 4", tBool(true))
+}
+
+func TestShiftWrongOperands(t *testing.T) {
+	// int-only: no float/bool coercion, unlike '+' and friends
+	expectRuntimeError(t, "1.5 << 1")
+	expectRuntimeError(t, "1 << 1.5")
+	expectRuntimeError(t, "true << 1")
+	expectRuntimeError(t, "1 >> false")
+	expectRuntimeError(t, "'a' << 1")
+	expectRuntimeError(t, "1 << 'a'")
+	expectRuntimeError(t, "[1] << 1")
+	expectRuntimeError(t, "? << 1")
+
+	// a negative shift count has no defined meaning
+	expectRuntimeError(t, "1 << -1")
+	expectRuntimeError(t, "1 >> -1")
+}
+
 func TestSum(t *testing.T) {
 	check(t, "sum([1, 2, 3])", tInt(6))
 	check(t, "sum([-1, -2, 3])", tInt(0))

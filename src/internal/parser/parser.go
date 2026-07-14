@@ -208,6 +208,10 @@ func binaryOpForToken(kind lexer.TokenKind) ast.BinaryOp {
 		return ast.ModOp
 	case lexer.Pow:
 		return ast.PowOp
+	case lexer.Shl:
+		return ast.ShlOp
+	case lexer.Shr:
+		return ast.ShrOp
 	case lexer.Equal:
 		return ast.EqualOp
 	case lexer.NotEqual:
@@ -1049,8 +1053,14 @@ func (p *parser) parseAdditiveExpr() ast.Expr {
 	return p.parseBinaryLevel(p.parseTermExpr, lexer.Plus, lexer.Minus)
 }
 
+// parseShiftExpr sits between additive and relational, C-style: `a + b << c`
+// is `(a + b) << c`, and `a << b < c` is `(a << b) < c`.
+func (p *parser) parseShiftExpr() ast.Expr {
+	return p.parseBinaryLevel(p.parseAdditiveExpr, lexer.Shl, lexer.Shr)
+}
+
 func (p *parser) parseRelationalExpr() ast.Expr {
-	return p.parseBinaryLevel(p.parseAdditiveExpr, lexer.Lt, lexer.Lte, lexer.Gt, lexer.Gte)
+	return p.parseBinaryLevel(p.parseShiftExpr, lexer.Lt, lexer.Lte, lexer.Gt, lexer.Gte)
 }
 
 func (p *parser) parseEqualityExpr() ast.Expr {

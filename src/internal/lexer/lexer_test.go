@@ -114,10 +114,18 @@ func TestIdentifiersAreNotKeywords(t *testing.T) {
 }
 
 func TestOperatorsAndMultiChar(t *testing.T) {
-	eqKinds(t, "+ += - -= -> * / % ^ ! != = == < <= > >=", []TokenKind{
+	eqKinds(t, "+ += - -= -> * / % ^ ! != = == < <= > >= << >>", []TokenKind{
 		Plus, PlusEqual, Minus, MinusEqual, Arrow, Times, Divide, Mod, Pow,
-		Exclamation, NotEqual, Assign, Equal, Lt, Lte, Gt, Gte,
+		Exclamation, NotEqual, Assign, Equal, Lt, Lte, Gt, Gte, Shl, Shr,
 	})
+}
+
+func TestShiftOperators(t *testing.T) {
+	eqKinds(t, "1 << 2 >> 3", []TokenKind{Int, Shl, Int, Shr, Int})
+
+	// maximal munch: '<<'/'>>' win over '<'/'>', without stealing '<='/'>='
+	eqKinds(t, "a < b << c <= d", []TokenKind{Ident, Lt, Ident, Shl, Ident, Lte, Ident})
+	eqKinds(t, "a > b >> c >= d", []TokenKind{Ident, Gt, Ident, Shr, Ident, Gte, Ident})
 }
 
 func TestSymbols(t *testing.T) {

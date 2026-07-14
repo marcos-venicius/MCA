@@ -62,6 +62,8 @@ const (
 	SubtractOp
 	ModOp
 	PowOp
+	ShlOp
+	ShrOp
 
 	AndOp
 	OrOp
@@ -81,6 +83,8 @@ var binaryOperatorsMapping = map[BinaryOp]string{
 	DivideOp:   "/",
 	ModOp:      "%",
 	PowOp:      "^",
+	ShlOp:      "<<",
+	ShrOp:      ">>",
 	AndOp:      "and",
 	OrOp:       "or",
 	EqualOp:    "==",
