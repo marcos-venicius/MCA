@@ -212,6 +212,12 @@ func binaryOpForToken(kind lexer.TokenKind) ast.BinaryOp {
 		return ast.ShlOp
 	case lexer.Shr:
 		return ast.ShrOp
+	case lexer.Tilde:
+		return ast.XorOp
+	case lexer.Amp:
+		return ast.BitAndOp
+	case lexer.Pipe:
+		return ast.BitOrOp
 	case lexer.Equal:
 		return ast.EqualOp
 	case lexer.NotEqual:
@@ -957,31 +963,31 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 
 	firstTok := p.cur()
 
-	if p.cur().Kind == lexer.Minus || p.cur().Kind == lexer.Exclamation {
-		opTok := p.cur()
-		isNot := opTok.Kind == lexer.Exclamation
-		p.next()
+	var op ast.UnaryOp
+	var opName string
 
-		operand := p.parseFactorialExpr()
-		if operand == nil {
-			opName := "-"
-			if isNot {
-				opName = "!"
-			}
-			p.errorAt(firstTok, fmt.Sprintf("missing operand for unary '%s'", opName))
-			p.synchronize()
-			return nil
-		}
-
-		op := ast.MinusOp
-		if isNot {
-			op = ast.NotOp // a prefix '!' always means "not", never factorial
-		}
-
-		return &ast.UnaryExpr{Base: ast.NewBase(p.posOf(opTok)), Op: op, Operand: operand}
+	switch p.cur().Kind {
+	case lexer.Minus:
+		op, opName = ast.MinusOp, "-"
+	case lexer.Exclamation:
+		op, opName = ast.NotOp, "!" // a prefix '!' always means "not", never factorial
+	case lexer.Tilde:
+		op, opName = ast.BitNotOp, "~" // a prefix '~' always means "bitwise not", never xor
+	default:
+		return p.parseFactorialExpr()
 	}
 
-	return p.parseFactorialExpr()
+	opTok := p.cur()
+	p.next()
+
+	operand := p.parseFactorialExpr()
+	if operand == nil {
+		p.errorAt(firstTok, fmt.Sprintf("missing operand for unary '%s'", opName))
+		p.synchronize()
+		return nil
+	}
+
+	return &ast.UnaryExpr{Base: ast.NewBase(p.posOf(opTok)), Op: op, Operand: operand}
 }
 
 // parseBinaryLevel is a small helper factoring the repeated
@@ -1053,14 +1059,30 @@ func (p *parser) parseAdditiveExpr() ast.Expr {
 	return p.parseBinaryLevel(p.parseTermExpr, lexer.Plus, lexer.Minus)
 }
 
-// parseShiftExpr sits between additive and relational, C-style: `a + b << c`
-// is `(a + b) << c`, and `a << b < c` is `(a << b) < c`.
+// parseShiftExpr sits between additive and the bitwise levels, C-style:
+// `a + b << c` is `(a + b) << c`.
 func (p *parser) parseShiftExpr() ast.Expr {
 	return p.parseBinaryLevel(p.parseAdditiveExpr, lexer.Shl, lexer.Shr)
 }
 
+// The bitwise ladder follows Lua's, not C's: `&` over `~` (xor) over `|`,
+// with all three binding tighter than the comparisons -- so `a ~ b == c`
+// is `(a ~ b) == c`, never C's infamous `a ~ (b == c)` -- and looser than
+// the shifts, so `a ~ 1 << 3` is `a ~ (1 << 3)`.
+func (p *parser) parseBitAndExpr() ast.Expr {
+	return p.parseBinaryLevel(p.parseShiftExpr, lexer.Amp)
+}
+
+func (p *parser) parseXorExpr() ast.Expr {
+	return p.parseBinaryLevel(p.parseBitAndExpr, lexer.Tilde)
+}
+
+func (p *parser) parseBitOrExpr() ast.Expr {
+	return p.parseBinaryLevel(p.parseXorExpr, lexer.Pipe)
+}
+
 func (p *parser) parseRelationalExpr() ast.Expr {
-	return p.parseBinaryLevel(p.parseShiftExpr, lexer.Lt, lexer.Lte, lexer.Gt, lexer.Gte)
+	return p.parseBinaryLevel(p.parseBitOrExpr, lexer.Lt, lexer.Lte, lexer.Gt, lexer.Gte)
 }
 
 func (p *parser) parseEqualityExpr() ast.Expr {

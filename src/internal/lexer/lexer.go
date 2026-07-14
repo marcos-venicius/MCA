@@ -300,6 +300,12 @@ func (l *Lexer) Tokenize() []Token {
 			default:
 				l.tokenizeN(1, Gt)
 			}
+		case c == '&':
+			l.tokenizeN(1, Amp)
+		case c == '|':
+			l.tokenizeN(1, Pipe)
+		case c == '~':
+			l.tokenizeN(1, Tilde)
 		case c == '#':
 			l.skipComment()
 		case c == 0:

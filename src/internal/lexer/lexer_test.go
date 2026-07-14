@@ -114,9 +114,10 @@ func TestIdentifiersAreNotKeywords(t *testing.T) {
 }
 
 func TestOperatorsAndMultiChar(t *testing.T) {
-	eqKinds(t, "+ += - -= -> * / % ^ ! != = == < <= > >= << >>", []TokenKind{
+	eqKinds(t, "+ += - -= -> * / % ^ ! != = == < <= > >= << >> & | ~", []TokenKind{
 		Plus, PlusEqual, Minus, MinusEqual, Arrow, Times, Divide, Mod, Pow,
 		Exclamation, NotEqual, Assign, Equal, Lt, Lte, Gt, Gte, Shl, Shr,
+		Amp, Pipe, Tilde,
 	})
 }
 
@@ -126,6 +127,11 @@ func TestShiftOperators(t *testing.T) {
 	// maximal munch: '<<'/'>>' win over '<'/'>', without stealing '<='/'>='
 	eqKinds(t, "a < b << c <= d", []TokenKind{Ident, Lt, Ident, Shl, Ident, Lte, Ident})
 	eqKinds(t, "a > b >> c >= d", []TokenKind{Ident, Gt, Ident, Shr, Ident, Gte, Ident})
+}
+
+func TestBitwiseOperators(t *testing.T) {
+	eqKinds(t, "a & b | c ~ d", []TokenKind{Ident, Amp, Ident, Pipe, Ident, Tilde, Ident})
+	eqKinds(t, "~a", []TokenKind{Tilde, Ident}) // same token whether unary or binary
 }
 
 func TestSymbols(t *testing.T) {

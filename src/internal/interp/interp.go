@@ -279,6 +279,11 @@ func (in *Interp) evalUnary(e *ast.UnaryExpr) EvalResult {
 	case ast.FactorialOp:
 		v := expectKind(e, res.Value, KInt, KFloat)
 		return EvalResult{Value: calculateFactorial(v), Flow: res.Flow}
+
+	case ast.BitNotOp:
+		// int-only, like the binary bitwise operators.
+		v := intOf(expectKind(e.Operand, res.Value, KInt))
+		return EvalResult{Value: IntV(^v), Flow: res.Flow}
 	}
 
 	panic("evalUnary: unhandled operator")
@@ -517,22 +522,34 @@ func (in *Interp) evalBinary(e *ast.BinaryExpr) EvalResult {
 		return normal(BoolV(!compareTwoValues(left, right)))
 	}
 
-	// Shifts are int-only -- no float/bool coercion, since a bit pattern only
-	// makes sense on an int. Same left-before-right check order as below.
-	if e.Op == ast.ShlOp || e.Op == ast.ShrOp {
+	// The bitwise operators are int-only -- no float/bool coercion, since a
+	// bit pattern only makes sense on an int. Same left-before-right check
+	// order as below.
+	switch e.Op {
+	case ast.ShlOp, ast.ShrOp, ast.XorOp, ast.BitAndOp, ast.BitOrOp:
 		l := intOf(expectKind(e.Left, left, KInt))
 		r := intOf(expectKind(e.Right, in.Eval(e.Right).Value, KInt))
 
-		if r < 0 {
-			throw(e.Right.Pos(), "negative shift count %d", r)
-		}
-
-		if e.Op == ast.ShlOp {
+		switch e.Op {
+		case ast.ShlOp:
+			if r < 0 {
+				throw(e.Right.Pos(), "negative shift count %d", r)
+			}
 			return normal(IntV(l << uint64(r)))
+		case ast.ShrOp:
+			if r < 0 {
+				throw(e.Right.Pos(), "negative shift count %d", r)
+			}
+			// '>>' is an arithmetic shift: the sign bit fills in from the
+			// left, so a negative left operand stays negative.
+			return normal(IntV(l >> uint64(r)))
+		case ast.XorOp:
+			return normal(IntV(l ^ r))
+		case ast.BitAndOp:
+			return normal(IntV(l & r))
+		default: // ast.BitOrOp
+			return normal(IntV(l | r))
 		}
-		// '>>' is an arithmetic shift: the sign bit fills in from the left,
-		// so a negative left operand stays negative.
-		return normal(IntV(l >> uint64(r)))
 	}
 
 	// Unlike ==/!=, the arithmetic/relational operators below only accept

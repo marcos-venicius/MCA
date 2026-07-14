@@ -124,6 +124,63 @@ func TestShiftPrecedence(t *testing.T) {
 	}
 }
 
+func TestBitwisePrecedence(t *testing.T) {
+	// Lua-style ladder: relational < | < ~ < & < shift, so
+	// a | b ~ c & d << e parses as a | (b ~ (c & (d << e))).
+	prog := mustParseOK(t, "a | b ~ c & d << e")
+
+	or, ok := prog.Stmts[0].(*ast.BinaryExpr)
+	if !ok || or.Op != ast.BitOrOp {
+		t.Fatalf("expected top-level BitOrOp, got %#v", prog.Stmts[0])
+	}
+
+	xor, ok := or.Right.(*ast.BinaryExpr)
+	if !ok || xor.Op != ast.XorOp {
+		t.Fatalf("expected XorOp under '|', got %#v", or.Right)
+	}
+
+	band, ok := xor.Right.(*ast.BinaryExpr)
+	if !ok || band.Op != ast.BitAndOp {
+		t.Fatalf("expected BitAndOp under '~', got %#v", xor.Right)
+	}
+
+	if shl, ok := band.Right.(*ast.BinaryExpr); !ok || shl.Op != ast.ShlOp {
+		t.Fatalf("expected ShlOp under '&', got %#v", band.Right)
+	}
+
+	// ... and all of them bind tighter than a comparison, unlike C:
+	// a ~ b == c is (a ~ b) == c.
+	prog = mustParseOK(t, "a ~ b == c")
+
+	eq, ok := prog.Stmts[0].(*ast.BinaryExpr)
+	if !ok || eq.Op != ast.EqualOp {
+		t.Fatalf("expected top-level EqualOp, got %#v", prog.Stmts[0])
+	}
+
+	if left, ok := eq.Left.(*ast.BinaryExpr); !ok || left.Op != ast.XorOp {
+		t.Fatalf("expected XorOp on the left of '==', got %#v", eq.Left)
+	}
+}
+
+func TestTildeIsUnaryOrBinaryByPosition(t *testing.T) {
+	// prefix '~' is bitwise not ...
+	prog := mustParseOK(t, "~x")
+	un, ok := prog.Stmts[0].(*ast.UnaryExpr)
+	if !ok || un.Op != ast.BitNotOp {
+		t.Fatalf("expected prefix BitNotOp, got %#v", prog.Stmts[0])
+	}
+
+	// ... an infix '~' is xor, and both can appear in one expression.
+	prog = mustParseOK(t, "a ~ ~b")
+	bin, ok := prog.Stmts[0].(*ast.BinaryExpr)
+	if !ok || bin.Op != ast.XorOp {
+		t.Fatalf("expected binary XorOp, got %#v", prog.Stmts[0])
+	}
+	if right, ok := bin.Right.(*ast.UnaryExpr); !ok || right.Op != ast.BitNotOp {
+		t.Fatalf("expected BitNotOp as the right operand, got %#v", bin.Right)
+	}
+}
+
 func TestPrefixOperatorsDoNotStack(t *testing.T) {
 	// TODO: make it possible later
 	prog := parseSrc(t, "!!x")
@@ -134,6 +191,11 @@ func TestPrefixOperatorsDoNotStack(t *testing.T) {
 	prog = parseSrc(t, "--x")
 	if len(prog.Errors) == 0 {
 		t.Fatalf("expected a parse error for stacked prefix '--x'")
+	}
+
+	prog = parseSrc(t, "~~x")
+	if len(prog.Errors) == 0 {
+		t.Fatalf("expected a parse error for stacked prefix '~~x'")
 	}
 }
 

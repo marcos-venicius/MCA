@@ -264,6 +264,48 @@ func TestShiftWrongOperands(t *testing.T) {
 	expectRuntimeError(t, "1 >> -1")
 }
 
+func TestBitwiseOperators(t *testing.T) {
+	check(t, "5 ~ 3", tInt(6)) // binary '~' is xor
+	check(t, "5 ~ 5", tInt(0))
+	check(t, "5 & 3", tInt(1))
+	check(t, "5 | 3", tInt(7))
+	check(t, "-1 & 7", tInt(7)) // two's complement: -1 is all ones
+	check(t, "-2 | 1", tInt(-1))
+
+	// prefix '~' is bitwise not
+	check(t, "~0", tInt(-1))
+	check(t, "~5", tInt(-6))
+	check(t, "~(-1)", tInt(0))
+	check(t, "a = 5; ~a", tInt(-6))
+	check(t, "5 ~ ~3", tInt(-7)) // xor with a bitwise-not operand
+
+	// precedence, Lua-style: & over ~ over |, all under the shifts and
+	// over the comparisons
+	check(t, "1 | 2 ~ 2 & 3", tInt(1))  // 1 | (2 ~ (2 & 3))
+	check(t, "1 ~ 1 << 3", tInt(9))     // 1 ~ (1 << 3)
+	check(t, "1 ~ 3 == 2", tBool(true)) // (1 ~ 3) == 2
+	check(t, "2 | 1 == 3", tBool(true)) // (2 | 1) == 3
+	check(t, "~5 + 1", tInt(-5))        // unary binds tighter: (~5) + 1
+}
+
+func TestBitwiseWrongOperands(t *testing.T) {
+	// int-only, like the shifts
+	expectRuntimeError(t, "1.5 ~ 1")
+	expectRuntimeError(t, "1 ~ 1.5")
+	expectRuntimeError(t, "1 & true")
+	expectRuntimeError(t, "false | 1")
+	expectRuntimeError(t, "'a' ~ 1")
+	expectRuntimeError(t, "1 & 'a'")
+	expectRuntimeError(t, "[1] | 1")
+	expectRuntimeError(t, "? ~ 1")
+
+	expectRuntimeError(t, "~1.5")
+	expectRuntimeError(t, "~true")
+	expectRuntimeError(t, "~'a'")
+	expectRuntimeError(t, "~[1]")
+	expectRuntimeError(t, "~?")
+}
+
 func TestSum(t *testing.T) {
 	check(t, "sum([1, 2, 3])", tInt(6))
 	check(t, "sum([-1, -2, 3])", tInt(0))

@@ -64,6 +64,9 @@ const (
 	PowOp
 	ShlOp
 	ShrOp
+	XorOp
+	BitAndOp
+	BitOrOp
 
 	AndOp
 	OrOp
@@ -85,6 +88,9 @@ var binaryOperatorsMapping = map[BinaryOp]string{
 	PowOp:      "^",
 	ShlOp:      "<<",
 	ShrOp:      ">>",
+	XorOp:      "~",
+	BitAndOp:   "&",
+	BitOrOp:    "|",
 	AndOp:      "and",
 	OrOp:       "or",
 	EqualOp:    "==",
@@ -109,11 +115,14 @@ const (
 	MinusOp UnaryOp = iota
 	FactorialOp
 	NotOp
+	BitNotOp
 )
 
 var unaryOperatorsMapping = map[UnaryOp]string{
 	MinusOp:     "-",
 	FactorialOp: "!",
+	NotOp:       "!",
+	BitNotOp:    "~",
 }
 
 func (op UnaryOp) String() string {

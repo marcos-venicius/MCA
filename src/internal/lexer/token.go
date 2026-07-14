@@ -20,6 +20,9 @@ const (
 	Pow
 	Shl
 	Shr
+	Amp
+	Pipe
+	Tilde // binary xor, or unary bitwise not
 
 	// unary operators
 	Exclamation
@@ -66,6 +69,9 @@ var tokenKindDisplayNameMapping = map[TokenKind]string{
 	Pow:          "^",
 	Shl:          "<<",
 	Shr:          ">>",
+	Amp:          "&",
+	Pipe:         "|",
+	Tilde:        "~",
 	Minus:        "-",
 	MinusEqual:   "-=",
 	Exclamation:  "!",
