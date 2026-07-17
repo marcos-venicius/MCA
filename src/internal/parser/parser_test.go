@@ -593,20 +593,29 @@ func TestCommaSyntaxRejectsNonIdentifierTarget(t *testing.T) {
 	}
 }
 
-func TestMultiValueReturnWrapsInArray(t *testing.T) {
-	// `return 1, 2` desugars to returning the array [1, 2], the mirror of the
-	// `a, b = f()` destructuring on the caller's side.
-	prog := mustParseOK(t, "\\() -> return 1, 2")
+// returnValue digs out the ReturnExpr's value from a fn whose body is a single
+// return statement.
+func returnValue(t *testing.T, prog *Program) ast.Expr {
+	t.Helper()
 
-	fn := prog.Stmts[0].(*ast.FnExpr)
+	fn, ok := prog.Stmts[0].(*ast.FnExpr)
+	if !ok {
+		t.Fatalf("expected a FnExpr, got %#v", prog.Stmts[0])
+	}
 	ret, ok := fn.Body[0].(*ast.ReturnExpr)
 	if !ok {
 		t.Fatalf("expected a ReturnExpr as the fn body, got %#v", fn.Body[0])
 	}
+	return ret.Value
+}
 
-	arr, ok := ret.Value.(*ast.ArrayExpr)
+func TestMultiValueReturnWrapsInArray(t *testing.T) {
+	// At statement level (a braced body) `return 1, 2` desugars to returning
+	// the array [1, 2], the mirror of the `a, b = f()` destructuring on the
+	// caller's side.
+	arr, ok := returnValue(t, mustParseOK(t, "\\() -> { return 1, 2 }")).(*ast.ArrayExpr)
 	if !ok {
-		t.Fatalf("expected the return value to be an ArrayExpr, got %#v", ret.Value)
+		t.Fatalf("expected the return value to be an ArrayExpr, got a scalar")
 	}
 	if len(arr.Items) != 2 {
 		t.Fatalf("expected 2 returned items, got %d: %#v", len(arr.Items), arr.Items)
@@ -615,13 +624,70 @@ func TestMultiValueReturnWrapsInArray(t *testing.T) {
 
 func TestSingleValueReturnIsNotWrapped(t *testing.T) {
 	// A lone `return 42` must stay a scalar, not a one-element array.
-	prog := mustParseOK(t, "\\() -> return 42")
-
-	ret := prog.Stmts[0].(*ast.FnExpr).Body[0].(*ast.ReturnExpr)
-	if _, ok := ret.Value.(*ast.ArrayExpr); ok {
-		t.Fatalf("expected a scalar return value, got an ArrayExpr: %#v", ret.Value)
+	val := returnValue(t, mustParseOK(t, "\\() -> { return 42 }"))
+	if _, ok := val.(*ast.ArrayExpr); ok {
+		t.Fatalf("expected a scalar return value, got an ArrayExpr: %#v", val)
 	}
-	if lit, ok := ret.Value.(*ast.IntLit); !ok || lit.Value != 42 {
-		t.Fatalf("expected the return value to be IntLit(42), got %#v", ret.Value)
+	if lit, ok := val.(*ast.IntLit); !ok || lit.Value != 42 {
+		t.Fatalf("expected the return value to be IntLit(42), got %#v", val)
+	}
+}
+
+// The crux of the feature: a `return` in an inline arrow body -- a nested
+// position inside a call -- must NOT absorb the trailing comma. In
+// `filter(arr, \(line) -> return true, false)` the ',' belongs to filter, so
+// `false` is a third argument and the return value stays the scalar `true`.
+func TestInlineArrowReturnDoesNotSwallowEnclosingComma(t *testing.T) {
+	prog := mustParseOK(t, "filter(arr, \\(line) -> return true, false)")
+
+	call, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected a CallExpr, got %#v", prog.Stmts[0])
+	}
+	if len(call.Args) != 3 {
+		t.Fatalf("expected 3 call args (arr, closure, false), got %d: %#v", len(call.Args), call.Args)
+	}
+
+	fn, ok := call.Args[1].(*ast.FnExpr)
+	if !ok {
+		t.Fatalf("expected the 2nd arg to be a FnExpr, got %#v", call.Args[1])
+	}
+	ret, ok := fn.Body[0].(*ast.ReturnExpr)
+	if !ok {
+		t.Fatalf("expected the arrow body to be a ReturnExpr, got %#v", fn.Body[0])
+	}
+	if _, ok := ret.Value.(*ast.BoolLit); !ok {
+		t.Fatalf("expected the return value to stay a scalar BoolLit, got %#v", ret.Value)
+	}
+
+	if lit, ok := call.Args[2].(*ast.BoolLit); !ok || lit.Value != false {
+		t.Fatalf("expected the 3rd arg to be BoolLit(false), got %#v", call.Args[2])
+	}
+}
+
+// The escape hatch: parentheses group a comma list into an array, so a
+// single-expression function can still yield several values: `\(x) -> (a, b)`.
+func TestParenthesizedCommaIsAnArray(t *testing.T) {
+	val := returnValue(t, mustParseOK(t, "\\(x) -> { return (x, x) }"))
+	if _, ok := val.(*ast.ArrayExpr); !ok {
+		t.Fatalf("expected (x, x) to be an ArrayExpr, got %#v", val)
+	}
+
+	// It also works as the whole inline body, and inside a call argument.
+	prog := mustParseOK(t, "filter(arr, \\(line) -> (true, false))")
+	call := prog.Stmts[0].(*ast.CallExpr)
+	if len(call.Args) != 2 {
+		t.Fatalf("expected 2 call args, got %d: %#v", len(call.Args), call.Args)
+	}
+	body := call.Args[1].(*ast.FnExpr).Body[0]
+	if arr, ok := body.(*ast.ArrayExpr); !ok || len(arr.Items) != 2 {
+		t.Fatalf("expected the arrow body to be a 2-element ArrayExpr, got %#v", body)
+	}
+
+	// A parenthesized single expression is still just grouping, not a
+	// one-element array.
+	prog = mustParseOK(t, "(1 + 2)")
+	if _, ok := prog.Stmts[0].(*ast.ArrayExpr); ok {
+		t.Fatalf("expected (1 + 2) to stay a scalar grouping, got an ArrayExpr")
 	}
 }

@@ -52,6 +52,14 @@ type parser struct {
 	pos      int // index of the "current" token; pos >= len(tokens) means EOF
 	lastPos  int // index of the last successfully consumed token, for EOF-error locations
 
+	// allowComma is true only while parsing a statement-level expression, where
+	// a top-level ',' means comma-syntax: destructuring assignment ('a, b = ...')
+	// and multi-value return ('return 1, 2'). It is reset to false whenever we
+	// descend into a nested value position (call args, array items, a
+	// parenthesized group, an inline arrow body, ...) because there the comma
+	// belongs to the enclosing construct. Both parseExpr and parseStmt manage it.
+	allowComma bool
+
 	errors []Error
 }
 
@@ -457,6 +465,15 @@ func (p *parser) parseBreakExpr() ast.Expr {
 
 func (p *parser) parseReturnExpr() ast.Expr {
 	firstTok := p.cur()
+
+	// Capture the statement-level flag now: multi-value return only fires when
+	// `return` sits at statement level. In a nested position -- notably an
+	// inline arrow body inside a call, `filter(arr, \(x) -> return true, false)`
+	// -- the comma belongs to the enclosing call, so `false` is a *third*
+	// argument, not part of the return. To return several values from a
+	// single-expression function, group them with parentheses: `\(x) -> (a, b)`.
+	allowComma := p.allowComma
+
 	p.next() // jump 'return'
 
 	var value ast.Expr
@@ -474,7 +491,7 @@ func (p *parser) parseReturnExpr() ast.Expr {
 
 		// comma-syntax: `return 1, 2` returns the array [1, 2], the mirror of
 		// the `a, b = f()` destructuring assignment on the caller's side.
-		if p.check(lexer.Comma) {
+		if allowComma && p.check(lexer.Comma) {
 			items := []ast.Expr{value}
 
 			for p.check(lexer.Comma) {
@@ -848,6 +865,35 @@ func (p *parser) parsePrimaryExpr() ast.Expr {
 		p.next()
 
 		expr := p.parseExpr()
+		if expr == nil {
+			return nil
+		}
+
+		// A comma inside the parentheses turns the group into an array literal:
+		// `(a, b)` is `[a, b]`. This is the escape hatch for producing a
+		// comma-syntax value where a bare comma can't be used -- most usefully,
+		// returning several values from a single-expression function:
+		// `\(x) -> (x, x * 2)`, which pairs with `a, b = f(...)` on the caller.
+		if p.check(lexer.Comma) {
+			items := []ast.Expr{expr}
+
+			for p.check(lexer.Comma) {
+				p.next() // skip ','
+
+				if p.check(lexer.RParen) { // tolerate a trailing comma: (a, b,)
+					break
+				}
+
+				item := p.parseExpr()
+				if item == nil {
+					return nil
+				}
+
+				items = append(items, item)
+			}
+
+			expr = &ast.ArrayExpr{Base: ast.NewBase(p.posOf(firstTok)), Items: items}
+		}
 
 		if p.cur() == nil {
 			p.errorAt(firstTok, "unterminated parenthesis expression. expected ')' but got EOF")
@@ -1170,10 +1216,11 @@ func acceptableAssignTarget(e ast.Expr) bool {
 	return false
 }
 
-// allowComma enables the statement-level comma-syntax 'a, b, c = ...'.
-// It must stay off in nested expression positions (call arguments, array
-// items, for ranges, ...) where a comma belongs to the enclosing construct.
-func (p *parser) parseAssignmentExpr(allowComma bool) ast.Expr {
+// parseAssignmentExpr consumes the statement-level comma-syntax
+// 'a, b, c = ...' when p.allowComma is set (see the field's doc). In nested
+// expression positions (call arguments, array items, for ranges, ...) the flag
+// is off, so a comma there belongs to the enclosing construct.
+func (p *parser) parseAssignmentExpr() ast.Expr {
 	if p.cur() == nil {
 		return nil
 	}
@@ -1195,7 +1242,7 @@ func (p *parser) parseAssignmentExpr(allowComma bool) ast.Expr {
 
 	arr = append(arr, left)
 
-	for allowComma && left != nil && p.check(lexer.Comma) {
+	for p.allowComma && left != nil && p.check(lexer.Comma) {
 		p.next() // skip ','
 
 		item := p.parseLogicalExpr()
@@ -1295,11 +1342,23 @@ func (p *parser) parseAssignmentExpr(allowComma bool) ast.Expr {
 // parseExpr is the entry point for any expression in a value position.
 // Comma-syntax is disabled here: a ',' belongs to the enclosing construct.
 func (p *parser) parseExpr() ast.Expr {
-	return p.parseAssignmentExpr(false)
+	return p.parseWithComma(false)
 }
 
-// parseStmt is the entry point at statement level, where the comma-syntax
-// destructuring assignment 'a, b, c = ...' is allowed.
+// parseStmt is the entry point at statement level, where comma-syntax --
+// destructuring assignment 'a, b, c = ...' and multi-value 'return 1, 2' --
+// is allowed.
 func (p *parser) parseStmt() ast.Expr {
-	return p.parseAssignmentExpr(true)
+	return p.parseWithComma(true)
+}
+
+// parseWithComma runs parseAssignmentExpr with p.allowComma set to `allow`,
+// restoring the previous value afterwards so nested positions (which set it
+// back to false via parseExpr) don't leak their state to the caller.
+func (p *parser) parseWithComma(allow bool) ast.Expr {
+	prev := p.allowComma
+	p.allowComma = allow
+	e := p.parseAssignmentExpr()
+	p.allowComma = prev
+	return e
 }
