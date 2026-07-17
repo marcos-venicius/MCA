@@ -299,7 +299,11 @@ func (p *parser) parseBlock() ([]ast.Expr, bool) {
 		return body, true
 
 	default:
-		expr := p.parseStmt() // single inline expression as the block body
+		// A single inline expression as the block body (e.g. the '\(x) -> x'
+		// arrow body or 'while c break') is a nested position: a trailing ','
+		// belongs to the enclosing construct (a call's argument list), not to a
+		// statement-level comma-destructuring, so comma-syntax stays off here.
+		expr := p.parseExpr() // single inline expression as the block body
 
 		if expr == nil {
 			return nil, false
