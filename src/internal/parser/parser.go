@@ -67,7 +67,7 @@ func Parse(filename string, tokens []lexer.Token) *Program {
 				continue
 			}
 
-			expr := p.parseExpr()
+			expr := p.parseStmt()
 
 			// note: expr may be nil on error
 			if expr != nil {
@@ -162,6 +162,11 @@ func (p *parser) errorAt(tok *lexer.Token, message string) {
 	if tok != nil {
 		e.Line, e.Col = tok.Loc.Line, tok.Loc.Col
 	}
+	p.errors = append(p.errors, e)
+}
+
+func (p *parser) errorAtPos(pos ast.Pos, message string) {
+	e := Error{Filename: pos.Filename, Col: pos.Col, Line: pos.Line, Message: message}
 	p.errors = append(p.errors, e)
 }
 
@@ -275,7 +280,7 @@ func (p *parser) parseBlock() ([]ast.Expr, bool) {
 				continue
 			}
 
-			expr := p.parseExpr()
+			expr := p.parseStmt()
 			if expr == nil {
 				return nil, false
 			}
@@ -294,7 +299,7 @@ func (p *parser) parseBlock() ([]ast.Expr, bool) {
 		return body, true
 
 	default:
-		expr := p.parseExpr() // single inline expression as the block body
+		expr := p.parseStmt() // single inline expression as the block body
 
 		if expr == nil {
 			return nil, false
@@ -1134,13 +1139,16 @@ func (p *parser) parseLogicalExpr() ast.Expr {
 
 func acceptableAssignTarget(e ast.Expr) bool {
 	switch e.(type) {
-	case *ast.Ident, *ast.SquareExpr, *ast.DotExpr:
+	case *ast.Ident, *ast.SquareExpr, *ast.DotExpr, *ast.ArrayExpr:
 		return true
 	}
 	return false
 }
 
-func (p *parser) parseAssignmentExpr() ast.Expr {
+// allowComma enables the statement-level comma-syntax 'a, b, c = ...'.
+// It must stay off in nested expression positions (call arguments, array
+// items, for ranges, ...) where a comma belongs to the enclosing construct.
+func (p *parser) parseAssignmentExpr(allowComma bool) ast.Expr {
 	if p.cur() == nil {
 		return nil
 	}
@@ -1151,12 +1159,34 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 	var constTok *lexer.Token
 	if isKeyword(p.cur(), "const") && p.checkAhead(lexer.Ident) {
 		constTok = p.cur()
-		p.next()
+		p.next() // jump 'const'
 	}
 
 	firstTok := p.cur()
 
 	left := p.parseLogicalExpr()
+
+	arr := make([]ast.Expr, 0)
+
+	arr = append(arr, left)
+
+	for allowComma && left != nil && p.check(lexer.Comma) {
+		p.next() // skip ','
+
+		item := p.parseLogicalExpr()
+		if item == nil {
+			return nil
+		}
+
+		arr = append(arr, item)
+	}
+
+	if len(arr) > 1 {
+		left = &ast.ArrayExpr{
+			Base:  ast.NewBase(p.posOf(firstTok)),
+			Items: arr,
+		}
+	}
 
 	if left != nil && acceptableAssignTarget(left) &&
 		(p.check(lexer.Assign) || p.check(lexer.PlusEqual) || p.check(lexer.MinusEqual)) {
@@ -1169,13 +1199,19 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 		switch opTok.Kind {
 		case lexer.Assign:
 			op = ast.Assign
-			missingMsg = fmt.Sprintf("missing right operand for assignment '%s = ...'", firstTok.Value)
+			missingMsg = "missing right operand for assignment"
 		case lexer.PlusEqual:
 			op = ast.AddAssign
-			missingMsg = fmt.Sprintf("missing right operand for addition assignment '%s += ...'", firstTok.Value)
+			missingMsg = "missing right operand for addition assignment"
 		case lexer.MinusEqual:
 			op = ast.SubAssign
-			missingMsg = fmt.Sprintf("missing right operand for subtraction assignment '%s -= ...'", firstTok.Value)
+			missingMsg = "missing right operand for subtraction assignment"
+		}
+
+		if op != ast.Assign && len(arr) > 1 {
+			p.errorAt(opTok, "you can only use comma-syntax with assignment operator")
+			p.synchronize()
+			return nil
 		}
 
 		if constTok != nil {
@@ -1185,10 +1221,22 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 				return nil
 			}
 
-			if _, isIdent := left.(*ast.Ident); !isIdent {
-				p.errorAt(constTok, "only a plain identifier can be declared 'const'")
-				p.synchronize()
-				return nil
+			if len(arr) == 1 {
+				if _, isIdent := left.(*ast.Ident); !isIdent {
+					p.errorAt(constTok, "only a plain identifier can be declared 'const'")
+					p.synchronize()
+					return nil
+				}
+			}
+		}
+
+		if len(arr) > 1 {
+			for _, item := range arr {
+				if _, isIdent := item.(*ast.Ident); !isIdent {
+					p.errorAtPos(item.Pos(), "only a plain identifier can be declared when using comma-syntax")
+					p.synchronize()
+					return nil
+				}
 			}
 		}
 
@@ -1219,7 +1267,14 @@ func (p *parser) parseAssignmentExpr() ast.Expr {
 	return left
 }
 
-// parseExpr is the entry point for any expression.
+// parseExpr is the entry point for any expression in a value position.
+// Comma-syntax is disabled here: a ',' belongs to the enclosing construct.
 func (p *parser) parseExpr() ast.Expr {
-	return p.parseAssignmentExpr()
+	return p.parseAssignmentExpr(false)
+}
+
+// parseStmt is the entry point at statement level, where the comma-syntax
+// destructuring assignment 'a, b, c = ...' is allowed.
+func (p *parser) parseStmt() ast.Expr {
+	return p.parseAssignmentExpr(true)
 }

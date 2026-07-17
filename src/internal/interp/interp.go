@@ -628,6 +628,29 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 	rightRes := in.evalAssignRightSide(e)
 
 	switch left := e.Left.(type) {
+	case *ast.ArrayExpr:
+		if rightRes.Value.Kind() != KArray {
+			throw(e.Right.Pos(), "you cannot use comma-syntax with non array values")
+		}
+
+		value := rightRes.Value.(*Array)
+
+		if len(left.Items) != len(value.Items) {
+			throw(e.Left.Pos(), "expected to have %d items but got %d", len(left.Items), len(value.Items))
+		}
+
+		for i, expr := range left.Items {
+			ident := expr.(*ast.Ident)
+
+			if e.Const {
+				in.declareConst(ident, value.Items[i])
+			} else if !in.Current.Assign(ident.Name, value.Items[i]) {
+				throw(ident.Pos(), "you cannot modify constant values. '%s' is a constant", ident.Name)
+			}
+		}
+
+		return rightRes
+
 	case *ast.Ident:
 		if e.Const {
 			in.declareConst(left, rightRes.Value)
