@@ -471,6 +471,27 @@ func (p *parser) parseReturnExpr() ast.Expr {
 			p.synchronize()
 			return nil
 		}
+
+		// comma-syntax: `return 1, 2` returns the array [1, 2], the mirror of
+		// the `a, b = f()` destructuring assignment on the caller's side.
+		if p.check(lexer.Comma) {
+			items := []ast.Expr{value}
+
+			for p.check(lexer.Comma) {
+				p.next() // skip ','
+
+				item := p.parseExpr()
+				if item == nil {
+					p.errorAt(p.lastConsumed(), "missing expression after ',' in return")
+					p.synchronize()
+					return nil
+				}
+
+				items = append(items, item)
+			}
+
+			value = &ast.ArrayExpr{Base: ast.NewBase(p.posOf(firstTok)), Items: items}
+		}
 	}
 
 	return &ast.ReturnExpr{Base: ast.NewBase(p.posOf(firstTok)), Value: value}

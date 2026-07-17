@@ -592,3 +592,36 @@ func TestCommaSyntaxRejectsNonIdentifierTarget(t *testing.T) {
 		}
 	}
 }
+
+func TestMultiValueReturnWrapsInArray(t *testing.T) {
+	// `return 1, 2` desugars to returning the array [1, 2], the mirror of the
+	// `a, b = f()` destructuring on the caller's side.
+	prog := mustParseOK(t, "\\() -> return 1, 2")
+
+	fn := prog.Stmts[0].(*ast.FnExpr)
+	ret, ok := fn.Body[0].(*ast.ReturnExpr)
+	if !ok {
+		t.Fatalf("expected a ReturnExpr as the fn body, got %#v", fn.Body[0])
+	}
+
+	arr, ok := ret.Value.(*ast.ArrayExpr)
+	if !ok {
+		t.Fatalf("expected the return value to be an ArrayExpr, got %#v", ret.Value)
+	}
+	if len(arr.Items) != 2 {
+		t.Fatalf("expected 2 returned items, got %d: %#v", len(arr.Items), arr.Items)
+	}
+}
+
+func TestSingleValueReturnIsNotWrapped(t *testing.T) {
+	// A lone `return 42` must stay a scalar, not a one-element array.
+	prog := mustParseOK(t, "\\() -> return 42")
+
+	ret := prog.Stmts[0].(*ast.FnExpr).Body[0].(*ast.ReturnExpr)
+	if _, ok := ret.Value.(*ast.ArrayExpr); ok {
+		t.Fatalf("expected a scalar return value, got an ArrayExpr: %#v", ret.Value)
+	}
+	if lit, ok := ret.Value.(*ast.IntLit); !ok || lit.Value != 42 {
+		t.Fatalf("expected the return value to be IntLit(42), got %#v", ret.Value)
+	}
+}
