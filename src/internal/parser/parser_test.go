@@ -481,3 +481,114 @@ func TestMissingSemiOnBreakIsReportedAsSuch(t *testing.T) {
 		t.Fatalf("expected a parse error")
 	}
 }
+
+// commaTargets is a small helper: it asserts the statement is a plain '='
+// assignment whose left side is an ArrayExpr of the given identifier names,
+// which is how comma-syntax 'a, b = ...' is represented.
+func commaTargets(t *testing.T, stmt ast.Expr, want ...string) *ast.AssignExpr {
+	t.Helper()
+
+	assign, ok := stmt.(*ast.AssignExpr)
+	if !ok || assign.Op != ast.Assign {
+		t.Fatalf("expected a plain AssignExpr, got %#v", stmt)
+	}
+
+	arr, ok := assign.Left.(*ast.ArrayExpr)
+	if !ok {
+		t.Fatalf("expected comma targets to be an ArrayExpr, got %#v", assign.Left)
+	}
+
+	if len(arr.Items) != len(want) {
+		t.Fatalf("expected %d targets, got %d: %#v", len(want), len(arr.Items), arr.Items)
+	}
+
+	for i, name := range want {
+		id, ok := arr.Items[i].(*ast.Ident)
+		if !ok || id.Name != name {
+			t.Fatalf("target %d: expected Ident(%s), got %#v", i, name, arr.Items[i])
+		}
+	}
+
+	return assign
+}
+
+func TestCommaSyntaxDestructuring(t *testing.T) {
+	// The RHS is a single expression (an array literal); the LHS is the
+	// comma list of targets.
+	prog := mustParseOK(t, "a, b, c = [call(), 3, 4]")
+
+	assign := commaTargets(t, prog.Stmts[0], "a", "b", "c")
+
+	rhs, ok := assign.Right.(*ast.ArrayExpr)
+	if !ok {
+		t.Fatalf("expected the RHS to be an ArrayExpr, got %#v", assign.Right)
+	}
+	if len(rhs.Items) != 3 {
+		t.Fatalf("expected 3 items on the RHS, got %d: %#v", len(rhs.Items), rhs.Items)
+	}
+	if _, ok := rhs.Items[0].(*ast.CallExpr); !ok {
+		t.Fatalf("expected the first RHS item to be a CallExpr, got %#v", rhs.Items[0])
+	}
+}
+
+func TestCommaSyntaxSwap(t *testing.T) {
+	assign := commaTargets(t, mustParseOK(t, "x, y = [y, x]").Stmts[0], "x", "y")
+
+	if _, ok := assign.Right.(*ast.ArrayExpr); !ok {
+		t.Fatalf("expected the RHS to be an ArrayExpr, got %#v", assign.Right)
+	}
+}
+
+// The original bug: a comma in a *nested* expression position belongs to the
+// enclosing construct, so it must not be swallowed into a comma-target list.
+
+func TestCommaInCallArgsIsNotDestructuring(t *testing.T) {
+	// split(text, char) is a call with two args, not a call whose single arg
+	// is a two-element comma list.
+	prog := mustParseOK(t, "split(text, char)")
+
+	call, ok := prog.Stmts[0].(*ast.CallExpr)
+	if !ok {
+		t.Fatalf("expected a CallExpr, got %#v", prog.Stmts[0])
+	}
+	if len(call.Args) != 2 {
+		t.Fatalf("expected 2 call args, got %d: %#v", len(call.Args), call.Args)
+	}
+	for i, name := range []string{"text", "char"} {
+		if id, ok := call.Args[i].(*ast.Ident); !ok || id.Name != name {
+			t.Fatalf("arg %d: expected Ident(%s), got %#v", i, name, call.Args[i])
+		}
+	}
+}
+
+func TestCommaInArrayLiteralIsNotDestructuring(t *testing.T) {
+	// [a, b, c] is a three-element array, not a one-element array holding a
+	// comma list.
+	prog := mustParseOK(t, "[a, b, c]")
+
+	arr, ok := prog.Stmts[0].(*ast.ArrayExpr)
+	if !ok {
+		t.Fatalf("expected an ArrayExpr, got %#v", prog.Stmts[0])
+	}
+	if len(arr.Items) != 3 {
+		t.Fatalf("expected 3 items, got %d: %#v", len(arr.Items), arr.Items)
+	}
+}
+
+func TestCommaSyntaxRejectsCompoundAssign(t *testing.T) {
+	// Comma-syntax is only valid with plain '='; '+=' / '-=' must error.
+	for _, src := range []string{"a, b += 1", "a, b -= 1"} {
+		if prog := parseSrc(t, src); len(prog.Errors) == 0 {
+			t.Errorf("%q: expected a parse error, got none", src)
+		}
+	}
+}
+
+func TestCommaSyntaxRejectsNonIdentifierTarget(t *testing.T) {
+	// Every target in a comma list must be a plain identifier.
+	for _, src := range []string{"a, b[0] = [1, 2]", "a, 3 = [1, 2]", "a, b.c = [1, 2]"} {
+		if prog := parseSrc(t, src); len(prog.Errors) == 0 {
+			t.Errorf("%q: expected a parse error, got none", src)
+		}
+	}
+}
