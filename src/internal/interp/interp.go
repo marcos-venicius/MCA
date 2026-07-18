@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"mca/internal/ast"
+	"mca/internal/resolver"
 )
 
 // ControlFlow tags how an evaluation completed: falling through normally,
@@ -110,8 +111,10 @@ func New() *Interp {
 	// shadows the builtin in the assigning scope) without any program
 	// anywhere being able to *overwrite* what `sort` means.
 	b := NewBuiltinEnv()
+	slot := 0
 	for name, n := range builtins {
-		b.DefineConst(name, &FnValue{Native: n})
+		b.define(slot, name, &FnValue{Native: n}, true)
+		slot++
 	}
 
 	g := NewEnv(b)
@@ -143,6 +146,11 @@ func (in *Interp) Run(stmts []ast.Expr) (result Value, err error) {
 // outermost, keeping "a runtime error anywhere kills the whole program" true
 // even across module boundaries.
 func (in *Interp) runStatements(stmts []ast.Expr) Value {
+	// Resolve here rather than at the call sites: this is the one place both a
+	// top-level program (via Run) and an imported module reach before their
+	// statements are evaluated.
+	resolver.Resolve(stmts)
+
 	result := UnitV()
 
 	for _, stmt := range stmts {
@@ -180,7 +188,7 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 	case *ast.FloatLit:
 		return normal(FloatV(node.Value))
 	case *ast.Ident:
-		v, ok := in.Current.Get(node.Name)
+		v, ok := in.lookupVar(node)
 		if !ok {
 			throw(node.Pos(), "variable '%s' does not exist", node.Name)
 		}
@@ -219,6 +227,22 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 		throw(e.Pos(), "internal: expression kind %T not yet implemented", e)
 		panic("unreachable")
 	}
+}
+
+// lookupVar reads a variable through its resolved slot, falling back to a
+// by-name lookup for the cases the resolver marks Depth == -1 (builtins,
+// forward references). The slot itself can also be empty if the read runs
+// before the assignment that fills it, so an empty slot falls back too.
+func (in *Interp) lookupVar(id *ast.Ident) (Value, bool) {
+	if id.Depth >= 0 {
+		if b := in.Current.bySlot(id.Depth, id.FrameIndex); b != nil {
+			return b.value, true
+		}
+	}
+	if b, ok := in.Current.byName(id.Name); ok {
+		return b.value, true
+	}
+	return nil, false
 }
 
 func (in *Interp) evalBlock(body []ast.Expr) EvalResult {
@@ -644,7 +668,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 
 			if e.Const {
 				in.declareConst(ident, value.Items[i])
-			} else if !in.Current.Assign(ident.Name, value.Items[i]) {
+			} else if !in.Current.assign(ident.Depth, ident.FrameIndex, ident.Name, value.Items[i]) {
 				throw(ident.Pos(), "you cannot modify constant values. '%s' is a constant", ident.Name)
 			}
 		}
@@ -654,7 +678,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 	case *ast.Ident:
 		if e.Const {
 			in.declareConst(left, rightRes.Value)
-		} else if !in.Current.Assign(left.Name, rightRes.Value) {
+		} else if !in.Current.assign(left.Depth, left.FrameIndex, left.Name, rightRes.Value) {
 			throw(left.Pos(), "you cannot modify constant values. '%s' is a constant", left.Name)
 		}
 		return rightRes
@@ -677,11 +701,11 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 // so an inner scope may still shadow a constant (including a builtin) with a
 // binding of its own.
 func (in *Interp) declareConst(name *ast.Ident, v Value) {
-	if in.Current.HasLocal(name.Name) {
+	if in.Current.hasLocal(name.Name) {
 		throw(name.Pos(), "'%s' is already defined in this scope, so it cannot be declared as a constant", name.Name)
 	}
 
-	in.Current.DefineConst(name.Name, v)
+	in.Current.define(name.FrameIndex, name.Name, v, true)
 }
 
 // evalAssignRightSide computes the value (and, for plain `=` only, the
@@ -821,7 +845,7 @@ func (in *Interp) runForRange(e *ast.ForRangeExpr, from, to, by int64) EvalResul
 		}
 
 		parent := in.pushScope()
-		in.Current.Define(e.Index.Name, IntV(i))
+		in.Current.define(e.Index.FrameIndex, e.Index.Name, IntV(i), false)
 		last = in.evalBlock(e.Body)
 		in.popScope(parent)
 
@@ -953,7 +977,7 @@ func (in *Interp) call(fv *FnValue, callPos ast.Pos, name string, args []Value, 
 
 	fnEnv := NewEnv(fv.Env)
 	for i, param := range fv.Node.Params {
-		fnEnv.Define(param.Name, args[i])
+		fnEnv.define(param.FrameIndex, param.Name, args[i], false)
 	}
 
 	callerEnv := in.Current

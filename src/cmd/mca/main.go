@@ -7,7 +7,6 @@ import (
 	"mca/internal/interp"
 	"mca/internal/lexer"
 	"mca/internal/parser"
-	"mca/internal/resolver"
 
 	// Registers the native packages import() can resolve ('crypt', ...).
 	_ "mca/internal/packages"
@@ -78,11 +77,6 @@ func run() int {
 		fmt.Fprintf(os.Stderr, "parsing failed with \033[1;31m%d\033[0m errors\n", len(prog.Errors))
 		return 1
 	}
-
-	// Annotate the tree with variable slots. Harmless for now -- the
-	// interpreter still resolves by name -- but keeps the resolver honest
-	// against every program we run.
-	resolver.Resolve(prog.Stmts)
 
 	in := interp.New()
 	in.Args = progArgs

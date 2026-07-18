@@ -190,14 +190,14 @@ func (in *Interp) evalForOf(e *ast.ForOfExpr) EvalResult {
 // forOfLoopStep runs one iteration's body with key/value bound in a fresh
 // scope. break stops the loop (and yields its value) uniformly across all
 // loop kinds, same as while/for-range.
-func (in *Interp) forOfLoopStep(body []ast.Expr, keyName, valName string, key, value Value, last *EvalResult) (stop bool) {
+func (in *Interp) forOfLoopStep(body []ast.Expr, keyIdent, valIdent *ast.Ident, key, value Value, last *EvalResult) (stop bool) {
 	if body == nil {
 		return false
 	}
 
 	parent := in.pushScope()
-	in.Current.Define(keyName, key)
-	in.Current.Define(valName, value)
+	in.Current.define(keyIdent.FrameIndex, keyIdent.Name, key, false)
+	in.Current.define(valIdent.FrameIndex, valIdent.Name, value, false)
 	*last = in.evalBlock(body)
 	in.popScope(parent)
 
@@ -222,7 +222,7 @@ func (in *Interp) forOfMap(e *ast.ForOfExpr, m *Map) EvalResult {
 			keyVal = IntV(k.I)
 		}
 
-		if in.forOfLoopStep(e.Body, e.Key.Name, e.Value.Name, keyVal, v, &last) {
+		if in.forOfLoopStep(e.Body, e.Key, e.Value, keyVal, v, &last) {
 			break
 		}
 	}
@@ -234,7 +234,7 @@ func (in *Interp) forOfArray(e *ast.ForOfExpr, arr *Array) EvalResult {
 	last := normal(UnitV())
 
 	for i, v := range arr.Items {
-		if in.forOfLoopStep(e.Body, e.Key.Name, e.Value.Name, IntV(int64(i)), v, &last) {
+		if in.forOfLoopStep(e.Body, e.Key, e.Value, IntV(int64(i)), v, &last) {
 			break
 		}
 	}
@@ -246,7 +246,7 @@ func (in *Interp) forOfString(e *ast.ForOfExpr, s string) EvalResult {
 	last := normal(UnitV())
 
 	for i := 0; i < len(s); i++ {
-		if in.forOfLoopStep(e.Body, e.Key.Name, e.Value.Name, IntV(int64(i)), StringV(string(s[i])), &last) {
+		if in.forOfLoopStep(e.Body, e.Key, e.Value, IntV(int64(i)), StringV(string(s[i])), &last) {
 			break
 		}
 	}
