@@ -49,6 +49,14 @@ type StringLit struct {
 type Ident struct {
 	Base
 	Name string
+
+	// Filled in by the resolver pass, not the parser. Depth is how many scopes
+	// to climb from the use site to the scope that owns the variable, and
+	// FrameIndex is its slot within that scope. Depth == -1 means the name
+	// didn't resolve to any lexical scope (a builtin, a forward reference, or
+	// an import) and must fall back to a by-name lookup at runtime.
+	Depth      int
+	FrameIndex int
 }
 
 // ---- operators ----
