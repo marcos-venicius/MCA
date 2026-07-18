@@ -1473,3 +1473,26 @@ func TestHelpCategoriesCoverAllDocs(t *testing.T) {
 		}
 	}
 }
+
+// These lean on the resolver's slot assignments -- the trickier corners where a
+// wrong depth or a reused slot would give the wrong answer.
+func TestResolvedSlots(t *testing.T) {
+	// self-recursion: the body's own name isn't bound until the assignment
+	// finishes, so it rides the by-name fallback.
+	check(t, "fact = \\(n) -> if n <= 1 { 1 } else { n * fact(n - 1) }; fact(6)", tInt(720))
+
+	// two closures built from the same literal keep independent captured state.
+	check(t, "mk = \\() -> { c = 0; \\() -> (c += 1) }; a = mk(); b = mk(); a(); a(); b(); a() * 10 + b()", tInt(32))
+
+	// a variable read three scopes up still resolves to the same slot.
+	check(t, "x = 10; f = \\() -> \\() -> \\() -> x; f()()()", tInt(10))
+
+	// assigning inside a block reuses the outer binding, it doesn't shadow it.
+	check(t, "x = 1; if true { x = 2 }; x", tInt(2))
+
+	// assigning a builtin's name binds a fresh local that shadows it.
+	check(t, "n = len([1, 2, 3]); len = 100; n + len", tInt(103))
+
+	// mutual recursion: is_odd is a forward reference when is_even is resolved.
+	check(t, "is_even = \\(x) -> if x == 0 { true } else { is_odd(x - 1) }; is_odd = \\(x) -> if x == 0 { false } else { is_even(x - 1) }; is_even(10)", tBool(true))
+}
