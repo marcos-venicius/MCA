@@ -5,7 +5,7 @@ package interp
 // rebinding to {}).
 
 func builtinMapKeys(in *Interp, c *Call) Value {
-	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
+	m := mapOf(expectKindAt(c.At(0), c.Args[0], KMap))
 
 	values := make([]Value, 0, m.Len())
 
@@ -23,7 +23,7 @@ func builtinMapKeys(in *Interp, c *Call) Value {
 }
 
 func builtinMapValues(in *Interp, c *Call) Value {
-	m := expectKindAt(c.At(0), c.Args[0], KMap).(*Map)
+	m := mapOf(expectKindAt(c.At(0), c.Args[0], KMap))
 
 	values := make([]Value, 0, m.Len())
 

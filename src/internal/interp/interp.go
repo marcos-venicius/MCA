@@ -80,6 +80,11 @@ func (c *Call) IntArg(i int) int64 {
 	return intOf(expectKindAt(c.At(i), c.Args[i], KInt))
 }
 
+// ArrayArg is argument i, required to be an array -- see StringArg.
+func (c *Call) ArrayArg(i int) *Array {
+	return arrayOf(expectKindAt(c.At(i), c.Args[i], KArray))
+}
+
 // Arg is argument i, required to be one of the allowed kinds: the general
 // form of StringArg/IntArg for a native package whose argument may span
 // several kinds. Returns the value still wrapped, so the caller type-switches
@@ -113,7 +118,7 @@ func New() *Interp {
 	b := NewBuiltinEnv()
 	slot := 0
 	for name, n := range builtins {
-		b.define(slot, name, &FnValue{Native: n}, true)
+		b.define(slot, name, FnValV(&FnValue{Native: n}), true)
 		slot++
 	}
 
@@ -242,7 +247,7 @@ func (in *Interp) lookupVar(id *ast.Ident) (Value, bool) {
 	if b, ok := in.Current.byName(id.Name); ok {
 		return b.value, true
 	}
-	return nil, false
+	return Value{}, false
 }
 
 func (in *Interp) evalBlock(body []ast.Expr) EvalResult {
@@ -285,11 +290,11 @@ func (in *Interp) evalUnary(e *ast.UnaryExpr) EvalResult {
 	switch e.Op {
 	case ast.MinusOp:
 		var out Value
-		switch vv := res.Value.(type) {
-		case IntValue:
-			out = IntV(-int64(vv))
-		case FloatValue:
-			out = FloatV(-float64(vv))
+		switch res.Value.Kind() {
+		case KInt:
+			out = IntV(-intOf(res.Value))
+		case KFloat:
+			out = FloatV(-floatOf(res.Value))
 		default:
 			throw(e.Pos(), "unexpected data type. expected a '%s' but got a '%s'", KindsName(KInt, KFloat), res.Value.Kind())
 		}
@@ -321,13 +326,14 @@ func calculateFactorial(v Value) Value {
 	isNegativeInt := false
 	isInt := false
 
-	switch vv := v.(type) {
-	case IntValue:
-		val = float64(vv)
-		isNegativeInt = vv < 0
+	switch v.Kind() {
+	case KInt:
+		i := intOf(v)
+		val = float64(i)
+		isNegativeInt = i < 0
 		isInt = true
-	case FloatValue:
-		val = float64(vv)
+	case KFloat:
+		val = floatOf(v)
 		isNegativeInt = val < 0 && val == float64(int64(val))
 	}
 
@@ -355,25 +361,25 @@ func isComparisonOp(op ast.BinaryOp) bool {
 
 // asFloat widens an already kind-checked int/float/bool value to float64.
 func asFloat(v Value) float64 {
-	switch vv := v.(type) {
-	case FloatValue:
-		return float64(vv)
-	case BoolValue:
-		if vv {
+	switch v.Kind() {
+	case KFloat:
+		return floatOf(v)
+	case KBool:
+		if boolOf(v) {
 			return 1
 		}
 		return 0
-	default: // IntValue
-		return float64(vv.(IntValue))
+	default: // KInt
+		return float64(intOf(v))
 	}
 }
 
 // asIntLike reads an already kind-checked int/bool value as int64.
 func asIntLike(v Value) int64 {
-	if iv, ok := v.(IntValue); ok {
-		return int64(iv)
+	if v.Kind() == KInt {
+		return intOf(v)
 	}
-	if bool(v.(BoolValue)) {
+	if boolOf(v) {
 		return 1
 	}
 	return 0
@@ -440,15 +446,15 @@ func compareTwoValues(a, b Value) bool {
 	case KUnit: // both are equal because unit doesn't have a value
 		return true
 	case KString:
-		return b.(StringValue) == a.(StringValue)
+		return stringOf(b) == stringOf(a)
 	case KArray:
-		return compareTwoArrays(a.(*Array), b.(*Array))
+		return compareTwoArrays(arrayOf(a), arrayOf(b))
 	case KMap:
 		// TODO: we don't do cycle checks. if we have a cyclic reference, it's gonna overflow the stack and panic
-		return compareTwoMaps(a.(*Map), b.(*Map))
+		return compareTwoMaps(mapOf(a), mapOf(b))
 	case KFn:
 		// pointer equality
-		return a.(*FnValue) == b.(*FnValue)
+		return fnOf(a) == fnOf(b)
 	}
 
 	return false
@@ -657,7 +663,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 			throw(e.Right.Pos(), "you cannot use comma-syntax with non array values")
 		}
 
-		value := rightRes.Value.(*Array)
+		value := arrayOf(rightRes.Value)
 
 		if len(left.Items) != len(value.Items) {
 			throw(e.Left.Pos(), "expected to have %d items but got %d", len(left.Items), len(value.Items))
@@ -920,10 +926,10 @@ func fnLabel(fv *FnValue) string {
 func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
 	calleeVal := in.Eval(e.Callee).Value
 
-	fv, ok := calleeVal.(*FnValue)
-	if !ok {
+	if calleeVal.Kind() != KFn {
 		throw(e.Pos(), "you are trying to call a '%s' value, which is not a function", calleeVal.Kind())
 	}
+	fv := fnOf(calleeVal)
 
 	return normal(in.callFn(fv, e.Pos(), calleeLabel(e.Callee), e.Args))
 }

@@ -1496,3 +1496,36 @@ func TestResolvedSlots(t *testing.T) {
 	// mutual recursion: is_odd is a forward reference when is_even is resolved.
 	check(t, "is_even = \\(x) -> if x == 0 { true } else { is_odd(x - 1) }; is_odd = \\(x) -> if x == 0 { false } else { is_even(x - 1) }; is_even(10)", tBool(true))
 }
+
+// BenchmarkArithLoop drives a nested arithmetic loop. The point of the tagged
+// union is that the int intermediates here don't allocate the way boxing them
+// into an interface did -- run with -benchmem to see allocs/op.
+func BenchmarkArithLoop(b *testing.B) {
+	src := `
+		total = 0
+		for i : 300 {
+			for j : 300 {
+				total += i * j - j + i % 7
+			}
+		}
+		total
+	`
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		b.Fatalf("lex errors: %v", l.Errors)
+	}
+	prog := parser.Parse("", toks)
+	if len(prog.Errors) > 0 {
+		b.Fatalf("parse errors: %v", prog.Errors)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		in := newTestInterp()
+		if _, err := in.Run(prog.Stmts); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

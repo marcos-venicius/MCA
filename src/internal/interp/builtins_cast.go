@@ -20,17 +20,18 @@ func builtinType(in *Interp, c *Call) Value {
 func builtinAsInt(in *Interp, c *Call) Value {
 	v := c.Args[0]
 
-	switch vv := v.(type) {
-	case IntValue:
+	switch v.Kind() {
+	case KInt:
 		return v
-	case FloatValue:
-		return IntV(int64(vv))
-	case BoolValue:
-		return IntV(boolToInt(bool(vv)))
-	case StringValue:
-		n, err := strconv.ParseInt(string(vv), 10, 64)
+	case KFloat:
+		return IntV(int64(floatOf(v)))
+	case KBool:
+		return IntV(boolToInt(boolOf(v)))
+	case KString:
+		s := stringOf(v)
+		n, err := strconv.ParseInt(s, 10, 64)
 		if err != nil {
-			throwNumError(c.At(0), err, string(vv), KInt.String())
+			throwNumError(c.At(0), err, s, KInt.String())
 		}
 		return IntV(n)
 	}
@@ -42,20 +43,21 @@ func builtinAsInt(in *Interp, c *Call) Value {
 func builtinAsFloat(in *Interp, c *Call) Value {
 	v := c.Args[0]
 
-	switch vv := v.(type) {
-	case IntValue:
-		return FloatV(float64(vv))
-	case FloatValue:
+	switch v.Kind() {
+	case KInt:
+		return FloatV(float64(intOf(v)))
+	case KFloat:
 		return v
-	case BoolValue:
-		if vv {
+	case KBool:
+		if boolOf(v) {
 			return FloatV(1)
 		}
 		return FloatV(0)
-	case StringValue:
-		f, err := strconv.ParseFloat(string(vv), 64)
+	case KString:
+		s := stringOf(v)
+		f, err := strconv.ParseFloat(s, 64)
 		if err != nil {
-			throwNumError(c.At(0), err, string(vv), "float")
+			throwNumError(c.At(0), err, s, "float")
 		}
 		return FloatV(f)
 	}
@@ -79,17 +81,17 @@ func builtinAsString(in *Interp, c *Call) Value {
 	v := c.Args[0]
 
 	// TODO: implement for maps and arrays too (something like javascript does)
-	switch vv := v.(type) {
-	case IntValue:
-		return StringV(strconv.FormatInt(int64(vv), 10))
-	case FloatValue:
-		return StringV(strconv.FormatFloat(float64(vv), 'f', 6, 64))
-	case BoolValue:
-		if vv {
+	switch v.Kind() {
+	case KInt:
+		return StringV(strconv.FormatInt(intOf(v), 10))
+	case KFloat:
+		return StringV(strconv.FormatFloat(floatOf(v), 'f', 6, 64))
+	case KBool:
+		if boolOf(v) {
 			return StringV("true")
 		}
 		return StringV("false")
-	case StringValue:
+	case KString:
 		return v
 	}
 

@@ -6,8 +6,6 @@ type Map struct {
 	values map[MapKey]Value
 }
 
-func (*Map) Kind() Kind { return KMap }
-
 type MapKey struct {
 	Kind Kind // KInt or KString
 	I    int64

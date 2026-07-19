@@ -5,5 +5,3 @@ package interp
 type Array struct {
 	Items []Value
 }
-
-func (*Array) Kind() Kind { return KArray }

@@ -62,12 +62,11 @@ func CheckInt(t *testing.T, src string, want int64) {
 	t.Helper()
 
 	v := value(t, src)
-	iv, ok := v.(interp.IntValue)
-	if !ok {
+	if v.Kind() != interp.KInt {
 		t.Fatalf("%q: expected an int but got a '%s'", src, v.Kind())
 	}
-	if int64(iv) != want {
-		t.Errorf("%q: got %d, want %d", src, int64(iv), want)
+	if got := interp.AsInt(v); got != want {
+		t.Errorf("%q: got %d, want %d", src, got, want)
 	}
 }
 
@@ -75,11 +74,10 @@ func CheckFloat(t *testing.T, src string, want float64) {
 	t.Helper()
 
 	v := value(t, src)
-	fv, ok := v.(interp.FloatValue)
-	if !ok {
+	if v.Kind() != interp.KFloat {
 		t.Fatalf("%q: expected a float but got a '%s'", src, v.Kind())
 	}
-	got := float64(fv)
+	got := interp.AsFloat(v)
 	if !(got == want || (math.IsNaN(got) && math.IsNaN(want))) {
 		t.Errorf("%q: got %v, want %v", src, got, want)
 	}
@@ -89,12 +87,11 @@ func CheckBool(t *testing.T, src string, want bool) {
 	t.Helper()
 
 	v := value(t, src)
-	bv, ok := v.(interp.BoolValue)
-	if !ok {
+	if v.Kind() != interp.KBool {
 		t.Fatalf("%q: expected a bool but got a '%s'", src, v.Kind())
 	}
-	if bool(bv) != want {
-		t.Errorf("%q: got %v, want %v", src, bool(bv), want)
+	if got := interp.AsBool(v); got != want {
+		t.Errorf("%q: got %v, want %v", src, got, want)
 	}
 }
 
@@ -102,12 +99,11 @@ func CheckString(t *testing.T, src, want string) {
 	t.Helper()
 
 	v := value(t, src)
-	sv, ok := v.(interp.StringValue)
-	if !ok {
+	if v.Kind() != interp.KString {
 		t.Fatalf("%q: expected a string but got a '%s'", src, v.Kind())
 	}
-	if string(sv) != want {
-		t.Errorf("%q: got %q, want %q", src, string(sv), want)
+	if got := interp.AsString(v); got != want {
+		t.Errorf("%q: got %q, want %q", src, got, want)
 	}
 }
 

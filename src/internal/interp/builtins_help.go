@@ -355,16 +355,17 @@ func builtinHelp(in *Interp, c *Call) Value {
 
 	var name string
 
-	switch v := c.Args[0].(type) {
-	case StringValue:
-		name = string(v)
-	case *FnValue:
-		if v.Native == nil {
+	switch arg := c.Args[0]; arg.Kind() {
+	case KString:
+		name = stringOf(arg)
+	case KFn:
+		fv := fnOf(arg)
+		if fv.Native == nil {
 			throw(c.At(0), "there is no help for a function you wrote yourself -- help only documents builtins")
 		}
-		name = v.Native.Name
+		name = fv.Native.Name
 	default:
-		throw(c.At(0), "expected a builtin function or its name as a string, but got a '%s'", v.Kind())
+		throw(c.At(0), "expected a builtin function or its name as a string, but got a '%s'", arg.Kind())
 	}
 
 	// A package's own name documents the package; a qualified name documents

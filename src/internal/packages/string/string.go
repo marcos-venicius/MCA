@@ -88,18 +88,17 @@ func rtrim(in *interp.Interp, c *interp.Call) interp.Value {
 }
 
 func join(in *interp.Interp, c *interp.Call) interp.Value {
-	arr := c.Arg(0, interp.KArray).(*interp.Array)
+	arr := c.ArrayArg(0)
 	sep := c.StringArg(1)
 
 	strs := make([]string, len(arr.Items))
 
 	for i, v := range arr.Items {
-		sv, ok := v.(interp.StringValue)
-		if !ok {
+		if v.Kind() != interp.KString {
 			interp.Throw(c.At(0), "expected a string at index %d but got '%s'", i, v.Kind())
 		}
 
-		strs[i] = string(sv)
+		strs[i] = interp.AsString(v)
 	}
 
 	return interp.StringV(strings.Join(strs, sep))
@@ -168,19 +167,19 @@ func format(in *interp.Interp, c *interp.Call) interp.Value {
 	for i := range c.Args {
 		v := c.Arg(i, interp.KInt, interp.KString, interp.KFloat, interp.KBool)
 
-		switch vv := v.(type) {
-		case interp.IntValue:
-			sb.WriteString(strconv.FormatInt(int64(vv), 10))
-		case interp.FloatValue:
-			sb.WriteString(strconv.FormatFloat(float64(vv), 'g', 6, 64))
-		case interp.BoolValue:
-			if vv {
+		switch v.Kind() {
+		case interp.KInt:
+			sb.WriteString(strconv.FormatInt(interp.AsInt(v), 10))
+		case interp.KFloat:
+			sb.WriteString(strconv.FormatFloat(interp.AsFloat(v), 'g', 6, 64))
+		case interp.KBool:
+			if interp.AsBool(v) {
 				sb.WriteString("true")
 			} else {
 				sb.WriteString("false")
 			}
-		case interp.StringValue:
-			sb.WriteString(string(vv))
+		case interp.KString:
+			sb.WriteString(interp.AsString(v))
 		}
 	}
 

@@ -1,7 +1,9 @@
 package interp
 
 import (
+	"math"
 	"strings"
+	"unsafe"
 
 	"mca/internal/ast"
 )
@@ -38,33 +40,21 @@ func (k Kind) String() string {
 	panic("Kind.String: unhandled kind")
 }
 
-// Value is MCA's single dynamic value representation: any Go type that knows
-// its own Kind. Each concrete kind gets its own small type (IntValue,
-// FloatValue, ...) rather than one struct carrying every possible field at
-// once, so a value only ever holds the data it actually needs.
-type Value interface {
-	Kind() Kind
+// Value is MCA's dynamic value: a tagged union rather than an interface, so a
+// scalar rides inside the struct instead of being boxed onto the heap. That's
+// what keeps arithmetic in tight loops from allocating.
+//
+// num holds the bits of the scalar kinds (and the length for a string); ptr
+// holds the string data or the *Array/*Map/*FnValue for the heap kinds, nil
+// otherwise. Both are read back through the accessors below -- callers switch
+// on Kind first and never touch the fields directly.
+type Value struct {
+	kind Kind
+	num  uint64
+	ptr  unsafe.Pointer
 }
 
-type UnitValue struct{}
-
-func (UnitValue) Kind() Kind { return KUnit }
-
-type IntValue int64
-
-func (IntValue) Kind() Kind { return KInt }
-
-type FloatValue float64
-
-func (FloatValue) Kind() Kind { return KFloat }
-
-type BoolValue bool
-
-func (BoolValue) Kind() Kind { return KBool }
-
-type StringValue string
-
-func (StringValue) Kind() Kind { return KString }
+func (v Value) Kind() Kind { return v.kind }
 
 // Native is a builtin's implementation, wrapped so it can be handed around as
 // an ordinary MCA value. Arity is the exact argument count the shared call
@@ -95,8 +85,6 @@ type FnValue struct {
 	Native *Native     // nil for user functions
 }
 
-func (*FnValue) Kind() Kind { return KFn }
-
 // Arity is how many arguments the function takes; -1 for a variadic builtin.
 func (f *FnValue) Arity() int {
 	if f.Native != nil {
@@ -113,41 +101,82 @@ func (f *FnValue) Accepts(n int) bool {
 	return a < 0 || a == n
 }
 
-func UnitV() Value             { return UnitValue{} }
-func IntV(i int64) Value       { return IntValue(i) }
-func FloatV(f float64) Value   { return FloatValue(f) }
-func BoolV(b bool) Value       { return BoolValue(b) }
-func StringV(s string) Value   { return StringValue(s) }
-func FnValV(fv *FnValue) Value { return fv }
-func ArrayV(a *Array) Value    { return a }
-func MapV(m *Map) Value        { return m }
+func UnitV() Value { return Value{kind: KUnit} }
 
-// intOf/floatOf/boolOf/stringOf unwrap a Value already known (typically via
-// expectKind) to hold that concrete kind. They panic on mismatch, same as any
-// other unchecked type assertion -- callers are expected to have validated
-// the kind first.
-func intOf(v Value) int64     { return int64(v.(IntValue)) }
-func floatOf(v Value) float64 { return float64(v.(FloatValue)) }
-func boolOf(v Value) bool     { return bool(v.(BoolValue)) }
-func stringOf(v Value) string { return string(v.(StringValue)) }
+func IntV(i int64) Value { return Value{kind: KInt, num: uint64(i)} }
+
+func FloatV(f float64) Value { return Value{kind: KFloat, num: math.Float64bits(f)} }
+
+func BoolV(b bool) Value {
+	n := uint64(0)
+	if b {
+		n = 1
+	}
+	return Value{kind: KBool, num: n}
+}
+
+// StringV borrows s's backing bytes rather than copying them; MCA strings are
+// immutable, so that's safe and keeps StringV allocation-free. The empty
+// string is special-cased because unsafe.StringData("") yields a pointer that
+// must not be dereferenced.
+func StringV(s string) Value {
+	if len(s) == 0 {
+		return Value{kind: KString}
+	}
+	return Value{kind: KString, num: uint64(len(s)), ptr: unsafe.Pointer(unsafe.StringData(s))}
+}
+
+func ArrayV(a *Array) Value { return Value{kind: KArray, ptr: unsafe.Pointer(a)} }
+
+func MapV(m *Map) Value { return Value{kind: KMap, ptr: unsafe.Pointer(m)} }
+
+func FnValV(f *FnValue) Value { return Value{kind: KFn, ptr: unsafe.Pointer(f)} }
+
+// intOf/floatOf/... unwrap a Value already known (typically via expectKind) to
+// hold that kind. They don't re-check it, same as the type assertions they
+// replaced -- callers validate the kind first.
+func intOf(v Value) int64     { return int64(v.num) }
+func floatOf(v Value) float64 { return math.Float64frombits(v.num) }
+func boolOf(v Value) bool     { return v.num != 0 }
+
+func stringOf(v Value) string {
+	if v.num == 0 {
+		return ""
+	}
+	return unsafe.String((*byte)(v.ptr), int(v.num))
+}
+
+func arrayOf(v Value) *Array { return (*Array)(v.ptr) }
+func mapOf(v Value) *Map     { return (*Map)(v.ptr) }
+func fnOf(v Value) *FnValue  { return (*FnValue)(v.ptr) }
+
+// AsInt/AsFloat/... are the exported spelling of the accessors above, for the
+// native packages (internal/packages/...) which can't reach the unexported
+// ones. Each assumes the Value already holds that kind.
+func AsInt(v Value) int64     { return intOf(v) }
+func AsFloat(v Value) float64 { return floatOf(v) }
+func AsBool(v Value) bool     { return boolOf(v) }
+func AsString(v Value) string { return stringOf(v) }
+func AsArray(v Value) *Array  { return arrayOf(v) }
+func AsMap(v Value) *Map      { return mapOf(v) }
 
 func Truthy(v Value) (result bool, ok bool) {
-	switch vv := v.(type) {
-	case *Map:
-		return vv.Len() > 0, true
-	case *Array:
-		return len(vv.Items) > 0, true
-	case UnitValue:
+	switch v.kind {
+	case KMap:
+		return mapOf(v).Len() > 0, true
+	case KArray:
+		return len(arrayOf(v).Items) > 0, true
+	case KUnit:
 		return false, true
-	case IntValue:
-		return vv != 0, true
-	case FloatValue:
-		return vv != 0, true
-	case BoolValue:
-		return bool(vv), true
-	case StringValue:
-		return len(vv) > 0, true
-	case *FnValue:
+	case KInt:
+		return v.num != 0, true
+	case KFloat:
+		return floatOf(v) != 0, true
+	case KBool:
+		return v.num != 0, true
+	case KString:
+		return v.num > 0, true
+	case KFn:
 		return true, true
 	default:
 		return false, false

@@ -3,11 +3,11 @@ package interp
 import "mca/internal/ast"
 
 func mapKeyFromValue(v Value) (MapKey, bool) {
-	switch vv := v.(type) {
-	case IntValue:
-		return MapKey{Kind: KInt, I: int64(vv)}, true
-	case StringValue:
-		return MapKey{Kind: KString, S: string(vv)}, true
+	switch v.Kind() {
+	case KInt:
+		return MapKey{Kind: KInt, I: intOf(v)}, true
+	case KString:
+		return MapKey{Kind: KString, S: stringOf(v)}, true
 	}
 	return MapKey{}, false
 }
@@ -66,27 +66,30 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 	left := expectKind(e.Left, in.Eval(e.Left).Value, KArray, KString, KMap)
 
-	switch lv := left.(type) {
-	case *Array:
+	switch left.Kind() {
+	case KArray:
+		arr := arrayOf(left)
 		idx := expectKind(e.Index, in.Eval(e.Index).Value, KInt)
 		i := intOf(idx)
-		if i < 0 || i >= int64(len(lv.Items)) {
+		if i < 0 || i >= int64(len(arr.Items)) {
 			throw(e.Pos(), "array index out of bounds")
 		}
-		return normal(lv.Items[i])
+		return normal(arr.Items[i])
 
-	case StringValue:
+	case KString:
+		s := stringOf(left)
 		idx := expectKind(e.Index, in.Eval(e.Index).Value, KInt)
 		i := intOf(idx)
-		if i < 0 || i >= int64(len(lv)) {
+		if i < 0 || i >= int64(len(s)) {
 			throw(e.Pos(), "string index out of bounds")
 		}
-		return normal(StringV(string(lv[i])))
+		return normal(StringV(string(s[i])))
 
-	case *Map:
+	case KMap:
+		m := mapOf(left)
 		idxVal := expectKind(e.Index, in.Eval(e.Index).Value, KInt, KString)
 		mk, _ := mapKeyFromValue(idxVal)
-		if v, ok := lv.Get(mk); ok {
+		if v, ok := m.Get(mk); ok {
 			return normal(v)
 		}
 
@@ -104,7 +107,7 @@ func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 func (in *Interp) evalDot(e *ast.DotExpr) EvalResult {
 	left := expectKind(e.Left, in.Eval(e.Left).Value, KMap)
 
-	lv := left.(*Map)
+	lv := mapOf(left)
 
 	// The parser only ever produces an Ident here (m.f(...) parses as
 	// CallExpr{Callee: DotExpr{Index: Ident("f")}}; the call itself is
@@ -126,24 +129,26 @@ func (in *Interp) evalDot(e *ast.DotExpr) EvalResult {
 func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rightVal Value) {
 	leftVal := expectKind(left.Left, in.Eval(left.Left).Value, KArray, KMap)
 
-	switch lv := leftVal.(type) {
-	case *Map:
+	switch leftVal.Kind() {
+	case KMap:
+		m := mapOf(leftVal)
 		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
 		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KString)
 		mk, _ := mapKeyFromValue(idxVal)
 
-		lv.Set(mk, rightVal)
+		m.Set(mk, rightVal)
 
-	case *Array:
+	case KArray:
+		arr := arrayOf(leftVal)
 		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt)
 		i := intOf(idxVal)
 
-		if i < 0 || i >= int64(len(lv.Items)) {
+		if i < 0 || i >= int64(len(arr.Items)) {
 			throw(e.Pos(), "array index out of bounds")
 		}
 
-		lv.Items[i] = rightVal
+		arr.Items[i] = rightVal
 
 	default:
 		panic("storeSquareAssign: unreachable")
@@ -157,7 +162,7 @@ func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rig
 func (in *Interp) storeDotAssign(e *ast.AssignExpr, left *ast.DotExpr, rightVal Value) {
 	leftVal := expectKind(left.Left, in.Eval(left.Left).Value, KMap)
 
-	lv := leftVal.(*Map)
+	lv := mapOf(leftVal)
 
 	expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
@@ -175,13 +180,13 @@ func (in *Interp) storeDotAssign(e *ast.AssignExpr, left *ast.DotExpr, rightVal 
 func (in *Interp) evalForOf(e *ast.ForOfExpr) EvalResult {
 	target := expectKind(e.Target, in.Eval(e.Target).Value, KArray, KString, KMap)
 
-	switch t := target.(type) {
-	case *Map:
-		return in.forOfMap(e, t)
-	case *Array:
-		return in.forOfArray(e, t)
-	case StringValue:
-		return in.forOfString(e, string(t))
+	switch target.Kind() {
+	case KMap:
+		return in.forOfMap(e, mapOf(target))
+	case KArray:
+		return in.forOfArray(e, arrayOf(target))
+	case KString:
+		return in.forOfString(e, stringOf(target))
 	}
 
 	panic("evalForOf: unreachable")

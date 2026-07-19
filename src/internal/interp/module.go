@@ -54,7 +54,7 @@ func NewNative(name string, arity int, fn BuiltinFn) *Native {
 func moduleValue(m *Module) *Map {
 	mp := NewMap()
 	for name, n := range m.Fns {
-		mp.Set(MapKey{Kind: KString, S: name}, &FnValue{Native: n})
+		mp.Set(MapKey{Kind: KString, S: name}, FnValV(&FnValue{Native: n}))
 	}
 	return mp
 }

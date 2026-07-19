@@ -6,8 +6,8 @@ import (
 )
 
 func builtinIndexesToKeys(in *Interp, c *Call) Value {
-	array := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
-	obj := expectKindAt(c.At(1), c.Args[1], KMap).(*Map)
+	array := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray))
+	obj := mapOf(expectKindAt(c.At(1), c.Args[1], KMap))
 
 	out := make(map[MapKey]Value)
 
@@ -35,8 +35,8 @@ func builtinIndexesToKeys(in *Interp, c *Call) Value {
 }
 
 func builtinSort(in *Interp, c *Call) Value {
-	array := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
-	lambda := expectKindAt(c.At(1), c.Args[1], KFn).(*FnValue)
+	array := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray))
+	lambda := fnOf(expectKindAt(c.At(1), c.Args[1], KFn))
 
 	if !lambda.Accepts(2) {
 		throw(c.At(1), "expected a function of two arguments but got one of %d", lambda.Arity())
@@ -51,7 +51,7 @@ func builtinSort(in *Interp, c *Call) Value {
 			throw(c.At(1), "the sorting function should return an integer but returned %s. try `help(sort)`", result.Kind())
 		}
 
-		return int(result.(IntValue))
+		return int(intOf(result))
 	})
 
 	return ArrayV(&Array{
@@ -60,7 +60,7 @@ func builtinSort(in *Interp, c *Call) Value {
 }
 
 func builtinReverse(in *Interp, c *Call) Value {
-	value := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
+	value := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray))
 
 	out := make([]Value, len(value.Items))
 
@@ -79,7 +79,7 @@ func builtinConcat(in *Interp, c *Call) Value {
 	out := make([]Value, 0)
 
 	for i, arg := range c.Args {
-		value := expectKindAt(c.At(i), arg, KArray).(*Array)
+		value := arrayOf(expectKindAt(c.At(i), arg, KArray))
 
 		out = append(out, value.Items...)
 	}
@@ -96,13 +96,13 @@ func builtinContains(in *Interp, c *Call) Value {
 
 	switch target.Kind() {
 	case KString:
-		substr := string(expectKindAt(c.At(1), c.Args[1], KString).(StringValue))
+		substr := stringOf(expectKindAt(c.At(1), c.Args[1], KString))
 
-		return BoolV(strings.Contains(string(target.(StringValue)), substr))
+		return BoolV(strings.Contains(stringOf(target), substr))
 	case KArray:
 		value := c.Args[1]
 
-		items := (target.(*Array)).Items
+		items := arrayOf(target).Items
 
 		for _, v := range items {
 			if compareTwoValues(v, value) {
@@ -115,7 +115,7 @@ func builtinContains(in *Interp, c *Call) Value {
 		key := expectKindAt(c.At(1), c.Args[1], KString, KInt)
 
 		mk, _ := mapKeyFromValue(key)
-		m := (target.(*Map)).values
+		m := mapOf(target).values
 
 		if _, ok := m[mk]; ok {
 			return BoolV(true)
@@ -128,8 +128,8 @@ func builtinContains(in *Interp, c *Call) Value {
 }
 
 func builtinFilter(in *Interp, c *Call) Value {
-	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array).Items
-	fn := expectKindAt(c.At(1), c.Args[1], KFn).(*FnValue)
+	arr := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray)).Items
+	fn := fnOf(expectKindAt(c.At(1), c.Args[1], KFn))
 
 	if !fn.Accepts(1) {
 		throw(c.At(1), "filter closure should expect exactly one argument, but it has %d", fn.Arity())
@@ -153,12 +153,12 @@ func builtinFilter(in *Interp, c *Call) Value {
 		Items: out,
 	}
 
-	return &filtered
+	return ArrayV(&filtered)
 }
 
 func builtinMap(in *Interp, c *Call) Value {
-	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array).Items
-	fn := expectKindAt(c.At(1), c.Args[1], KFn).(*FnValue)
+	arr := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray)).Items
+	fn := fnOf(expectKindAt(c.At(1), c.Args[1], KFn))
 
 	if !fn.Accepts(1) {
 		throw(c.At(1), "map closure should expect exactly one argument, but it has %d", fn.Arity())
@@ -176,16 +176,16 @@ func builtinMap(in *Interp, c *Call) Value {
 		Items: out,
 	}
 
-	return &mapped
+	return ArrayV(&mapped)
 }
 
 func builtinAppend(in *Interp, c *Call) Value {
 	arrVal := c.Args[0]
 
-	arr, ok := arrVal.(*Array)
-	if !ok {
+	if arrVal.Kind() != KArray {
 		throw(c.At(0), "first argument to append must be an array")
 	}
+	arr := arrayOf(arrVal)
 
 	val := c.Args[1]
 	arr.Items = append(arr.Items, val)
@@ -211,7 +211,8 @@ func builtinDelete(in *Interp, c *Call) Value {
 
 	target := expectKindAt(c.At(0), c.Args[0], KArray, KMap)
 
-	if m, ok := target.(*Map); ok {
+	if target.Kind() == KMap {
+		m := mapOf(target)
 		if c.N() != 2 {
 			throw(c.Site, "delete on a map takes exactly one key, delete(m, key)")
 		}
@@ -223,7 +224,7 @@ func builtinDelete(in *Interp, c *Call) Value {
 		return target
 	}
 
-	arr := target.(*Array)
+	arr := arrayOf(target)
 	start := intOf(expectKindAt(c.At(1), c.Args[1], KInt))
 
 	length := int64(len(arr.Items))

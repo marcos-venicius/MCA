@@ -51,8 +51,7 @@ func TestPathResolvesRelativeToCallingFile(t *testing.T) {
 		t.Fatalf("unexpected runtime error: %v", err)
 	}
 
-	sv, ok := got.(interp.StringValue)
-	if !ok || string(sv) != "from the script's dir" {
+	if got.Kind() != interp.KString || interp.AsString(got) != "from the script's dir" {
 		t.Fatalf("read_entire_file result = %+v, want the file's contents", got)
 	}
 }

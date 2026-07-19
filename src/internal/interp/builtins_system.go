@@ -13,13 +13,13 @@ import (
 func builtinLen(in *Interp, c *Call) Value {
 	v := expectKindAt(c.At(0), c.Args[0], KString, KMap, KArray)
 
-	switch vv := v.(type) {
-	case StringValue:
-		return IntV(int64(len(vv)))
-	case *Map:
-		return IntV(int64(vv.Len()))
-	default: // *Array
-		return IntV(int64(len(vv.(*Array).Items)))
+	switch v.Kind() {
+	case KString:
+		return IntV(int64(v.num))
+	case KMap:
+		return IntV(int64(mapOf(v).Len()))
+	default: // KArray
+		return IntV(int64(len(arrayOf(v).Items)))
 	}
 }
 
@@ -102,7 +102,7 @@ func builtinImport(in *Interp, c *Call) Value {
 		if !ok {
 			throw(c.At(0), "there is no package named '%s' -- run help() to list the packages you can import, or import a file as './%s.mca'", pathArg, pathArg)
 		}
-		return moduleValue(m)
+		return MapV(moduleValue(m))
 	}
 
 	resolved := c.ResolvePath(pathArg)
