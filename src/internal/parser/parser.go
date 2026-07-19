@@ -1074,7 +1074,11 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	opTok := p.cur()
 	p.next()
 
-	operand := p.parseFactorialExpr()
+	// Recurse into parseUnaryExpr (not parseFactorialExpr) so prefix operators
+	// chain right-to-left: '!!false' -> !(!false), '--1' -> -(-1), '~~5' ->
+	// ~(~5). With no prefix operator present this falls through to
+	// parseFactorialExpr, so the single-operator case is unchanged.
+	operand := p.parseUnaryExpr()
 	if operand == nil {
 		p.errorAt(firstTok, fmt.Sprintf("missing operand for unary '%s'", opName))
 		p.synchronize()

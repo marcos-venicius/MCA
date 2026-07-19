@@ -187,6 +187,18 @@ func TestUnaryOperators(t *testing.T) {
 	check(t, "4!", tInt(24))
 	check(t, "-4!", tInt(-24))
 	check(t, "(-4)!", tFloat(math.NaN()))
+
+	// prefix operators chain right-to-left, no parens needed
+	check(t, "--1", tInt(1))       // -(-1)
+	check(t, "---5", tInt(-5))     // -(-(-5))
+	check(t, "- -5", tInt(5))      // whitespace between doesn't matter
+	check(t, "!!false", tBool(false)) // !(!false)
+	check(t, "!!true", tBool(true))
+	check(t, "!!!false", tBool(true))
+	check(t, "~~5", tInt(5))       // ~(~5)
+	check(t, "!-1", tBool(false))  // !(-1): -1 is truthy
+	check(t, "-~0", tInt(1))       // -(~0) = -(-1)
+	check(t, "--4!", tInt(24))     // factorial still binds tighter: -(-(4!))
 }
 
 func TestCombinations(t *testing.T) {
@@ -976,6 +988,15 @@ func TestRangeExpression(t *testing.T) {
 	check(t, "a = [{'k': 42}]; a[0:1][0].k", tInt(42))                // range then index then dot
 	check(t, "a = [\\(x) -> x + 1]; a[0:1][0](41)", tInt(42))         // range then index then call
 	expectRuntimeError(t, "a = [1, 2, 3, 4, 5]; a[2:4][5]")           // chained index is a real bounds check now
+
+	// an array slice is a fresh top-level array -- mutating or appending to it
+	// never writes through to the source, and vice versa
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; b[0] = 99; a[1]", tInt(2))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; append(b, 99); a[3]", tInt(4)) // no tail clobber
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; a[1] = 77; b[0]", tInt(2))
+	// ...but the copy is shallow: nested containers are still shared, like
+	// Python's slice -- writing through an element reaches the original.
+	check(t, "m = [[1, 2, 3], [4, 5, 6]]; s = m[0:2]; s[0][0] = 99; m[0][0]", tInt(99))
 
 	// out-of-range / inverted bounds are runtime errors, on both kinds
 	expectRuntimeError(t, "'hey'[-1:2]")  // from negative

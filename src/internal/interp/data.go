@@ -162,7 +162,13 @@ func (in *Interp) evalRangeExpression(e *ast.RangeExpression) EvalResult {
 			throw(e.From.Pos(), "from '%d' cannot be greater than to '%d'", from, to)
 		}
 
-		return normal(ArrayV(&Array{Items: array.Items[from:to]}))
+		// Copy into a fresh backing array so the slice is independent of the
+		// source: mutating or appending to the result must never write through
+		// to the original (unlike a bare Go sub-slice, which shares storage).
+		items := make([]Value, to-from)
+		copy(items, array.Items[from:to])
+
+		return normal(ArrayV(&Array{Items: items}))
 	}
 
 	panic("evalRangeExpression: unreacheable")
