@@ -992,7 +992,11 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 
 				p.next() // skip ']'
 
-				return &ast.RangeExpression{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, From: index, To: to}
+				// Stay in the postfix loop (like SquareExpr/DotExpr/call
+				// below) so a range can be chained: base[a:b][c], base[a:b].f,
+				// base[a:b](...), base[a:b][c:d], etc.
+				left = &ast.RangeExpression{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, From: index, To: to}
+				continue
 			}
 
 			if !p.expect(lexer.RBracket) {

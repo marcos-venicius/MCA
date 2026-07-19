@@ -967,6 +967,16 @@ func TestRangeExpression(t *testing.T) {
 	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[0]", tInt(3))
 	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[1]", tInt(4))
 
+	// a range is a postfix operator like [i]/.field/(...), so it chains: the
+	// result can be immediately indexed, sliced again, dotted, or called.
+	check(t, "a = [1, 2, 3, 4, 5]; a[2:4][0]", tInt(3))               // range then index
+	check(t, "'hello'[0:3][0]", tString("h"))                         // range then index on a string
+	check(t, "a = [1, 2, 3, 4, 5]; a[1:5][0:2][1]", tInt(3))          // range then range then index
+	check(t, "m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]; m[0:3][0][1]", tInt(2)) // slice rows, then [row][col]
+	check(t, "a = [{'k': 42}]; a[0:1][0].k", tInt(42))                // range then index then dot
+	check(t, "a = [\\(x) -> x + 1]; a[0:1][0](41)", tInt(42))         // range then index then call
+	expectRuntimeError(t, "a = [1, 2, 3, 4, 5]; a[2:4][5]")           // chained index is a real bounds check now
+
 	// out-of-range / inverted bounds are runtime errors, on both kinds
 	expectRuntimeError(t, "'hey'[-1:2]")  // from negative
 	expectRuntimeError(t, "'hey'[0:4]")   // to past length
