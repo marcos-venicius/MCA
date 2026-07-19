@@ -128,6 +128,46 @@ func (in *Interp) evalDot(e *ast.DotExpr) EvalResult {
 	panic("evalDot: unreacheable")
 }
 
+func (in *Interp) evalRangeExpression(e *ast.RangeExpression) EvalResult {
+	left := expectKind(e.Left, in.Eval(e.Left).Value, KString, KArray)
+	from := intOf(expectKind(e.From, in.Eval(e.From).Value, KInt))
+	to := intOf(expectKind(e.To, in.Eval(e.To).Value, KInt))
+
+	switch left.Kind() {
+	case KString:
+		data := stringOf(left)
+		length := int64(len(data))
+
+		if from < 0 || from >= length {
+			throw(e.From.Pos(), "from '%d' is out of range. The size of the string is %d", from, length)
+		}
+		if to < 0 || to >= length+1 {
+			throw(e.To.Pos(), "to '%d' is out of range. The size of the string is %d", to, length)
+		}
+		if from > to {
+			throw(e.From.Pos(), "from '%d' cannot be greater than to '%d'", from, to)
+		}
+		return normal(StringV(data[from:to]))
+	case KArray:
+		array := arrayOf(left)
+		length := int64(len(array.Items))
+
+		if from < 0 || from >= length {
+			throw(e.From.Pos(), "from '%d' is out of range. The size of the array is %d", from, length)
+		}
+		if to < 0 || to >= length+1 {
+			throw(e.To.Pos(), "to '%d' is out of range. The size of the array is %d", to, length)
+		}
+		if from > to {
+			throw(e.From.Pos(), "from '%d' cannot be greater than to '%d'", from, to)
+		}
+
+		return normal(ArrayV(&Array{Items: array.Items[from:to]}))
+	}
+
+	panic("evalRangeExpression: unreacheable")
+}
+
 // storeSquareAssign handles array/map index-assignment targets (`arr[i] = v`,
 // `m[k] = v`). It only performs the store -- the assignment
 // expression's own result (including Flow) is the right-hand side's

@@ -981,6 +981,20 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 
 			index := p.parseExpr()
 
+			// start parsing RangeExpression [<expr>:<expr>]
+			if p.check(lexer.Colon) {
+				p.next() // skip ':'
+				to := p.parseExpr()
+
+				if !p.expect(lexer.RBracket) {
+					return nil
+				}
+
+				p.next() // skip ']'
+
+				return &ast.RangeExpression{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, From: index, To: to}
+			}
+
 			if !p.expect(lexer.RBracket) {
 				return nil
 			}

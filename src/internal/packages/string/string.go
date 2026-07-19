@@ -31,7 +31,6 @@ func init() {
 			"rtrim":       interp.NewNative("string.rtrim", 1, rtrim),
 			"join":        interp.NewNative("string.join", 2, join),
 			"split":       interp.NewNative("string.split", 2, split),
-			"select":      interp.NewNative("string.select", 3, sel),
 			"ord":         interp.NewNative("string.ord", 1, ord),
 			"chr":         interp.NewNative("string.chr", 1, chr),
 			"format":      interp.NewNative("string.format", -1, format),
@@ -119,28 +118,6 @@ func split(in *interp.Interp, c *interp.Call) interp.Value {
 	}
 
 	return interp.ArrayV(&arr)
-}
-
-// TODO: later, instead of a builtin function I want to make it a 'range operator'
-// just like in python 'Hello'[1:3]
-func sel(in *interp.Interp, c *interp.Call) interp.Value {
-	data := c.StringArg(0)
-	from := c.IntArg(1)
-	to := c.IntArg(2)
-
-	length := int64(len(data))
-
-	if from < 0 || from >= length {
-		interp.Throw(c.At(1), "from '%d' is out of range. The size of the string is %d", from, length)
-	}
-	if to < 0 || to >= length+1 {
-		interp.Throw(c.At(2), "to '%d' is out of range. The size of the string is %d", to, length)
-	}
-	if from > to {
-		interp.Throw(c.At(1), "from '%d' cannot be greater than to '%d'", from, to)
-	}
-
-	return interp.StringV(data[from:to])
 }
 
 func ord(in *interp.Interp, c *interp.Call) interp.Value {

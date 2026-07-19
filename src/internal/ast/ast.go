@@ -293,4 +293,15 @@ type SquareExpr struct {
 	Index Expr
 }
 
+// const string = 'Hello, World'
+// string[7:len(string)] -> 'World'
+// const array = [1, 2, 3, 4, 5]
+// array[2:4] -> [3, 4]
+type RangeExpression struct {
+	Base
+	Left Expr
+	From Expr
+	To   Expr
+}
+
 func NewBase(p Pos) Base { return Base{P: p} }

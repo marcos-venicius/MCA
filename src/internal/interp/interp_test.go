@@ -343,7 +343,7 @@ func TestSumArity(t *testing.T) {
 }
 
 func TestCallBuiltinFunctions(t *testing.T) {
-	// sin, sqrt, abs and friends moved to the 'math' package, select/ord/
+	// sin, sqrt, abs and friends moved to the 'math' package, ord/
 	// format to 'string', srand/rand to 'random', read_entire_file to 'io' --
 	// each is tested in its own package (internal/packages/...), since their
 	// registering init()s never run in this test binary.
@@ -947,6 +947,43 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+// The range operator base[from:to] slices strings and arrays -- a half-open
+// [from, to) window, replacing the old string.select builtin. from must land
+// in [0, len-1], to in [0, len], and from <= to.
+func TestRangeExpression(t *testing.T) {
+	// strings
+	check(t, "'Hello, World'[7:12]", tString("World"))
+	check(t, "'heyhey'[0:6]", tString("heyhey")) // whole string
+	check(t, "'heyhey'[2:3]", tString("y"))       // single char
+	check(t, "'heyhey'[3:6]", tString("hey"))
+	check(t, "s = 'Hello, World'; s[7:len(s)]", tString("World")) // computed 'to' up to length
+	check(t, "'hey'[1:1]", tString(""))                            // from == to yields empty
+
+	// arrays -- check contents via println to avoid immediate index chaining
+	checkPrints(t, "println([1, 2, 3, 4, 5][2:4])", "[3, 4]\n")
+	checkPrints(t, "a = [1, 2, 3, 4, 5]; println(a[0:len(a)])", "[1, 2, 3, 4, 5]\n") // whole array
+	checkPrints(t, "a = [1, 2, 3]; println(a[1:1])", "[]\n")                          // empty slice
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; len(b)", tInt(2))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[0]", tInt(3))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[1]", tInt(4))
+
+	// out-of-range / inverted bounds are runtime errors, on both kinds
+	expectRuntimeError(t, "'hey'[-1:2]")  // from negative
+	expectRuntimeError(t, "'hey'[0:4]")   // to past length
+	expectRuntimeError(t, "'hey'[2:1]")   // from > to
+	expectRuntimeError(t, "'hey'[3:3]")   // from == length (from must be < length)
+	expectRuntimeError(t, "''[0:0]")      // empty base has no valid range
+	expectRuntimeError(t, "a = [1, 2, 3]; a[-1:2]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[0:4]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[2:1]")
+
+	// bounds must be ints, and the base must be a string or array
+	expectRuntimeError(t, "a = [1, 2, 3]; a[1.5:2]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[0:1.5]")
+	expectRuntimeError(t, "5[0:1]")
+	expectRuntimeError(t, "m = {}; m[0:1]")
+}
+
 func TestIndexesToKeys(t *testing.T) {
 	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); len(r)", tInt(2))
 	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); r['first']", tString("x"))
@@ -1049,7 +1086,7 @@ func TestDelete(t *testing.T) {
 	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); println(a)", "[1, 2, 4, 5]\n")
 	check(t, "a = [1]; delete(a, 0); len(a)", tInt(0)) // delete the only element
 
-	// range form -- half-open [start, end), matching string.select()
+	// range form -- half-open [start, end), matching the range operator s[from:to]
 	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); len(a)", tInt(2))
 	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); println(a)", "[1, 5]\n")
 	check(t, "a = [1, 2, 3]; delete(a, 0, 3); len(a)", tInt(0)) // delete the whole array
@@ -1359,8 +1396,9 @@ func TestStrings(t *testing.T) {
 }
 
 // The string-manipulation builtins (repeat, replace, upper, join, split,
-// select, ord, chr, format, ...) moved to the 'string' native package; their
-// tests live in internal/packages/string.
+// ord, chr, format, ...) moved to the 'string' native package; their
+// tests live in internal/packages/string. (The old string.select builtin was
+// replaced by the range operator s[from:to]; see TestRangeExpression.)
 
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))

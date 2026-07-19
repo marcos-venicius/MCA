@@ -165,6 +165,11 @@ func (r *Resolver) resolve(e ast.Expr) {
 		// Index is the field name used as a literal key, so only Left is a read.
 		r.resolve(node.Left)
 
+	case *ast.RangeExpression:
+		r.resolve(node.Left)
+		r.resolve(node.From)
+		r.resolve(node.To)
+
 	case *ast.FnExpr:
 		r.push()
 		for _, param := range node.Params {

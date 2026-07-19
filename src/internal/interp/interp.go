@@ -226,6 +226,8 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 		return in.evalSquare(node)
 	case *ast.DotExpr:
 		return in.evalDot(node)
+	case *ast.RangeExpression:
+		return in.evalRangeExpression(node)
 	case *ast.ForOfExpr:
 		return in.evalForOf(node)
 	default:

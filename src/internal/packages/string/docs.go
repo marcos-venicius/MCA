@@ -74,12 +74,6 @@ var docs = map[string]interp.Doc{
 		Description: "Splits str on every occurrence of sep into an array of strings. If sep doesn't occur, returns a single-element array holding the whole string.",
 		Examples:    []string{`string.split('a,b,c', ',')  ->  ['a', 'b', 'c']`},
 	},
-	"select": {
-		Params:      []interp.Param{p("str", "string"), p("from", "int"), p("to", "int")},
-		Returns:     "string",
-		Description: "Byte substring of str from index from (inclusive) to index to (exclusive). Throws a runtime error if the range is out of bounds or from > to.",
-		Examples:    []string{`string.select('Hello, World', 7, 12)  ->  'World'`},
-	},
 	"ord": {
 		Params:      []interp.Param{p("char", "string")},
 		Returns:     "int",
