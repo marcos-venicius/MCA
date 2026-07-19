@@ -141,11 +141,7 @@ func printMap(in *Interp, m *Map) {
 		if i > 0 {
 			fmt.Fprint(in.Out, ", ")
 		}
-		if k.Kind == KInt {
-			printValue(in, IntV(k.I), true)
-		} else {
-			printValue(in, StringV(k.S), true)
-		}
+		printValue(in, mapValueFromKey(k), true)
 		fmt.Fprint(in.Out, ": ")
 		printValue(in, v, true)
 

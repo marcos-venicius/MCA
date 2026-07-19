@@ -112,7 +112,7 @@ func builtinContains(in *Interp, c *Call) Value {
 
 		return BoolV(false)
 	case KMap:
-		key := expectKindAt(c.At(1), c.Args[1], KString, KInt)
+		key := expectKindAt(c.At(1), c.Args[1], KString, KInt, KFloat)
 
 		mk, _ := mapKeyFromValue(key)
 		m := mapOf(target).values
@@ -217,7 +217,7 @@ func builtinDelete(in *Interp, c *Call) Value {
 			throw(c.Site, "delete on a map takes exactly one key, delete(m, key)")
 		}
 
-		key := expectKindAt(c.At(1), c.Args[1], KInt, KString)
+		key := expectKindAt(c.At(1), c.Args[1], KInt, KFloat, KString)
 		mk, _ := mapKeyFromValue(key)
 		m.Del(mk)
 

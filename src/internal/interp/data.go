@@ -4,6 +4,8 @@ import "mca/internal/ast"
 
 func mapKeyFromValue(v Value) (MapKey, bool) {
 	switch v.Kind() {
+	case KFloat:
+		return MapKey{Kind: KFloat, F: floatOf(v)}, true
 	case KInt:
 		return MapKey{Kind: KInt, I: intOf(v)}, true
 	case KString:
@@ -18,6 +20,8 @@ func mapValueFromKey(v MapKey) Value {
 		return StringV(v.S)
 	case KInt:
 		return IntV(v.I)
+	case KFloat:
+		return FloatV(v.F)
 	}
 
 	panic("mapValueFromKey: unreacheable")
@@ -45,7 +49,7 @@ func (in *Interp) evalMapLit(e *ast.MapExpr) EvalResult {
 		if ident, ok := e.Keys[i].(*ast.Ident); ok {
 			keyVal = StringV(ident.Name)
 		} else {
-			keyVal = expectKind(e.Keys[i], in.Eval(e.Keys[i]).Value, KInt, KString)
+			keyVal = expectKind(e.Keys[i], in.Eval(e.Keys[i]).Value, KInt, KFloat, KString)
 		}
 		mk, _ := mapKeyFromValue(keyVal)
 
@@ -87,7 +91,7 @@ func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 
 	case KMap:
 		m := mapOf(left)
-		idxVal := expectKind(e.Index, in.Eval(e.Index).Value, KInt, KString)
+		idxVal := expectKind(e.Index, in.Eval(e.Index).Value, KInt, KFloat, KString)
 		mk, _ := mapKeyFromValue(idxVal)
 		if v, ok := m.Get(mk); ok {
 			return normal(v)
@@ -96,6 +100,8 @@ func (in *Interp) evalSquare(e *ast.SquareExpr) EvalResult {
 		switch mk.Kind {
 		case KInt:
 			throw(e.Pos(), "key '%d' not found", mk.I)
+		case KFloat:
+			throw(e.Pos(), "key '%f' not found", mk.F)
 		case KString:
 			throw(e.Pos(), "key '%s' not found", mk.S)
 		}
@@ -134,7 +140,7 @@ func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rig
 		m := mapOf(leftVal)
 		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
-		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KString)
+		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KFloat, KString)
 		mk, _ := mapKeyFromValue(idxVal)
 
 		m.Set(mk, rightVal)
@@ -221,11 +227,7 @@ func (in *Interp) forOfMap(e *ast.ForOfExpr, m *Map) EvalResult {
 	last := normal(UnitV())
 
 	for k, v := range m.values {
-		keyVal := StringV(k.S)
-
-		if k.Kind == KInt {
-			keyVal = IntV(k.I)
-		}
+		keyVal := mapValueFromKey(k)
 
 		if in.forOfLoopStep(e.Body, e.Key, e.Value, keyVal, v, &last) {
 			break

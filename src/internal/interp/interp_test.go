@@ -813,6 +813,48 @@ func TestHashmaps(t *testing.T) {
 	check(t, "m = {'a': 1}; m = {}; len(m)", tInt(0))
 }
 
+func TestHashmapFloatKeys(t *testing.T) {
+	// float keys, set via index-assign and via a map literal
+	check(t, "m = {}; m[1.5] = 'x'; m[1.5]", tString("x"))
+	check(t, "m = {1.5: 'x'}; m[1.5]", tString("x"))
+	check(t, "m = {-2.5: 'x'}; m[-2.5]", tString("x")) // negative float key
+
+	// updating an existing float key doesn't grow the map
+	check(t, "m = {}; m[1.5] = 'a'; m[1.5] = 'b'; m[1.5]", tString("b"))
+	check(t, "m = {}; m[1.5] = 'a'; m[1.5] = 'b'; len(m)", tInt(1))
+
+	// int and float keys are distinct even when numerically equal: MapKey
+	// carries the Kind, so 1 and 1.0 never collide.
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; len(m)", tInt(2))
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; m[1]", tString("i"))
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; m[1.0]", tString("f"))
+
+	// float keys coexist with string/int keys in the same map
+	check(t, "m = {1.5: 'a', 2.5: 'b', 'k': 'c', 10: 'd'}; len(m)", tInt(4))
+	check(t, "m = {1.5: 'a', 2.5: 'b', 'k': 'c', 10: 'd'}; m[2.5]", tString("b"))
+
+	// keys() round-trips a float key back to a float value
+	check(t, "m = {}; m[2.5] = 'x'; keys(m)[0]", tFloat(2.5))
+
+	// looking up a missing float key is a clean runtime error, not a panic
+	expectRuntimeError(t, "m = {}; m[1.5]")
+	expectRuntimeError(t, "m = {1.5: 'a'}; m[2.5]")
+
+	// contains() and delete() accept float keys
+	check(t, "m = {}; m[1.5] = 'x'; contains(m, 1.5)", tBool(true))
+	check(t, "m = {1.5: 'x'}; contains(m, 2.5)", tBool(false))
+	check(t, "m = {}; m[1.5] = 'x'; delete(m, 1.5); contains(m, 1.5)", tBool(false))
+
+	// for-of yields the float key itself (not an empty string)
+	check(t, "m = {2.5: 'a'}; found = false; for k, v : m { if k == 2.5 { found = true } }; found", tBool(true))
+	check(t, "m = {1.5: 10, 2.5: 20}; s = 0.0; for k, v : m { s += k }; s", tFloat(4.0))
+
+	// printing renders the float key (not an empty string); single-key maps
+	// keep the output deterministic since iteration order isn't guaranteed
+	checkPrints(t, "println({1.5: 'a'})", "{1.500000: 'a'}\n")
+	checkPrints(t, "println({-2.5: 10})", "{-2.500000: 10}\n")
+}
+
 func TestMapKeys(t *testing.T) {
 	check(t, "m = {}; len(keys(m))", tInt(0)) // empty map
 
@@ -915,6 +957,7 @@ func TestIndexesToKeys(t *testing.T) {
 
 	check(t, "r = indexes_to_keys([1, 2, 3], {1: 'mid'}); r['mid']", tInt(2))   // non-string array elements
 	check(t, "r = indexes_to_keys(['x', 'y'], {0: 100}); r[100]", tString("x")) // int target key, not just string
+	check(t, "r = indexes_to_keys(['x', 'y'], {0: 1.5}); r[1.5]", tString("x")) // float target key
 
 	// obj's value doesn't have to be the same kind as the array's elements,
 	// and picking every index just renames them all
@@ -933,9 +976,12 @@ func TestIndexesToKeysErrors(t *testing.T) {
 	expectRuntimeError(t, "indexes_to_keys([], {0: 'a'})")                 // any index into an empty array
 
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: true})") // obj value must be a valid map key
-	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: 1.5})")
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: [1]})")
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: {}})")
+
+	// a float obj *key* is still rejected -- keys index into the array, so
+	// they must be ints (the error formats the float cleanly, not a panic)
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {1.5: 'a'})")
 }
 
 func TestIndexesToKeysWrongArgTypes(t *testing.T) {
@@ -1024,17 +1070,19 @@ func TestDeleteOnMaps(t *testing.T) {
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); len(m)", tInt(1))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); contains(m, 'a')", tBool(false))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); m['b']", tInt(2))
-	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0)) // int keys too
+	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0))     // int keys too
+	check(t, "m = {1.5: 'x'}; delete(m, 1.5); len(m)", tInt(0))     // float keys too
+	check(t, "m = {1.5: 'x', 2: 'y'}; delete(m, 1.5); m[2]", tString("y"))
 
 	// a key that was never present is not an error
 	check(t, "m = {'a': 1}; delete(m, 'missing'); len(m)", tInt(1))
 	check(t, "m = {}; delete(m, 'a'); len(m)", tInt(0))
+	check(t, "m = {1.5: 'x'}; delete(m, 2.5); len(m)", tInt(1)) // absent float key
 
 	// mutates in place and returns the same map (identity, not a copy)
 	check(t, "m = {'a': 1}; n = delete(m, 'a'); m == n", tBool(true))
 
-	// the key must be an int or a string, and the range form is array-only
-	expectRuntimeError(t, "delete({'a': 1}, 1.5)")
+	// the key must be an int, float or a string, and the range form is map-invalid
 	expectRuntimeError(t, "delete({'a': 1}, true)")
 	expectRuntimeError(t, "delete({'a': 1}, [1])")
 	expectRuntimeError(t, "delete({'a': 1}, 'a', 2)")
