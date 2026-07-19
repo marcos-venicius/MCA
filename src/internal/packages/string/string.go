@@ -148,7 +148,7 @@ func format(in *interp.Interp, c *interp.Call) interp.Value {
 		case interp.KInt:
 			sb.WriteString(strconv.FormatInt(interp.AsInt(v), 10))
 		case interp.KFloat:
-			sb.WriteString(strconv.FormatFloat(interp.AsFloat(v), 'g', 6, 64))
+			sb.WriteString(interp.FormatFloat(interp.AsFloat(v)))
 		case interp.KBool:
 			if interp.AsBool(v) {
 				sb.WriteString("true")

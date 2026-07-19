@@ -611,8 +611,34 @@ func TestTypeCasting(t *testing.T) {
 	check(t, "as_string(true)", tString("true"))
 	check(t, "as_string(false)", tString("false"))
 	check(t, "as_string(-120)", tString("-120"))
-	check(t, "as_string(120.234)", tString("120.234000"))
-	check(t, "as_string(-120.234)", tString("-120.234000"))
+	check(t, "as_string(120.234)", tString("120.234"))
+	check(t, "as_string(-120.234)", tString("-120.234"))
+	check(t, "as_string(1.32)", tString("1.32"))  // exact value, no trailing zeros
+	check(t, "as_string(1.0)", tString("1.0"))    // a whole float keeps its ".0"
+	check(t, "as_string(0.5)", tString("0.5"))
+}
+
+// Floats print and stringify as the shortest decimal that round-trips, never
+// in scientific notation -- an exact 1.32 is "1.32", not "1.320000". print,
+// println, and as_string all share this via FormatFloat.
+func TestFloatFormatting(t *testing.T) {
+	// print path matches as_string
+	checkPrints(t, "println(1.32)", "1.32\n")
+	checkPrints(t, "println(1.0)", "1.0\n")   // whole float keeps ".0"
+	checkPrints(t, "println(67.56)", "67.56\n")
+	checkPrints(t, "print(3.14, 2.71)", "3.142.71") // print doesn't pad either
+
+	// full precision is preserved (no truncation to 6 digits)
+	check(t, "as_string(3.141592653589793)", tString("3.141592653589793"))
+
+	// no scientific notation for large/small magnitudes
+	check(t, "as_string(1000000.0)", tString("1000000.0"))
+	check(t, "as_string(0.0001)", tString("0.0001"))
+
+	// NaN and infinities render as themselves, with no spurious ".0"
+	check(t, "as_string((-4)!)", tString("NaN"))
+	check(t, "as_string(1.0 / 0.0)", tString("+Inf"))
+	check(t, "as_string(-1.0 / 0.0)", tString("-Inf"))
 }
 
 func TestUnitType(t *testing.T) {
@@ -863,8 +889,8 @@ func TestHashmapFloatKeys(t *testing.T) {
 
 	// printing renders the float key (not an empty string); single-key maps
 	// keep the output deterministic since iteration order isn't guaranteed
-	checkPrints(t, "println({1.5: 'a'})", "{1.500000: 'a'}\n")
-	checkPrints(t, "println({-2.5: 10})", "{-2.500000: 10}\n")
+	checkPrints(t, "println({1.5: 'a'})", "{1.5: 'a'}\n")
+	checkPrints(t, "println({-2.5: 10})", "{-2.5: 10}\n")
 }
 
 func TestMapKeys(t *testing.T) {
@@ -1085,7 +1111,7 @@ func TestSort(t *testing.T) {
 	checkPrints(t,
 		`cmp = \(x, y) -> if (x < y) { -1 } elif (x > y) { 1 } else { 0 };`+
 			`println(sort([1.5, 0.5, 2.5], cmp))`,
-		"[0.500000, 1.500000, 2.500000]\n")
+		"[0.5, 1.5, 2.5]\n")
 
 	// composes with other array builtins
 	checkPrints(t, `println(sort(reverse([1, 2, 3]), \(x, y) -> x - y))`, "[1, 2, 3]\n")

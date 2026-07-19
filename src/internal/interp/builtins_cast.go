@@ -85,7 +85,7 @@ func builtinAsString(in *Interp, c *Call) Value {
 	case KInt:
 		return StringV(strconv.FormatInt(intOf(v), 10))
 	case KFloat:
-		return StringV(strconv.FormatFloat(floatOf(v), 'f', 6, 64))
+		return StringV(FormatFloat(floatOf(v)))
 	case KBool:
 		if boolOf(v) {
 			return StringV("true")

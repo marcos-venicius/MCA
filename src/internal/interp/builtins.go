@@ -94,7 +94,7 @@ func printValue(in *Interp, v Value, wrapStrings bool) {
 	case KInt:
 		fmt.Fprintf(in.Out, "%d", intOf(v))
 	case KFloat:
-		fmt.Fprintf(in.Out, "%f", floatOf(v))
+		fmt.Fprint(in.Out, FormatFloat(floatOf(v)))
 	case KBool:
 		if boolOf(v) {
 			fmt.Fprint(in.Out, "true")

@@ -2,6 +2,7 @@ package interp
 
 import (
 	"math"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -191,4 +192,21 @@ func KindsName(kinds ...Kind) string {
 		names[i] = k.String()
 	}
 	return strings.Join(names, " | ")
+}
+
+// FormatFloat renders a float the way MCA prints and stringifies it: the
+// shortest decimal string that round-trips to the same float64, so an exact
+// value like 1.32 shows as "1.32" rather than "1.320000". It never uses
+// scientific notation. A whole-valued float keeps a trailing ".0" so it stays
+// visually distinct from an int, while NaN and ±Inf render as themselves.
+func FormatFloat(f float64) string {
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return strconv.FormatFloat(f, 'f', -1, 64)
+	}
+
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	if !strings.ContainsRune(s, '.') {
+		s += ".0"
+	}
+	return s
 }
