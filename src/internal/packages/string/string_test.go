@@ -137,18 +137,6 @@ func TestSplit(t *testing.T) {
 	pkgtest.ExpectError(t, s("s.split('a,b')"), "")
 }
 
-func TestSelect(t *testing.T) {
-	pkgtest.CheckString(t, s("s.select('Hello, World', 7, 12)"), "World")
-	pkgtest.CheckString(t, s("s.select('heyhey', 0, 6)"), "heyhey")
-	pkgtest.CheckString(t, s("s.select('heyhey', 2, 3)"), "y")
-	pkgtest.CheckString(t, s("s.select('heyhey', 3, 6)"), "hey")
-
-	pkgtest.ExpectError(t, s("s.select('hey', -1, 2)"), "out of range")
-	pkgtest.ExpectError(t, s("s.select('hey', 0, 4)"), "out of range")
-	pkgtest.ExpectError(t, s("s.select('hey', 2, 1)"), "cannot be greater")
-	pkgtest.ExpectError(t, s("s.select(123, 0, 1)"), "unexpected data type")
-}
-
 func TestOrdChr(t *testing.T) {
 	pkgtest.CheckInt(t, s("s.ord('a')"), int64('a'))
 	pkgtest.CheckInt(t, s("s.ord('z')"), int64('z'))

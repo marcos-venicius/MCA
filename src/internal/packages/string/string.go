@@ -31,7 +31,6 @@ func init() {
 			"rtrim":       interp.NewNative("string.rtrim", 1, rtrim),
 			"join":        interp.NewNative("string.join", 2, join),
 			"split":       interp.NewNative("string.split", 2, split),
-			"select":      interp.NewNative("string.select", 3, sel),
 			"ord":         interp.NewNative("string.ord", 1, ord),
 			"chr":         interp.NewNative("string.chr", 1, chr),
 			"format":      interp.NewNative("string.format", -1, format),
@@ -88,18 +87,17 @@ func rtrim(in *interp.Interp, c *interp.Call) interp.Value {
 }
 
 func join(in *interp.Interp, c *interp.Call) interp.Value {
-	arr := c.Arg(0, interp.KArray).(*interp.Array)
+	arr := c.ArrayArg(0)
 	sep := c.StringArg(1)
 
 	strs := make([]string, len(arr.Items))
 
 	for i, v := range arr.Items {
-		sv, ok := v.(interp.StringValue)
-		if !ok {
+		if v.Kind() != interp.KString {
 			interp.Throw(c.At(0), "expected a string at index %d but got '%s'", i, v.Kind())
 		}
 
-		strs[i] = string(sv)
+		strs[i] = interp.AsString(v)
 	}
 
 	return interp.StringV(strings.Join(strs, sep))
@@ -120,28 +118,6 @@ func split(in *interp.Interp, c *interp.Call) interp.Value {
 	}
 
 	return interp.ArrayV(&arr)
-}
-
-// TODO: later, instead of a builtin function I want to make it a 'range operator'
-// just like in python 'Hello'[1:3]
-func sel(in *interp.Interp, c *interp.Call) interp.Value {
-	data := c.StringArg(0)
-	from := c.IntArg(1)
-	to := c.IntArg(2)
-
-	length := int64(len(data))
-
-	if from < 0 || from >= length {
-		interp.Throw(c.At(1), "from '%d' is out of range. The size of the string is %d", from, length)
-	}
-	if to < 0 || to >= length+1 {
-		interp.Throw(c.At(2), "to '%d' is out of range. The size of the string is %d", to, length)
-	}
-	if from > to {
-		interp.Throw(c.At(1), "from '%d' cannot be greater than to '%d'", from, to)
-	}
-
-	return interp.StringV(data[from:to])
 }
 
 func ord(in *interp.Interp, c *interp.Call) interp.Value {
@@ -168,19 +144,19 @@ func format(in *interp.Interp, c *interp.Call) interp.Value {
 	for i := range c.Args {
 		v := c.Arg(i, interp.KInt, interp.KString, interp.KFloat, interp.KBool)
 
-		switch vv := v.(type) {
-		case interp.IntValue:
-			sb.WriteString(strconv.FormatInt(int64(vv), 10))
-		case interp.FloatValue:
-			sb.WriteString(strconv.FormatFloat(float64(vv), 'g', 6, 64))
-		case interp.BoolValue:
-			if vv {
+		switch v.Kind() {
+		case interp.KInt:
+			sb.WriteString(strconv.FormatInt(interp.AsInt(v), 10))
+		case interp.KFloat:
+			sb.WriteString(interp.FormatFloat(interp.AsFloat(v)))
+		case interp.KBool:
+			if interp.AsBool(v) {
 				sb.WriteString("true")
 			} else {
 				sb.WriteString("false")
 			}
-		case interp.StringValue:
-			sb.WriteString(string(vv))
+		case interp.KString:
+			sb.WriteString(interp.AsString(v))
 		}
 	}
 

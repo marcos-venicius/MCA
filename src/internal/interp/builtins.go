@@ -90,35 +90,36 @@ func init() {
 // ---- printing helpers ----
 
 func printValue(in *Interp, v Value, wrapStrings bool) {
-	switch vv := v.(type) {
-	case IntValue:
-		fmt.Fprintf(in.Out, "%d", int64(vv))
-	case FloatValue:
-		fmt.Fprintf(in.Out, "%f", float64(vv))
-	case BoolValue:
-		if vv {
+	switch v.Kind() {
+	case KInt:
+		fmt.Fprintf(in.Out, "%d", intOf(v))
+	case KFloat:
+		fmt.Fprint(in.Out, FormatFloat(floatOf(v)))
+	case KBool:
+		if boolOf(v) {
 			fmt.Fprint(in.Out, "true")
 		} else {
 			fmt.Fprint(in.Out, "false")
 		}
-	case UnitValue:
+	case KUnit:
 		fmt.Fprint(in.Out, "(unit)")
-	case StringValue:
+	case KString:
 		if wrapStrings {
-			fmt.Fprintf(in.Out, "'%s'", string(vv))
+			fmt.Fprintf(in.Out, "'%s'", stringOf(v))
 		} else {
-			fmt.Fprint(in.Out, string(vv))
+			fmt.Fprint(in.Out, stringOf(v))
 		}
-	case *Map:
-		printMap(in, vv)
-	case *FnValue:
-		if vv.Native != nil {
-			fmt.Fprintf(in.Out, "builtin %s(...)", vv.Native.Name)
+	case KMap:
+		printMap(in, mapOf(v))
+	case KFn:
+		fv := fnOf(v)
+		if fv.Native != nil {
+			fmt.Fprintf(in.Out, "builtin %s(...)", fv.Native.Name)
 		} else {
-			fmt.Fprintf(in.Out, "fn(...%d)", len(vv.Node.Params))
+			fmt.Fprintf(in.Out, "fn(...%d)", len(fv.Node.Params))
 		}
-	case *Array:
-		printArray(in, vv)
+	case KArray:
+		printArray(in, arrayOf(v))
 	}
 }
 
@@ -140,11 +141,7 @@ func printMap(in *Interp, m *Map) {
 		if i > 0 {
 			fmt.Fprint(in.Out, ", ")
 		}
-		if k.Kind == KInt {
-			printValue(in, IntV(k.I), true)
-		} else {
-			printValue(in, StringV(k.S), true)
-		}
+		printValue(in, mapValueFromKey(k), true)
 		fmt.Fprint(in.Out, ": ")
 		printValue(in, v, true)
 

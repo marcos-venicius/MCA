@@ -981,6 +981,24 @@ func (p *parser) parsePostfixExpr() ast.Expr {
 
 			index := p.parseExpr()
 
+			// start parsing RangeExpression [<expr>:<expr>]
+			if p.check(lexer.Colon) {
+				p.next() // skip ':'
+				to := p.parseExpr()
+
+				if !p.expect(lexer.RBracket) {
+					return nil
+				}
+
+				p.next() // skip ']'
+
+				// Stay in the postfix loop (like SquareExpr/DotExpr/call
+				// below) so a range can be chained: base[a:b][c], base[a:b].f,
+				// base[a:b](...), base[a:b][c:d], etc.
+				left = &ast.RangeExpression{Base: ast.NewBase(p.posOf(bracketTok)), Left: left, From: index, To: to}
+				continue
+			}
+
 			if !p.expect(lexer.RBracket) {
 				return nil
 			}
@@ -1056,7 +1074,11 @@ func (p *parser) parseUnaryExpr() ast.Expr {
 	opTok := p.cur()
 	p.next()
 
-	operand := p.parseFactorialExpr()
+	// Recurse into parseUnaryExpr (not parseFactorialExpr) so prefix operators
+	// chain right-to-left: '!!false' -> !(!false), '--1' -> -(-1), '~~5' ->
+	// ~(~5). With no prefix operator present this falls through to
+	// parseFactorialExpr, so the single-operator case is unchanged.
+	operand := p.parseUnaryExpr()
 	if operand == nil {
 		p.errorAt(firstTok, fmt.Sprintf("missing operand for unary '%s'", opName))
 		p.synchronize()

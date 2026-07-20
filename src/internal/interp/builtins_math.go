@@ -5,7 +5,7 @@ package interp
 // builtins because they are everyday list operations more than mathematics.
 
 func builtinSum(in *Interp, c *Call) Value {
-	arr := expectKindAt(c.At(0), c.Args[0], KArray).(*Array)
+	arr := arrayOf(expectKindAt(c.At(0), c.Args[0], KArray))
 
 	hasFloat := false
 
@@ -19,9 +19,9 @@ func builtinSum(in *Interp, c *Call) Value {
 		if v.Kind() == KFloat {
 			hasFloat = true
 
-			r += float64(v.(FloatValue))
+			r += floatOf(v)
 		} else {
-			r += float64(v.(IntValue))
+			r += float64(intOf(v))
 		}
 	}
 

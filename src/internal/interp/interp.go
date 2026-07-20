@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"mca/internal/ast"
+	"mca/internal/resolver"
 )
 
 // ControlFlow tags how an evaluation completed: falling through normally,
@@ -79,6 +80,11 @@ func (c *Call) IntArg(i int) int64 {
 	return intOf(expectKindAt(c.At(i), c.Args[i], KInt))
 }
 
+// ArrayArg is argument i, required to be an array -- see StringArg.
+func (c *Call) ArrayArg(i int) *Array {
+	return arrayOf(expectKindAt(c.At(i), c.Args[i], KArray))
+}
+
 // Arg is argument i, required to be one of the allowed kinds: the general
 // form of StringArg/IntArg for a native package whose argument may span
 // several kinds. Returns the value still wrapped, so the caller type-switches
@@ -110,8 +116,10 @@ func New() *Interp {
 	// shadows the builtin in the assigning scope) without any program
 	// anywhere being able to *overwrite* what `sort` means.
 	b := NewBuiltinEnv()
+	slot := 0
 	for name, n := range builtins {
-		b.DefineConst(name, &FnValue{Native: n})
+		b.define(slot, name, FnValV(&FnValue{Native: n}), true)
+		slot++
 	}
 
 	g := NewEnv(b)
@@ -143,6 +151,11 @@ func (in *Interp) Run(stmts []ast.Expr) (result Value, err error) {
 // outermost, keeping "a runtime error anywhere kills the whole program" true
 // even across module boundaries.
 func (in *Interp) runStatements(stmts []ast.Expr) Value {
+	// Resolve here rather than at the call sites: this is the one place both a
+	// top-level program (via Run) and an imported module reach before their
+	// statements are evaluated.
+	resolver.Resolve(stmts)
+
 	result := UnitV()
 
 	for _, stmt := range stmts {
@@ -180,7 +193,7 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 	case *ast.FloatLit:
 		return normal(FloatV(node.Value))
 	case *ast.Ident:
-		v, ok := in.Current.Get(node.Name)
+		v, ok := in.lookupVar(node)
 		if !ok {
 			throw(node.Pos(), "variable '%s' does not exist", node.Name)
 		}
@@ -213,12 +226,30 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 		return in.evalSquare(node)
 	case *ast.DotExpr:
 		return in.evalDot(node)
+	case *ast.RangeExpression:
+		return in.evalRangeExpression(node)
 	case *ast.ForOfExpr:
 		return in.evalForOf(node)
 	default:
 		throw(e.Pos(), "internal: expression kind %T not yet implemented", e)
 		panic("unreachable")
 	}
+}
+
+// lookupVar reads a variable through its resolved slot, falling back to a
+// by-name lookup for the cases the resolver marks Depth == -1 (builtins,
+// forward references). The slot itself can also be empty if the read runs
+// before the assignment that fills it, so an empty slot falls back too.
+func (in *Interp) lookupVar(id *ast.Ident) (Value, bool) {
+	if id.Depth >= 0 {
+		if b := in.Current.bySlot(id.Depth, id.FrameIndex); b != nil {
+			return b.value, true
+		}
+	}
+	if b, ok := in.Current.byName(id.Name); ok {
+		return b.value, true
+	}
+	return Value{}, false
 }
 
 func (in *Interp) evalBlock(body []ast.Expr) EvalResult {
@@ -261,11 +292,11 @@ func (in *Interp) evalUnary(e *ast.UnaryExpr) EvalResult {
 	switch e.Op {
 	case ast.MinusOp:
 		var out Value
-		switch vv := res.Value.(type) {
-		case IntValue:
-			out = IntV(-int64(vv))
-		case FloatValue:
-			out = FloatV(-float64(vv))
+		switch res.Value.Kind() {
+		case KInt:
+			out = IntV(-intOf(res.Value))
+		case KFloat:
+			out = FloatV(-floatOf(res.Value))
 		default:
 			throw(e.Pos(), "unexpected data type. expected a '%s' but got a '%s'", KindsName(KInt, KFloat), res.Value.Kind())
 		}
@@ -297,13 +328,14 @@ func calculateFactorial(v Value) Value {
 	isNegativeInt := false
 	isInt := false
 
-	switch vv := v.(type) {
-	case IntValue:
-		val = float64(vv)
-		isNegativeInt = vv < 0
+	switch v.Kind() {
+	case KInt:
+		i := intOf(v)
+		val = float64(i)
+		isNegativeInt = i < 0
 		isInt = true
-	case FloatValue:
-		val = float64(vv)
+	case KFloat:
+		val = floatOf(v)
 		isNegativeInt = val < 0 && val == float64(int64(val))
 	}
 
@@ -331,25 +363,25 @@ func isComparisonOp(op ast.BinaryOp) bool {
 
 // asFloat widens an already kind-checked int/float/bool value to float64.
 func asFloat(v Value) float64 {
-	switch vv := v.(type) {
-	case FloatValue:
-		return float64(vv)
-	case BoolValue:
-		if vv {
+	switch v.Kind() {
+	case KFloat:
+		return floatOf(v)
+	case KBool:
+		if boolOf(v) {
 			return 1
 		}
 		return 0
-	default: // IntValue
-		return float64(vv.(IntValue))
+	default: // KInt
+		return float64(intOf(v))
 	}
 }
 
 // asIntLike reads an already kind-checked int/bool value as int64.
 func asIntLike(v Value) int64 {
-	if iv, ok := v.(IntValue); ok {
-		return int64(iv)
+	if v.Kind() == KInt {
+		return intOf(v)
 	}
-	if bool(v.(BoolValue)) {
+	if boolOf(v) {
 		return 1
 	}
 	return 0
@@ -416,15 +448,15 @@ func compareTwoValues(a, b Value) bool {
 	case KUnit: // both are equal because unit doesn't have a value
 		return true
 	case KString:
-		return b.(StringValue) == a.(StringValue)
+		return stringOf(b) == stringOf(a)
 	case KArray:
-		return compareTwoArrays(a.(*Array), b.(*Array))
+		return compareTwoArrays(arrayOf(a), arrayOf(b))
 	case KMap:
 		// TODO: we don't do cycle checks. if we have a cyclic reference, it's gonna overflow the stack and panic
-		return compareTwoMaps(a.(*Map), b.(*Map))
+		return compareTwoMaps(mapOf(a), mapOf(b))
 	case KFn:
 		// pointer equality
-		return a.(*FnValue) == b.(*FnValue)
+		return fnOf(a) == fnOf(b)
 	}
 
 	return false
@@ -633,7 +665,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 			throw(e.Right.Pos(), "you cannot use comma-syntax with non array values")
 		}
 
-		value := rightRes.Value.(*Array)
+		value := arrayOf(rightRes.Value)
 
 		if len(left.Items) != len(value.Items) {
 			throw(e.Left.Pos(), "expected to have %d items but got %d", len(left.Items), len(value.Items))
@@ -644,7 +676,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 
 			if e.Const {
 				in.declareConst(ident, value.Items[i])
-			} else if !in.Current.Assign(ident.Name, value.Items[i]) {
+			} else if !in.Current.assign(ident.Depth, ident.FrameIndex, ident.Name, value.Items[i]) {
 				throw(ident.Pos(), "you cannot modify constant values. '%s' is a constant", ident.Name)
 			}
 		}
@@ -654,7 +686,7 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 	case *ast.Ident:
 		if e.Const {
 			in.declareConst(left, rightRes.Value)
-		} else if !in.Current.Assign(left.Name, rightRes.Value) {
+		} else if !in.Current.assign(left.Depth, left.FrameIndex, left.Name, rightRes.Value) {
 			throw(left.Pos(), "you cannot modify constant values. '%s' is a constant", left.Name)
 		}
 		return rightRes
@@ -677,11 +709,11 @@ func (in *Interp) evalAssign(e *ast.AssignExpr) EvalResult {
 // so an inner scope may still shadow a constant (including a builtin) with a
 // binding of its own.
 func (in *Interp) declareConst(name *ast.Ident, v Value) {
-	if in.Current.HasLocal(name.Name) {
+	if in.Current.hasLocal(name.Name) {
 		throw(name.Pos(), "'%s' is already defined in this scope, so it cannot be declared as a constant", name.Name)
 	}
 
-	in.Current.DefineConst(name.Name, v)
+	in.Current.define(name.FrameIndex, name.Name, v, true)
 }
 
 // evalAssignRightSide computes the value (and, for plain `=` only, the
@@ -821,7 +853,7 @@ func (in *Interp) runForRange(e *ast.ForRangeExpr, from, to, by int64) EvalResul
 		}
 
 		parent := in.pushScope()
-		in.Current.Define(e.Index.Name, IntV(i))
+		in.Current.define(e.Index.FrameIndex, e.Index.Name, IntV(i), false)
 		last = in.evalBlock(e.Body)
 		in.popScope(parent)
 
@@ -896,10 +928,10 @@ func fnLabel(fv *FnValue) string {
 func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
 	calleeVal := in.Eval(e.Callee).Value
 
-	fv, ok := calleeVal.(*FnValue)
-	if !ok {
+	if calleeVal.Kind() != KFn {
 		throw(e.Pos(), "you are trying to call a '%s' value, which is not a function", calleeVal.Kind())
 	}
+	fv := fnOf(calleeVal)
 
 	return normal(in.callFn(fv, e.Pos(), calleeLabel(e.Callee), e.Args))
 }
@@ -953,7 +985,7 @@ func (in *Interp) call(fv *FnValue, callPos ast.Pos, name string, args []Value, 
 
 	fnEnv := NewEnv(fv.Env)
 	for i, param := range fv.Node.Params {
-		fnEnv.Define(param.Name, args[i])
+		fnEnv.define(param.FrameIndex, param.Name, args[i], false)
 	}
 
 	callerEnv := in.Current

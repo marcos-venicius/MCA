@@ -47,13 +47,12 @@ func checkString(t *testing.T, src, want string) {
 		t.Fatalf("%q: unexpected runtime error: %v", src, err)
 	}
 
-	s, ok := got.(interp.StringValue)
-	if !ok {
+	if got.Kind() != interp.KString {
 		t.Fatalf("%q: expected a string but got a '%s'", src, got.Kind())
 	}
 
-	if string(s) != want {
-		t.Errorf("%q: got %q, want %q", src, string(s), want)
+	if s := interp.AsString(got); s != want {
+		t.Errorf("%q: got %q, want %q", src, s, want)
 	}
 }
 

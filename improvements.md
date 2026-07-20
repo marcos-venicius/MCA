@@ -1,4 +1,0 @@
-5. Resolve variables to slots at parse time (the classic "resolver" pass -- Crafting Interpreters ch. 11 is exactly this). Each Ident gets a (depth, slot) pair once; Env becomes a []Value frame and lookup becomes two array indexes. This deletes the entire ~45% hashing column. MCA's implicit-declare-on-assign is lexically determinable, so the resolver can decide create-vs-write statically.
-6. Replace the Value interface with a tagged struct (kind + int64/float64 payload + a pointer field for map/array/fn/string). Scalars stop allocating entirely -- that's the ~25% column plus GC pressure everywhere else. It's the standard move for tree-walking interpreters (Lua, Wren); it's invasive, but it's mechanical.
-
-Beyond that, the next tier is compiling the AST once into a tree of closures (func(*Interp) EvalResult per node) or a bytecode VM, which removes the per-node type-switch dispatch -- but I should only go there after 5 and 6, which give the most for the least churn.

@@ -49,6 +49,14 @@ type StringLit struct {
 type Ident struct {
 	Base
 	Name string
+
+	// Filled in by the resolver pass, not the parser. Depth is how many scopes
+	// to climb from the use site to the scope that owns the variable, and
+	// FrameIndex is its slot within that scope. Depth == -1 means the name
+	// didn't resolve to any lexical scope (a builtin, a forward reference, or
+	// an import) and must fall back to a by-name lookup at runtime.
+	Depth      int
+	FrameIndex int
 }
 
 // ---- operators ----
@@ -283,6 +291,17 @@ type SquareExpr struct {
 	Base
 	Left  Expr
 	Index Expr
+}
+
+// const string = 'Hello, World'
+// string[7:len(string)] -> 'World'
+// const array = [1, 2, 3, 4, 5]
+// array[2:4] -> [3, 4]
+type RangeExpression struct {
+	Base
+	Left Expr
+	From Expr
+	To   Expr
 }
 
 func NewBase(p Pos) Base { return Base{P: p} }

@@ -50,16 +50,16 @@ func calcDeg(radians float64) float64 { return radians * (180.0 / math.Pi) }
 func numArg(c *interp.Call, i int) float64 {
 	v := c.Arg(i, interp.KInt, interp.KFloat, interp.KBool)
 
-	switch vv := v.(type) {
-	case interp.FloatValue:
-		return float64(vv)
-	case interp.BoolValue:
-		if vv {
+	switch v.Kind() {
+	case interp.KFloat:
+		return interp.AsFloat(v)
+	case interp.KBool:
+		if interp.AsBool(v) {
 			return 1
 		}
 		return 0
-	default: // interp.IntValue
-		return float64(vv.(interp.IntValue))
+	default: // interp.KInt
+		return float64(interp.AsInt(v))
 	}
 }
 
@@ -84,8 +84,8 @@ func e(in *interp.Interp, c *interp.Call) interp.Value  { return interp.FloatV(m
 func abs(in *interp.Interp, c *interp.Call) interp.Value {
 	v := c.Arg(0, interp.KInt, interp.KFloat, interp.KBool)
 
-	if fv, ok := v.(interp.FloatValue); ok {
-		return interp.FloatV(math.Abs(float64(fv)))
+	if v.Kind() == interp.KFloat {
+		return interp.FloatV(math.Abs(interp.AsFloat(v)))
 	}
 
 	// int or bool: stay integral

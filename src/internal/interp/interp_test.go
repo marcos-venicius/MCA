@@ -187,6 +187,18 @@ func TestUnaryOperators(t *testing.T) {
 	check(t, "4!", tInt(24))
 	check(t, "-4!", tInt(-24))
 	check(t, "(-4)!", tFloat(math.NaN()))
+
+	// prefix operators chain right-to-left, no parens needed
+	check(t, "--1", tInt(1))       // -(-1)
+	check(t, "---5", tInt(-5))     // -(-(-5))
+	check(t, "- -5", tInt(5))      // whitespace between doesn't matter
+	check(t, "!!false", tBool(false)) // !(!false)
+	check(t, "!!true", tBool(true))
+	check(t, "!!!false", tBool(true))
+	check(t, "~~5", tInt(5))       // ~(~5)
+	check(t, "!-1", tBool(false))  // !(-1): -1 is truthy
+	check(t, "-~0", tInt(1))       // -(~0) = -(-1)
+	check(t, "--4!", tInt(24))     // factorial still binds tighter: -(-(4!))
 }
 
 func TestCombinations(t *testing.T) {
@@ -343,7 +355,7 @@ func TestSumArity(t *testing.T) {
 }
 
 func TestCallBuiltinFunctions(t *testing.T) {
-	// sin, sqrt, abs and friends moved to the 'math' package, select/ord/
+	// sin, sqrt, abs and friends moved to the 'math' package, ord/
 	// format to 'string', srand/rand to 'random', read_entire_file to 'io' --
 	// each is tested in its own package (internal/packages/...), since their
 	// registering init()s never run in this test binary.
@@ -599,8 +611,34 @@ func TestTypeCasting(t *testing.T) {
 	check(t, "as_string(true)", tString("true"))
 	check(t, "as_string(false)", tString("false"))
 	check(t, "as_string(-120)", tString("-120"))
-	check(t, "as_string(120.234)", tString("120.234000"))
-	check(t, "as_string(-120.234)", tString("-120.234000"))
+	check(t, "as_string(120.234)", tString("120.234"))
+	check(t, "as_string(-120.234)", tString("-120.234"))
+	check(t, "as_string(1.32)", tString("1.32"))  // exact value, no trailing zeros
+	check(t, "as_string(1.0)", tString("1.0"))    // a whole float keeps its ".0"
+	check(t, "as_string(0.5)", tString("0.5"))
+}
+
+// Floats print and stringify as the shortest decimal that round-trips, never
+// in scientific notation -- an exact 1.32 is "1.32", not "1.320000". print,
+// println, and as_string all share this via FormatFloat.
+func TestFloatFormatting(t *testing.T) {
+	// print path matches as_string
+	checkPrints(t, "println(1.32)", "1.32\n")
+	checkPrints(t, "println(1.0)", "1.0\n")   // whole float keeps ".0"
+	checkPrints(t, "println(67.56)", "67.56\n")
+	checkPrints(t, "print(3.14, 2.71)", "3.142.71") // print doesn't pad either
+
+	// full precision is preserved (no truncation to 6 digits)
+	check(t, "as_string(3.141592653589793)", tString("3.141592653589793"))
+
+	// no scientific notation for large/small magnitudes
+	check(t, "as_string(1000000.0)", tString("1000000.0"))
+	check(t, "as_string(0.0001)", tString("0.0001"))
+
+	// NaN and infinities render as themselves, with no spurious ".0"
+	check(t, "as_string((-4)!)", tString("NaN"))
+	check(t, "as_string(1.0 / 0.0)", tString("+Inf"))
+	check(t, "as_string(-1.0 / 0.0)", tString("-Inf"))
 }
 
 func TestUnitType(t *testing.T) {
@@ -813,6 +851,48 @@ func TestHashmaps(t *testing.T) {
 	check(t, "m = {'a': 1}; m = {}; len(m)", tInt(0))
 }
 
+func TestHashmapFloatKeys(t *testing.T) {
+	// float keys, set via index-assign and via a map literal
+	check(t, "m = {}; m[1.5] = 'x'; m[1.5]", tString("x"))
+	check(t, "m = {1.5: 'x'}; m[1.5]", tString("x"))
+	check(t, "m = {-2.5: 'x'}; m[-2.5]", tString("x")) // negative float key
+
+	// updating an existing float key doesn't grow the map
+	check(t, "m = {}; m[1.5] = 'a'; m[1.5] = 'b'; m[1.5]", tString("b"))
+	check(t, "m = {}; m[1.5] = 'a'; m[1.5] = 'b'; len(m)", tInt(1))
+
+	// int and float keys are distinct even when numerically equal: MapKey
+	// carries the Kind, so 1 and 1.0 never collide.
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; len(m)", tInt(2))
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; m[1]", tString("i"))
+	check(t, "m = {}; m[1] = 'i'; m[1.0] = 'f'; m[1.0]", tString("f"))
+
+	// float keys coexist with string/int keys in the same map
+	check(t, "m = {1.5: 'a', 2.5: 'b', 'k': 'c', 10: 'd'}; len(m)", tInt(4))
+	check(t, "m = {1.5: 'a', 2.5: 'b', 'k': 'c', 10: 'd'}; m[2.5]", tString("b"))
+
+	// keys() round-trips a float key back to a float value
+	check(t, "m = {}; m[2.5] = 'x'; keys(m)[0]", tFloat(2.5))
+
+	// looking up a missing float key is a clean runtime error, not a panic
+	expectRuntimeError(t, "m = {}; m[1.5]")
+	expectRuntimeError(t, "m = {1.5: 'a'}; m[2.5]")
+
+	// contains() and delete() accept float keys
+	check(t, "m = {}; m[1.5] = 'x'; contains(m, 1.5)", tBool(true))
+	check(t, "m = {1.5: 'x'}; contains(m, 2.5)", tBool(false))
+	check(t, "m = {}; m[1.5] = 'x'; delete(m, 1.5); contains(m, 1.5)", tBool(false))
+
+	// for-of yields the float key itself (not an empty string)
+	check(t, "m = {2.5: 'a'}; found = false; for k, v : m { if k == 2.5 { found = true } }; found", tBool(true))
+	check(t, "m = {1.5: 10, 2.5: 20}; s = 0.0; for k, v : m { s += k }; s", tFloat(4.0))
+
+	// printing renders the float key (not an empty string); single-key maps
+	// keep the output deterministic since iteration order isn't guaranteed
+	checkPrints(t, "println({1.5: 'a'})", "{1.5: 'a'}\n")
+	checkPrints(t, "println({-2.5: 10})", "{-2.5: 10}\n")
+}
+
 func TestMapKeys(t *testing.T) {
 	check(t, "m = {}; len(keys(m))", tInt(0)) // empty map
 
@@ -905,6 +985,62 @@ func TestArrayIndexOutOfBounds(t *testing.T) {
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1]")
 }
 
+// The range operator base[from:to] slices strings and arrays -- a half-open
+// [from, to) window, replacing the old string.select builtin. from must land
+// in [0, len-1], to in [0, len], and from <= to.
+func TestRangeExpression(t *testing.T) {
+	// strings
+	check(t, "'Hello, World'[7:12]", tString("World"))
+	check(t, "'heyhey'[0:6]", tString("heyhey")) // whole string
+	check(t, "'heyhey'[2:3]", tString("y"))       // single char
+	check(t, "'heyhey'[3:6]", tString("hey"))
+	check(t, "s = 'Hello, World'; s[7:len(s)]", tString("World")) // computed 'to' up to length
+	check(t, "'hey'[1:1]", tString(""))                            // from == to yields empty
+
+	// arrays -- check contents via println to avoid immediate index chaining
+	checkPrints(t, "println([1, 2, 3, 4, 5][2:4])", "[3, 4]\n")
+	checkPrints(t, "a = [1, 2, 3, 4, 5]; println(a[0:len(a)])", "[1, 2, 3, 4, 5]\n") // whole array
+	checkPrints(t, "a = [1, 2, 3]; println(a[1:1])", "[]\n")                          // empty slice
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; len(b)", tInt(2))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[0]", tInt(3))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[1]", tInt(4))
+
+	// a range is a postfix operator like [i]/.field/(...), so it chains: the
+	// result can be immediately indexed, sliced again, dotted, or called.
+	check(t, "a = [1, 2, 3, 4, 5]; a[2:4][0]", tInt(3))               // range then index
+	check(t, "'hello'[0:3][0]", tString("h"))                         // range then index on a string
+	check(t, "a = [1, 2, 3, 4, 5]; a[1:5][0:2][1]", tInt(3))          // range then range then index
+	check(t, "m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]; m[0:3][0][1]", tInt(2)) // slice rows, then [row][col]
+	check(t, "a = [{'k': 42}]; a[0:1][0].k", tInt(42))                // range then index then dot
+	check(t, "a = [\\(x) -> x + 1]; a[0:1][0](41)", tInt(42))         // range then index then call
+	expectRuntimeError(t, "a = [1, 2, 3, 4, 5]; a[2:4][5]")           // chained index is a real bounds check now
+
+	// an array slice is a fresh top-level array -- mutating or appending to it
+	// never writes through to the source, and vice versa
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; b[0] = 99; a[1]", tInt(2))
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; append(b, 99); a[3]", tInt(4)) // no tail clobber
+	check(t, "a = [1, 2, 3, 4, 5]; b = a[1:3]; a[1] = 77; b[0]", tInt(2))
+	// ...but the copy is shallow: nested containers are still shared, like
+	// Python's slice -- writing through an element reaches the original.
+	check(t, "m = [[1, 2, 3], [4, 5, 6]]; s = m[0:2]; s[0][0] = 99; m[0][0]", tInt(99))
+
+	// out-of-range / inverted bounds are runtime errors, on both kinds
+	expectRuntimeError(t, "'hey'[-1:2]")  // from negative
+	expectRuntimeError(t, "'hey'[0:4]")   // to past length
+	expectRuntimeError(t, "'hey'[2:1]")   // from > to
+	expectRuntimeError(t, "'hey'[3:3]")   // from == length (from must be < length)
+	expectRuntimeError(t, "''[0:0]")      // empty base has no valid range
+	expectRuntimeError(t, "a = [1, 2, 3]; a[-1:2]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[0:4]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[2:1]")
+
+	// bounds must be ints, and the base must be a string or array
+	expectRuntimeError(t, "a = [1, 2, 3]; a[1.5:2]")
+	expectRuntimeError(t, "a = [1, 2, 3]; a[0:1.5]")
+	expectRuntimeError(t, "5[0:1]")
+	expectRuntimeError(t, "m = {}; m[0:1]")
+}
+
 func TestIndexesToKeys(t *testing.T) {
 	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); len(r)", tInt(2))
 	check(t, "r = indexes_to_keys(['x', 'y', 'z'], {0: 'first', 2: 'third'}); r['first']", tString("x"))
@@ -915,6 +1051,7 @@ func TestIndexesToKeys(t *testing.T) {
 
 	check(t, "r = indexes_to_keys([1, 2, 3], {1: 'mid'}); r['mid']", tInt(2))   // non-string array elements
 	check(t, "r = indexes_to_keys(['x', 'y'], {0: 100}); r[100]", tString("x")) // int target key, not just string
+	check(t, "r = indexes_to_keys(['x', 'y'], {0: 1.5}); r[1.5]", tString("x")) // float target key
 
 	// obj's value doesn't have to be the same kind as the array's elements,
 	// and picking every index just renames them all
@@ -933,9 +1070,12 @@ func TestIndexesToKeysErrors(t *testing.T) {
 	expectRuntimeError(t, "indexes_to_keys([], {0: 'a'})")                 // any index into an empty array
 
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: true})") // obj value must be a valid map key
-	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: 1.5})")
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: [1]})")
 	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {0: {}})")
+
+	// a float obj *key* is still rejected -- keys index into the array, so
+	// they must be ints (the error formats the float cleanly, not a panic)
+	expectRuntimeError(t, "indexes_to_keys(['x', 'y'], {1.5: 'a'})")
 }
 
 func TestIndexesToKeysWrongArgTypes(t *testing.T) {
@@ -971,7 +1111,7 @@ func TestSort(t *testing.T) {
 	checkPrints(t,
 		`cmp = \(x, y) -> if (x < y) { -1 } elif (x > y) { 1 } else { 0 };`+
 			`println(sort([1.5, 0.5, 2.5], cmp))`,
-		"[0.500000, 1.500000, 2.500000]\n")
+		"[0.5, 1.5, 2.5]\n")
 
 	// composes with other array builtins
 	checkPrints(t, `println(sort(reverse([1, 2, 3]), \(x, y) -> x - y))`, "[1, 2, 3]\n")
@@ -1003,7 +1143,7 @@ func TestDelete(t *testing.T) {
 	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 2); println(a)", "[1, 2, 4, 5]\n")
 	check(t, "a = [1]; delete(a, 0); len(a)", tInt(0)) // delete the only element
 
-	// range form -- half-open [start, end), matching string.select()
+	// range form -- half-open [start, end), matching the range operator s[from:to]
 	check(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); len(a)", tInt(2))
 	checkPrints(t, "a = [1, 2, 3, 4, 5]; delete(a, 1, 4); println(a)", "[1, 5]\n")
 	check(t, "a = [1, 2, 3]; delete(a, 0, 3); len(a)", tInt(0)) // delete the whole array
@@ -1024,17 +1164,19 @@ func TestDeleteOnMaps(t *testing.T) {
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); len(m)", tInt(1))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); contains(m, 'a')", tBool(false))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); m['b']", tInt(2))
-	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0)) // int keys too
+	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0))     // int keys too
+	check(t, "m = {1.5: 'x'}; delete(m, 1.5); len(m)", tInt(0))     // float keys too
+	check(t, "m = {1.5: 'x', 2: 'y'}; delete(m, 1.5); m[2]", tString("y"))
 
 	// a key that was never present is not an error
 	check(t, "m = {'a': 1}; delete(m, 'missing'); len(m)", tInt(1))
 	check(t, "m = {}; delete(m, 'a'); len(m)", tInt(0))
+	check(t, "m = {1.5: 'x'}; delete(m, 2.5); len(m)", tInt(1)) // absent float key
 
 	// mutates in place and returns the same map (identity, not a copy)
 	check(t, "m = {'a': 1}; n = delete(m, 'a'); m == n", tBool(true))
 
-	// the key must be an int or a string, and the range form is array-only
-	expectRuntimeError(t, "delete({'a': 1}, 1.5)")
+	// the key must be an int, float or a string, and the range form is map-invalid
 	expectRuntimeError(t, "delete({'a': 1}, true)")
 	expectRuntimeError(t, "delete({'a': 1}, [1])")
 	expectRuntimeError(t, "delete({'a': 1}, 'a', 2)")
@@ -1311,8 +1453,9 @@ func TestStrings(t *testing.T) {
 }
 
 // The string-manipulation builtins (repeat, replace, upper, join, split,
-// select, ord, chr, format, ...) moved to the 'string' native package; their
-// tests live in internal/packages/string.
+// ord, chr, format, ...) moved to the 'string' native package; their
+// tests live in internal/packages/string. (The old string.select builtin was
+// replaced by the range operator s[from:to]; see TestRangeExpression.)
 
 func TestPostfixChainsAndMethodCalls(t *testing.T) {
 	check(t, `m = {'fn': \(x) -> x * 2}; m.fn(10)`, tInt(20))
@@ -1470,6 +1613,62 @@ func TestHelpCategoriesCoverAllDocs(t *testing.T) {
 	for name := range helpDocs {
 		if !seen[name] {
 			t.Errorf("help doc %q is not listed in any help category", name)
+		}
+	}
+}
+
+// These lean on the resolver's slot assignments -- the trickier corners where a
+// wrong depth or a reused slot would give the wrong answer.
+func TestResolvedSlots(t *testing.T) {
+	// self-recursion: the body's own name isn't bound until the assignment
+	// finishes, so it rides the by-name fallback.
+	check(t, "fact = \\(n) -> if n <= 1 { 1 } else { n * fact(n - 1) }; fact(6)", tInt(720))
+
+	// two closures built from the same literal keep independent captured state.
+	check(t, "mk = \\() -> { c = 0; \\() -> (c += 1) }; a = mk(); b = mk(); a(); a(); b(); a() * 10 + b()", tInt(32))
+
+	// a variable read three scopes up still resolves to the same slot.
+	check(t, "x = 10; f = \\() -> \\() -> \\() -> x; f()()()", tInt(10))
+
+	// assigning inside a block reuses the outer binding, it doesn't shadow it.
+	check(t, "x = 1; if true { x = 2 }; x", tInt(2))
+
+	// assigning a builtin's name binds a fresh local that shadows it.
+	check(t, "n = len([1, 2, 3]); len = 100; n + len", tInt(103))
+
+	// mutual recursion: is_odd is a forward reference when is_even is resolved.
+	check(t, "is_even = \\(x) -> if x == 0 { true } else { is_odd(x - 1) }; is_odd = \\(x) -> if x == 0 { false } else { is_even(x - 1) }; is_even(10)", tBool(true))
+}
+
+// BenchmarkArithLoop drives a nested arithmetic loop. The point of the tagged
+// union is that the int intermediates here don't allocate the way boxing them
+// into an interface did -- run with -benchmem to see allocs/op.
+func BenchmarkArithLoop(b *testing.B) {
+	src := `
+		total = 0
+		for i : 300 {
+			for j : 300 {
+				total += i * j - j + i % 7
+			}
+		}
+		total
+	`
+	l := lexer.New("", src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		b.Fatalf("lex errors: %v", l.Errors)
+	}
+	prog := parser.Parse("", toks)
+	if len(prog.Errors) > 0 {
+		b.Fatalf("parse errors: %v", prog.Errors)
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		in := newTestInterp()
+		if _, err := in.Run(prog.Stmts); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

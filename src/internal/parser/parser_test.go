@@ -181,21 +181,29 @@ func TestTildeIsUnaryOrBinaryByPosition(t *testing.T) {
 	}
 }
 
-func TestPrefixOperatorsDoNotStack(t *testing.T) {
-	// TODO: make it possible later
-	prog := parseSrc(t, "!!x")
-	if len(prog.Errors) == 0 {
-		t.Fatalf("expected a parse error for stacked prefix '!!x'")
+func TestPrefixOperatorsStack(t *testing.T) {
+	// Stacked prefix operators parse into nested UnaryExprs, right-to-left.
+	cases := []struct {
+		src string
+		op  ast.UnaryOp
+	}{
+		{"!!x", ast.NotOp},
+		{"--x", ast.MinusOp},
+		{"~~x", ast.BitNotOp},
 	}
 
-	prog = parseSrc(t, "--x")
-	if len(prog.Errors) == 0 {
-		t.Fatalf("expected a parse error for stacked prefix '--x'")
-	}
+	for _, tc := range cases {
+		prog := mustParseOK(t, tc.src)
 
-	prog = parseSrc(t, "~~x")
-	if len(prog.Errors) == 0 {
-		t.Fatalf("expected a parse error for stacked prefix '~~x'")
+		outer, ok := prog.Stmts[0].(*ast.UnaryExpr)
+		if !ok || outer.Op != tc.op {
+			t.Fatalf("%q: expected outer UnaryExpr op %v, got %#v", tc.src, tc.op, prog.Stmts[0])
+		}
+
+		inner, ok := outer.Operand.(*ast.UnaryExpr)
+		if !ok || inner.Op != tc.op {
+			t.Fatalf("%q: expected inner UnaryExpr op %v, got %#v", tc.src, tc.op, outer.Operand)
+		}
 	}
 }
 

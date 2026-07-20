@@ -6,10 +6,9 @@ type Map struct {
 	values map[MapKey]Value
 }
 
-func (*Map) Kind() Kind { return KMap }
-
 type MapKey struct {
-	Kind Kind // KInt or KString
+	Kind Kind // KInt, KFloat or KString
+	F    float64
 	I    int64
 	S    string
 }
@@ -18,6 +17,8 @@ func (mk MapKey) String() string {
 	switch mk.Kind {
 	case KInt:
 		return fmt.Sprintf("%d", mk.I)
+	case KFloat:
+		return fmt.Sprintf("%g", mk.F)
 	case KString:
 		return mk.S
 	}
@@ -26,7 +27,7 @@ func (mk MapKey) String() string {
 
 func isValidMapKeyType(kind Kind) bool {
 	switch kind {
-	case KInt, KString:
+	case KInt, KFloat, KString:
 		return true
 	}
 	return false
