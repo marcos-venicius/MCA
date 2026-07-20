@@ -98,7 +98,7 @@ func TestErrors(t *testing.T) {
 		// A path is always a file, never a package: 'crypt' the package must
 		// not answer for './crypt.mca' the file, nor shadow it.
 		{"import('./crypt.mca')", "could not open module"},
-		{"help('crypt.sha256')", "package 'crypt' has no function named 'sha256'"},
+		{"help('crypt.sha256')", "package 'crypt' has no member named 'sha256'"},
 	}
 
 	for _, tt := range tests {

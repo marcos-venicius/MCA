@@ -14,11 +14,16 @@ package interp
 // use interp's builtin-authoring API without an import cycle.
 //
 // Docs is keyed by the bare function name ("md5"), not the qualified one --
-// help() qualifies it as "crypt.md5" when it looks the entry up.
+// help() qualifies it as "crypt.md5" when it looks the entry up. ConstantDocs
+// is the same idea for Constants: keyed by the bare constant name, holding a
+// one-line explanation help() shows next to the value. Both are optional --
+// a missing entry just means help() prints the member without a gloss.
 type Module struct {
-	Name string
-	Fns  map[string]*Native
-	Docs map[string]Doc
+	Name         string
+	Fns          map[string]*Native
+	Docs         map[string]Doc
+	Constants    map[string]Value
+	ConstantDocs map[string]string
 }
 
 // nativeModules is every registered package, by the name import() takes.
@@ -45,16 +50,22 @@ func NewNative(name string, arity int, fn BuiltinFn) *Native {
 	return native(name, arity, fn)
 }
 
-// moduleValue builds the map import() returns for m.
+// moduleValue builds the map import() returns for m: its functions and its
+// constants, under their bare names.
 //
-// A fresh map every call, deliberately: maps are mutable, so a single cached
-// *Map would let one importer's `crypt.md5 = 1` reach every other importer.
-// The *Native values inside are shared and immutable, so this is one small
-// allocation per import, not a deep copy of the package.
+// The map is frozen before it is returned, because a package's members --
+// functions and constants alike -- are constants: `io.O_RDONLY = 1` or
+// `crypt.md5 = 1` is a runtime error, not a silent clobber. Freezing also
+// means the map can safely be handed out fresh per call without any importer
+// reaching another's copy. The *Native values inside are shared and immutable,
+// so this is one small allocation per import, not a deep copy of the package.
 func moduleValue(m *Module) *Map {
 	mp := NewMap()
 	for name, n := range m.Fns {
 		mp.Set(MapKey{Kind: KString, S: name}, FnValV(&FnValue{Native: n}))
+	}
+	for name, v := range m.Constants {
+		mp.Set(MapKey{Kind: KString, S: name}, v)
 	}
 	mp.Freeze()
 	return mp

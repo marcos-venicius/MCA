@@ -933,6 +933,18 @@ func (in *Interp) evalCall(e *ast.CallExpr) EvalResult {
 	}
 	fv := fnOf(calleeVal)
 
+	// help() is documentation tooling, so when its single argument is written
+	// as a bare package name or a package member (help(io), help(io.O_RDONLY)),
+	// it is resolved from the *syntax* rather than the value -- the value alone
+	// can't say which constant a plain 0 came from, or which package a map is.
+	// Anything else (help('io'), help(sort)) falls through to the value path.
+	if fv.Native != nil && fv.Native.Name == "help" && len(e.Args) == 1 {
+		if name, ok := helpTargetName(e.Args[0]); ok {
+			in.helpForName(name, e.Args[0].Pos())
+			return normal(UnitV())
+		}
+	}
+
 	return normal(in.callFn(fv, e.Pos(), calleeLabel(e.Callee), e.Args))
 }
 

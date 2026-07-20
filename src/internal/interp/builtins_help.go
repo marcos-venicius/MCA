@@ -3,6 +3,8 @@ package interp
 import (
 	"sort"
 	"strings"
+
+	"mca/internal/ast"
 )
 
 // Param is one documented parameter of a builtin. Variadic marks the
@@ -374,37 +376,79 @@ func builtinHelp(in *Interp, c *Call) Value {
 		throw(c.At(0), "expected a builtin function or its name as a string, but got a '%s'", arg.Kind())
 	}
 
+	in.helpForName(name, c.At(0))
+	return UnitV()
+}
+
+// helpTargetName reads a help() argument written as a bare package name or a
+// package member -- help(io), help(io.O_RDONLY), help(crypt.md5) -- and returns
+// the qualified name to document. It must work from the syntax, not the value:
+// io.O_RDONLY evaluates to the int 0, which no longer says where it came from,
+// and io evaluates to a fresh map with no identity. It only fires when the
+// leading identifier is a known package, so help(sort) and help(myvar) fall
+// through to the ordinary value path; ok is false in every other case.
+func helpTargetName(arg ast.Expr) (name string, ok bool) {
+	switch a := arg.(type) {
+	case *ast.Ident:
+		if _, isModule := nativeModules[a.Name]; isModule {
+			return a.Name, true
+		}
+	case *ast.DotExpr:
+		base, baseOk := a.Left.(*ast.Ident)
+		field, fieldOk := a.Index.(*ast.Ident)
+		if baseOk && fieldOk {
+			if _, isModule := nativeModules[base.Name]; isModule {
+				return base.Name + "." + field.Name, true
+			}
+		}
+	}
+	return "", false
+}
+
+// helpForName documents whatever name refers to: a package ("io"), a package
+// member ("io.O_RDONLY", "crypt.md5") or an always-there builtin ("sort"). It
+// is the shared back end of help() -- reached both from a value or string
+// argument (builtinHelp) and from a bare identifier the caller wrote
+// (help(io), resolved syntactically in evalCall). pos is blamed for any error.
+func (in *Interp) helpForName(name string, pos ast.Pos) {
 	// A package's own name documents the package; a qualified name documents
-	// one of its functions. Both are checked before helpDocs, which only ever
+	// one of its members. Both are checked before helpDocs, which only ever
 	// holds the always-there builtins.
 	if m, ok := nativeModules[name]; ok {
 		printModuleOverview(in, m)
-		return UnitV()
+		return
 	}
 
 	if modName, fnName, ok := splitQualified(name); ok {
 		m, found := nativeModules[modName]
 		if !found {
-			throw(c.At(0), "there is no package named '%s'", modName)
+			throw(pos, "there is no package named '%s'", modName)
 		}
 
-		doc, found := m.Docs[fnName]
-		if !found {
-			throw(c.At(0), "package '%s' has no function named '%s' -- run help('%s') to list what it does have", modName, fnName, modName)
+		if doc, found := m.Docs[fnName]; found {
+			printHelpEntry(in, name, doc)
+			return
 		}
 
-		printHelpEntry(in, name, doc)
-		return UnitV()
+		if cv, isConst := m.Constants[fnName]; isConst {
+			writeOut(in, name+" = ")
+			printValue(in, cv, true)
+			writeOut(in, "\n")
+			if doc, ok := m.ConstantDocs[fnName]; ok {
+				writeOut(in, "\n  "+doc+"\n")
+			}
+			return
+		}
+
+		throw(pos, "package '%s' has no member named '%s' -- run help('%s') to list what it does have", modName, fnName, modName)
 	}
 
 	doc, ok := helpDocs[name]
 	if !ok {
-		throw(c.At(0), "no help available for '%s' -- run help() to list all builtin functions", name)
+		throw(pos, "no help available for '%s' -- run help() to list all builtin functions", name)
 	}
 
 	printHelpEntry(in, name, doc)
-
-	return UnitV()
 }
 
 // printModuleOverview lists one package's functions, the way
@@ -425,6 +469,24 @@ func printModuleOverview(in *Interp, m *Module) {
 			writeOut(in, "  "+helpSignature(qualified, doc)+"\n")
 		} else {
 			writeOut(in, "  "+qualified+"\n")
+		}
+	}
+
+	if len(m.Constants) > 0 {
+		cnames := make([]string, 0, len(m.Constants))
+		for name := range m.Constants {
+			cnames = append(cnames, name)
+		}
+		sort.Strings(cnames)
+
+		writeOut(in, "\nConstants:\n")
+		for _, name := range cnames {
+			writeOut(in, "  "+m.Name+"."+name+" = ")
+			printValue(in, m.Constants[name], true)
+			if doc, ok := m.ConstantDocs[name]; ok {
+				writeOut(in, "  -- "+doc)
+			}
+			writeOut(in, "\n")
 		}
 	}
 
