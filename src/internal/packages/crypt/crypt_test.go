@@ -74,8 +74,18 @@ func TestMD5IsFirstClass(t *testing.T) {
 
 // Each import() builds its own map, so mutating one importer's view of the
 // package cannot reach another's.
-func TestImportReturnsAFreshMap(t *testing.T) {
-	checkString(t, "a = import('crypt')\na.md5 = 'clobbered'\nimport('crypt').md5('a')", "0cc175b9c0f1b6a831c399e269772661")
+// A package's members are constants: the map import() returns is frozen, so
+// assigning over a function (or any other member) is a runtime error rather
+// than a silent clobber.
+func TestPackageIsImmutable(t *testing.T) {
+	_, _, err := run(t, "a = import('crypt')\na.md5 = 'clobbered'")
+	if err == nil {
+		t.Fatal("expected a runtime error assigning to a package member, got none")
+	}
+
+	if !strings.Contains(err.Error(), "cannot modify a frozen object") {
+		t.Errorf("got error %q, want it to mention the object is frozen", err.Error())
+	}
 }
 
 func TestErrors(t *testing.T) {

@@ -61,6 +61,7 @@ func init() {
 		// Maps (text manipulation lives in the 'string' package)
 		"keys":   native("keys", 1, builtinMapKeys),
 		"values": native("values", 1, builtinMapValues),
+		"freeze": native("freeze", 1, builtinFreeze),
 
 		// Arrays
 		"indexes_to_keys": native("indexes_to_keys", 2, builtinIndexesToKeys),

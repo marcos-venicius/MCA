@@ -56,6 +56,7 @@ func moduleValue(m *Module) *Map {
 	for name, n := range m.Fns {
 		mp.Set(MapKey{Kind: KString, S: name}, FnValV(&FnValue{Native: n}))
 	}
+	mp.Freeze()
 	return mp
 }
 

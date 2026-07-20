@@ -213,6 +213,9 @@ func builtinDelete(in *Interp, c *Call) Value {
 
 	if target.Kind() == KMap {
 		m := mapOf(target)
+		if m.Frozen() {
+			throw(c.At(0), "cannot modify a frozen object")
+		}
 		if c.N() != 2 {
 			throw(c.Site, "delete on a map takes exactly one key, delete(m, key)")
 		}

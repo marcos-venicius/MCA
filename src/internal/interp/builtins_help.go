@@ -45,7 +45,7 @@ var helpCategories = []struct {
 		"as_int", "as_float", "as_bool", "as_string",
 	}},
 	{"Maps", []string{
-		"keys", "values",
+		"keys", "values", "freeze",
 	}},
 	{"Arrays", []string{
 		"concat", "contains", "map", "filter", "append", "delete", "reverse", "sort",
@@ -222,6 +222,12 @@ var helpDocs = map[string]Doc{
 		Returns:     "array",
 		Description: "A new array holding every value in m. Iteration order isn't guaranteed and is randomized independently on every call -- see keys().",
 		Examples:    []string{`m = {'a': 1, 'b': 2}; values(m)  ->  [1, 2]  (order not guaranteed)`},
+	},
+	"freeze": {
+		Params:      []Param{p("m", "map")},
+		Returns:     "map",
+		Description: "Marks m immutable and returns it. The freeze is in place -- the argument and the returned value are the same map -- so afterwards any assignment or delete against it (m.k = v, m[k] = v, delete(m, k)) raises 'cannot modify a frozen object'. This is the same read-only mechanism native packages use for their members; freeze exposes it so a module written in MCA can make its own map constant.",
+		Examples:    []string{`m = freeze({'pi': 3.14}); m.pi = 3  ->  runtime error: cannot modify a frozen object`},
 	},
 	// ---- Arrays ----
 

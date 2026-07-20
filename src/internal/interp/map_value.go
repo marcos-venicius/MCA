@@ -4,6 +4,7 @@ import "fmt"
 
 type Map struct {
 	values map[MapKey]Value
+	frozen bool
 }
 
 type MapKey struct {
@@ -45,6 +46,16 @@ func (m *Map) Get(k MapKey) (Value, bool) {
 func (m *Map) Set(k MapKey, v Value) {
 	m.values[k] = v
 }
+
+// Freeze marks m immutable to user code: the interpreter's assignment and
+// delete paths refuse to mutate a frozen map. It is one-way and guards only
+// those user-facing paths -- internal construction via Set is unaffected, so a
+// map is fully built first and frozen last. Used for native package maps,
+// whose members (functions and constants alike) are read-only.
+func (m *Map) Freeze() { m.frozen = true }
+
+// Frozen reports whether Freeze has been called on m.
+func (m *Map) Frozen() bool { return m.frozen }
 
 func (m *Map) Del(k MapKey) bool {
 	if _, exists := m.values[k]; !exists {

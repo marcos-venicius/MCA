@@ -184,6 +184,9 @@ func (in *Interp) storeSquareAssign(e *ast.AssignExpr, left *ast.SquareExpr, rig
 	switch leftVal.Kind() {
 	case KMap:
 		m := mapOf(leftVal)
+		if m.Frozen() {
+			throw(left.Pos(), "cannot modify a frozen object")
+		}
 		expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
 		idxVal := expectKind(left.Index, in.Eval(left.Index).Value, KInt, KFloat, KString)
@@ -215,6 +218,9 @@ func (in *Interp) storeDotAssign(e *ast.AssignExpr, left *ast.DotExpr, rightVal 
 	leftVal := expectKind(left.Left, in.Eval(left.Left).Value, KMap)
 
 	lv := mapOf(leftVal)
+	if lv.Frozen() {
+		throw(left.Pos(), "cannot modify a frozen object")
+	}
 
 	expectKind(e.Right, rightVal, KString, KInt, KBool, KFloat, KFn, KMap, KArray, KUnit)
 
