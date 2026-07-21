@@ -245,6 +245,12 @@ type BreakExpr struct {
 	Value Expr // nil if bare `break`/`break;`
 }
 
+// ContinueExpr is a bare `continue`: it never carries a value, since it only
+// skips to the next iteration of the enclosing loop rather than ending it.
+type ContinueExpr struct {
+	Base
+}
+
 type ReturnExpr struct {
 	Base
 	Value Expr // nil if bare `return`/`return;`

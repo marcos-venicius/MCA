@@ -463,6 +463,16 @@ func (p *parser) parseBreakExpr() ast.Expr {
 	return &ast.BreakExpr{Base: ast.NewBase(p.posOf(firstTok)), Value: value}
 }
 
+// parseContinueExpr parses a bare `continue`. Unlike break, continue never
+// takes a value, so there is nothing to parse after the keyword and no `;` is
+// needed to tell a valueless form apart from a valued one.
+func (p *parser) parseContinueExpr() ast.Expr {
+	tok := p.cur()
+	p.next() // jump 'continue'
+
+	return &ast.ContinueExpr{Base: ast.NewBase(p.posOf(tok))}
+}
+
 func (p *parser) parseReturnExpr() ast.Expr {
 	firstTok := p.cur()
 
@@ -843,6 +853,8 @@ func (p *parser) parsePrimaryExpr() ast.Expr {
 			return p.parseForExpr()
 		case "break":
 			return p.parseBreakExpr()
+		case "continue":
+			return p.parseContinueExpr()
 		case "return":
 			return p.parseReturnExpr()
 		case "if":

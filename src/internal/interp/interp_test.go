@@ -440,6 +440,21 @@ func TestForLoopBreakIsFixed(t *testing.T) {
 	check(t, "r = for i : 10 { if i == 3 { break 99 } }; r", tInt(99))
 }
 
+func TestContinue(t *testing.T) {
+	// for-range: continue skips the body for i == 2, so the sum omits it.
+	check(t, "s = 0; for i : 5 { if i == 2 continue; s = s + i }; s", tInt(8))
+	// while: continue jumps back to the condition without ending the loop.
+	check(t, "s = 0; n = 0; while n < 5 { n = n + 1; if n == 3 continue; s = s + n }; s", tInt(12))
+	// for-of over an array skips one element.
+	check(t, "s = 0; for _, v : [1, 2, 3, 4] { if v == 3 continue; s = s + v }; s", tInt(7))
+	// continue and break coexist: break still ends the loop.
+	check(t, "s = 0; for i : 10 { if i == 1 continue; if i == 4 break; s = s + i }; s", tInt(5))
+}
+
+func TestContinueOutsideLoopIsRuntimeError(t *testing.T) {
+	expectRuntimeError(t, "continue")
+}
+
 func TestIfs(t *testing.T) {
 	check(t, "x = 10; if x == 10 { x = 11.3 }", tFloat(11.3))
 	check(t, "if 0 == 0;", tUnit())

@@ -10,12 +10,13 @@ import (
 )
 
 // ControlFlow tags how an evaluation completed: falling through normally,
-// or unwinding because of a break or return (later add `continue`).
+// or unwinding because of a break, continue or return.
 type ControlFlow int
 
 const (
 	FlowNormal ControlFlow = iota
 	FlowBreak
+	FlowContinue
 	FlowReturn
 )
 
@@ -164,6 +165,9 @@ func (in *Interp) runStatements(stmts []ast.Expr) Value {
 		if r.Flow == FlowBreak {
 			throw(stmt.Pos(), "cannot use 'break' outside of a loop")
 		}
+		if r.Flow == FlowContinue {
+			throw(stmt.Pos(), "cannot use 'continue' outside of a loop")
+		}
 		if r.Flow == FlowReturn {
 			throw(stmt.Pos(), "cannot use 'return' outside of a function")
 		}
@@ -216,6 +220,8 @@ func (in *Interp) Eval(e ast.Expr) EvalResult {
 		return in.evalForRange(node)
 	case *ast.BreakExpr:
 		return in.evalBreak(node)
+	case *ast.ContinueExpr:
+		return in.evalContinue(node)
 	case *ast.ReturnExpr:
 		return in.evalReturn(node)
 	case *ast.ArrayExpr:
@@ -809,6 +815,9 @@ func (in *Interp) evalWhile(e *ast.WhileExpr) EvalResult {
 				last = normal(last.Value)
 				break
 			}
+			if last.Flow == FlowContinue {
+				last = normal(last.Value)
+			}
 		}
 	}
 
@@ -864,6 +873,9 @@ func (in *Interp) runForRange(e *ast.ForRangeExpr, from, to, by int64) EvalResul
 			last = normal(last.Value)
 			break
 		}
+		if last.Flow == FlowContinue {
+			last = normal(last.Value)
+		}
 	}
 
 	return last
@@ -882,6 +894,13 @@ func (in *Interp) evalBreak(e *ast.BreakExpr) EvalResult {
 		return EvalResult{Value: r.Value, Flow: FlowBreak}
 	}
 	return EvalResult{Value: UnitV(), Flow: FlowBreak}
+}
+
+// evalContinue unwinds to the enclosing loop, which resets the flow to normal
+// and moves on to the next iteration. It carries no value -- continue only
+// skips ahead, it never decides the loop's result the way break can.
+func (in *Interp) evalContinue(e *ast.ContinueExpr) EvalResult {
+	return EvalResult{Value: UnitV(), Flow: FlowContinue}
 }
 
 func (in *Interp) evalReturn(e *ast.ReturnExpr) EvalResult {

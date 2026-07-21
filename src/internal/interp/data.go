@@ -271,6 +271,10 @@ func (in *Interp) forOfLoopStep(body []ast.Expr, keyIdent, valIdent *ast.Ident, 
 		*last = normal(last.Value)
 		return true
 	}
+	if last.Flow == FlowContinue {
+		*last = normal(last.Value)
+		return false
+	}
 
 	return false
 }

@@ -213,6 +213,9 @@ func (r *Resolver) resolve(e ast.Expr) {
 	case *ast.BreakExpr:
 		r.resolve(node.Value)
 
+	case *ast.ContinueExpr:
+		// A bare `continue` carries no sub-expression -- nothing to resolve.
+
 	case *ast.ReturnExpr:
 		r.resolve(node.Value)
 

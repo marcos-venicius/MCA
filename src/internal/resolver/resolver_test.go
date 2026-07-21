@@ -96,6 +96,8 @@ func collectIdents(t *testing.T, stmts []ast.Expr) []*ast.Ident {
 			}
 		case *ast.BreakExpr:
 			walk(n.Value)
+		case *ast.ContinueExpr:
+			// no sub-expressions to walk
 		case *ast.ReturnExpr:
 			walk(n.Value)
 		default:

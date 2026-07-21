@@ -421,6 +421,19 @@ func TestMapKeyWithoutSeparatorIsAParseError(t *testing.T) {
 	}
 }
 
+func TestContinueParsesAsBareKeyword(t *testing.T) {
+	// continue never takes a value, so it parses on its own with no `;` needed
+	// and the following statement stays separate.
+	prog := mustParseOK(t, "for i : 3 { continue }")
+	f := prog.Stmts[0].(*ast.ForRangeExpr)
+	if len(f.Body) != 1 {
+		t.Fatalf("expected single-statement body, got %d", len(f.Body))
+	}
+	if _, ok := f.Body[0].(*ast.ContinueExpr); !ok {
+		t.Fatalf("expected body to be a *ast.ContinueExpr, got %T", f.Body[0])
+	}
+}
+
 func TestBlockAcceptsBareInlineOrBraced(t *testing.T) {
 	prog := mustParseOK(t, "while true break;")
 	w := prog.Stmts[0].(*ast.WhileExpr)
