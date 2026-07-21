@@ -5,6 +5,7 @@ package io
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 
 	"mca/internal/interp"
@@ -28,6 +29,7 @@ func init() {
 		Name: "io",
 		Fns: map[string]*interp.Native{
 			"read_entire_file": interp.NewNative("io.read_entire_file", 1, readEntireFile),
+			"abspath":          interp.NewNative("io.abspath", 1, absPath),
 			"open":             interp.NewNative("io.open", 3, openFile),
 			"write":            interp.NewNative("io.write", 2, writeFile),
 			"close":            interp.NewNative("io.close", 1, closeFile),
@@ -96,6 +98,12 @@ func init() {
 				Description: "Reads the whole contents of the file at path and returns it as a string. path resolves exactly like import()'s: a path starting with '.' is relative to the calling file's own directory, anything else is used as given. Throws a runtime error if the file cannot be read.",
 				Examples:    []string{`io.read_entire_file('./data.txt')`},
 			},
+			"abspath": {
+				Params:      []interp.Param{{Name: "path", Type: "string"}},
+				Returns:     "string",
+				Description: "Returns the absolute path of the file or folder at path, without requiring it to exist. path resolves exactly like import()'s: a path starting with '.' is relative to the calling file's own directory, anything else is taken as given and, when relative, resolved against the working directory. The result is cleaned (no '.', '..' or repeated separators). Throws a runtime error if the absolute path cannot be determined.",
+				Examples:    []string{`io.abspath('./data.txt')`},
+			},
 			"open": {
 				Params:      []interp.Param{{Name: "path", Type: "string"}, {Name: "flags", Type: "int"}, {Name: "mode", Type: "int"}},
 				Returns:     "int",
@@ -127,6 +135,22 @@ func readEntireFile(in *interp.Interp, c *interp.Call) interp.Value {
 	}
 
 	return interp.StringV(string(content))
+}
+
+// absPath resolves the path argument through the shared import()-style rules
+// and then guarantees an absolute, cleaned result. ResolvePath already returns
+// an absolute path for a '.'-prefixed path; for any other relative path it
+// returns it unchanged, so filepath.Abs does the final work against the working
+// directory. The file need not exist -- this is pure path arithmetic.
+func absPath(in *interp.Interp, c *interp.Call) interp.Value {
+	path := c.ResolvePath(c.StringArg(0))
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		interp.Throw(c.Site, "could not resolve absolute path of '%s': %s", path, err)
+	}
+
+	return interp.StringV(abs)
 }
 
 func openFile(in *interp.Interp, c *interp.Call) interp.Value {

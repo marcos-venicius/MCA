@@ -1,8 +1,7 @@
 // Package resolver is a static pass that runs between parsing and evaluation.
 // It walks the AST once and records, on every Ident, where the variable lives:
 // how many scopes to climb (Depth) and which slot within that scope
-// (FrameIndex). The runtime doesn't use these yet -- this pass only annotates
-// the tree so a later change can swap the by-name Env lookups for slot access.
+// (FrameIndex).
 //
 // The scope structure here mirrors the interpreter exactly: a scope is pushed
 // wherever the interpreter would push one (function bodies, if/while/for

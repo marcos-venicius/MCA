@@ -1,0 +1,67 @@
+#!/usr/local/bin/mca
+
+const TARGET_FILE = './io.mca.temp'
+const string = import('string')
+
+const is_numeric = \(s) -> (for _, c : s  if !contains('0123456789', c) break false) == ?
+const pad_left   = \(s, by) -> {
+  const out = []
+
+  for _ : max(0, by - len(s)) append(out, '0')
+
+  append(out, s)
+
+  string.join(out, '')
+}
+
+const usage = \(error) -> {
+  println('usage:', argv(0), '<width> <height>')
+
+  if error println('error:', error)
+}
+
+if argc() != 3 {
+  usage('please specify width and height of the table')
+  exit(1)
+}
+
+width  = argv(1)
+height = argv(2)
+
+if !is_numeric(width) {
+  usage('width must be a valid positive integer')
+  exit(1)
+}
+
+if !is_numeric(height) {
+  usage('height must be a valid positive integer')
+  exit(1)
+}
+
+const WIDTH  = as_int(width)
+const HEIGHT = as_int(height)
+const PAD    = len(width)
+
+const io = import('io')
+
+const file = io.open(TARGET_FILE, io.O_CREATE | io.O_WRONLY, io.S_IWUSR | io.S_IRUSR)
+
+for y : HEIGHT {
+  for x : WIDTH {
+    if x > 0 io.write(file, ', ')
+
+    io.write(file, pad_left(as_string(x), PAD))
+  }
+
+  io.write(file, '\n')
+}
+
+io.close(file)
+
+const result = io.read_entire_file(TARGET_FILE)
+
+print(result)
+
+print('FILE(', io.abspath(TARGET_FILE), ')\n') # do not remove or edit this line. It's necessary so the makefile can remove the file later
+
+# vim: set syntax=r :

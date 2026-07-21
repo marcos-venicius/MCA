@@ -56,6 +56,40 @@ func TestPathResolvesRelativeToCallingFile(t *testing.T) {
 	}
 }
 
+// A '.'-prefixed path resolves relative to the calling file's own directory,
+// so io.abspath returns that directory joined with the path -- not the working
+// directory -- and the target need not exist.
+func TestAbsPathResolvesRelativeToCallingFile(t *testing.T) {
+	dir := t.TempDir()
+
+	src := "import('io').abspath('./does_not_exist.txt')"
+	if err := os.WriteFile(dir+"/main.mca", []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	l := lexer.New(dir+"/main.mca", src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		t.Fatalf("lex errors: %v", l.Errors)
+	}
+
+	prog := parser.Parse(dir+"/main.mca", toks)
+	if len(prog.Errors) > 0 {
+		t.Fatalf("parse errors: %v", prog.Errors)
+	}
+
+	in := interp.New()
+	got, err := in.Run(prog.Stmts)
+	if err != nil {
+		t.Fatalf("unexpected runtime error: %v", err)
+	}
+
+	want := dir + "/does_not_exist.txt"
+	if got.Kind() != interp.KString || interp.AsString(got) != want {
+		t.Fatalf("abspath result = %+v, want %q", got, want)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	pkgtest.ExpectError(t, "import('io').read_entire_file('no_such_file.txt')", "could not read file")
 	pkgtest.ExpectError(t, "import('io').read_entire_file(123)", "unexpected data type")

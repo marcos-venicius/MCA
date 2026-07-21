@@ -2,6 +2,7 @@
 	cd src && go build -o ../bin/mca cmd/mca/main.go 
 
 exec_examples:
+	out=$$(./bin/mca ./examples/io.mca 20 20); echo "$$out" | grep -v "FILE(.*)"; echo $$out | grep -Po "(?<=FILE\().*(?=\))" | xargs rm
 	./examples/empty.mca
 	./examples/exiting-the-program.mca || :
 	./examples/fib.mca
