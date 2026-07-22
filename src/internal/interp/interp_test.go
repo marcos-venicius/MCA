@@ -191,16 +191,16 @@ func TestUnaryOperators(t *testing.T) {
 	check(t, "(-4)!", tFloat(math.NaN()))
 
 	// prefix operators chain right-to-left, no parens needed
-	check(t, "--1", tInt(1))       // -(-1)
-	check(t, "---5", tInt(-5))     // -(-(-5))
-	check(t, "- -5", tInt(5))      // whitespace between doesn't matter
+	check(t, "--1", tInt(1))          // -(-1)
+	check(t, "---5", tInt(-5))        // -(-(-5))
+	check(t, "- -5", tInt(5))         // whitespace between doesn't matter
 	check(t, "!!false", tBool(false)) // !(!false)
 	check(t, "!!true", tBool(true))
 	check(t, "!!!false", tBool(true))
-	check(t, "~~5", tInt(5))       // ~(~5)
-	check(t, "!-1", tBool(false))  // !(-1): -1 is truthy
-	check(t, "-~0", tInt(1))       // -(~0) = -(-1)
-	check(t, "--4!", tInt(24))     // factorial still binds tighter: -(-(4!))
+	check(t, "~~5", tInt(5))      // ~(~5)
+	check(t, "!-1", tBool(false)) // !(-1): -1 is truthy
+	check(t, "-~0", tInt(1))      // -(~0) = -(-1)
+	check(t, "--4!", tInt(24))    // factorial still binds tighter: -(-(4!))
 }
 
 func TestCombinations(t *testing.T) {
@@ -630,8 +630,8 @@ func TestTypeCasting(t *testing.T) {
 	check(t, "as_string(-120)", tString("-120"))
 	check(t, "as_string(120.234)", tString("120.234"))
 	check(t, "as_string(-120.234)", tString("-120.234"))
-	check(t, "as_string(1.32)", tString("1.32"))  // exact value, no trailing zeros
-	check(t, "as_string(1.0)", tString("1.0"))    // a whole float keeps its ".0"
+	check(t, "as_string(1.32)", tString("1.32")) // exact value, no trailing zeros
+	check(t, "as_string(1.0)", tString("1.0"))   // a whole float keeps its ".0"
 	check(t, "as_string(0.5)", tString("0.5"))
 }
 
@@ -641,7 +641,7 @@ func TestTypeCasting(t *testing.T) {
 func TestFloatFormatting(t *testing.T) {
 	// print path matches as_string
 	checkPrints(t, "println(1.32)", "1.32\n")
-	checkPrints(t, "println(1.0)", "1.0\n")   // whole float keeps ".0"
+	checkPrints(t, "println(1.0)", "1.0\n") // whole float keeps ".0"
 	checkPrints(t, "println(67.56)", "67.56\n")
 	checkPrints(t, "print(3.14, 2.71)", "3.142.71") // print doesn't pad either
 
@@ -1009,28 +1009,28 @@ func TestRangeExpression(t *testing.T) {
 	// strings
 	check(t, "'Hello, World'[7:12]", tString("World"))
 	check(t, "'heyhey'[0:6]", tString("heyhey")) // whole string
-	check(t, "'heyhey'[2:3]", tString("y"))       // single char
+	check(t, "'heyhey'[2:3]", tString("y"))      // single char
 	check(t, "'heyhey'[3:6]", tString("hey"))
 	check(t, "s = 'Hello, World'; s[7:len(s)]", tString("World")) // computed 'to' up to length
-	check(t, "'hey'[1:1]", tString(""))                            // from == to yields empty
+	check(t, "'hey'[1:1]", tString(""))                           // from == to yields empty
 
 	// arrays -- check contents via println to avoid immediate index chaining
 	checkPrints(t, "println([1, 2, 3, 4, 5][2:4])", "[3, 4]\n")
 	checkPrints(t, "a = [1, 2, 3, 4, 5]; println(a[0:len(a)])", "[1, 2, 3, 4, 5]\n") // whole array
-	checkPrints(t, "a = [1, 2, 3]; println(a[1:1])", "[]\n")                          // empty slice
+	checkPrints(t, "a = [1, 2, 3]; println(a[1:1])", "[]\n")                         // empty slice
 	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; len(b)", tInt(2))
 	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[0]", tInt(3))
 	check(t, "a = [1, 2, 3, 4, 5]; b = a[2:4]; b[1]", tInt(4))
 
 	// a range is a postfix operator like [i]/.field/(...), so it chains: the
 	// result can be immediately indexed, sliced again, dotted, or called.
-	check(t, "a = [1, 2, 3, 4, 5]; a[2:4][0]", tInt(3))               // range then index
-	check(t, "'hello'[0:3][0]", tString("h"))                         // range then index on a string
-	check(t, "a = [1, 2, 3, 4, 5]; a[1:5][0:2][1]", tInt(3))          // range then range then index
+	check(t, "a = [1, 2, 3, 4, 5]; a[2:4][0]", tInt(3))                      // range then index
+	check(t, "'hello'[0:3][0]", tString("h"))                                // range then index on a string
+	check(t, "a = [1, 2, 3, 4, 5]; a[1:5][0:2][1]", tInt(3))                 // range then range then index
 	check(t, "m = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]; m[0:3][0][1]", tInt(2)) // slice rows, then [row][col]
-	check(t, "a = [{'k': 42}]; a[0:1][0].k", tInt(42))                // range then index then dot
-	check(t, "a = [\\(x) -> x + 1]; a[0:1][0](41)", tInt(42))         // range then index then call
-	expectRuntimeError(t, "a = [1, 2, 3, 4, 5]; a[2:4][5]")           // chained index is a real bounds check now
+	check(t, "a = [{'k': 42}]; a[0:1][0].k", tInt(42))                       // range then index then dot
+	check(t, "a = [\\(x) -> x + 1]; a[0:1][0](41)", tInt(42))                // range then index then call
+	expectRuntimeError(t, "a = [1, 2, 3, 4, 5]; a[2:4][5]")                  // chained index is a real bounds check now
 
 	// an array slice is a fresh top-level array -- mutating or appending to it
 	// never writes through to the source, and vice versa
@@ -1042,11 +1042,11 @@ func TestRangeExpression(t *testing.T) {
 	check(t, "m = [[1, 2, 3], [4, 5, 6]]; s = m[0:2]; s[0][0] = 99; m[0][0]", tInt(99))
 
 	// out-of-range / inverted bounds are runtime errors, on both kinds
-	expectRuntimeError(t, "'hey'[-1:2]")  // from negative
-	expectRuntimeError(t, "'hey'[0:4]")   // to past length
-	expectRuntimeError(t, "'hey'[2:1]")   // from > to
-	expectRuntimeError(t, "'hey'[3:3]")   // from == length (from must be < length)
-	expectRuntimeError(t, "''[0:0]")      // empty base has no valid range
+	expectRuntimeError(t, "'hey'[-1:2]") // from negative
+	expectRuntimeError(t, "'hey'[0:4]")  // to past length
+	expectRuntimeError(t, "'hey'[2:1]")  // from > to
+	expectRuntimeError(t, "'hey'[3:3]")  // from == length (from must be < length)
+	expectRuntimeError(t, "''[0:0]")     // empty base has no valid range
 	expectRuntimeError(t, "a = [1, 2, 3]; a[-1:2]")
 	expectRuntimeError(t, "a = [1, 2, 3]; a[0:4]")
 	expectRuntimeError(t, "a = [1, 2, 3]; a[2:1]")
@@ -1181,8 +1181,8 @@ func TestDeleteOnMaps(t *testing.T) {
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); len(m)", tInt(1))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); contains(m, 'a')", tBool(false))
 	check(t, "m = {'a': 1, 'b': 2}; delete(m, 'a'); m['b']", tInt(2))
-	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0))     // int keys too
-	check(t, "m = {1.5: 'x'}; delete(m, 1.5); len(m)", tInt(0))     // float keys too
+	check(t, "m = {7: 'seven'}; delete(m, 7); len(m)", tInt(0)) // int keys too
+	check(t, "m = {1.5: 'x'}; delete(m, 1.5); len(m)", tInt(0)) // float keys too
 	check(t, "m = {1.5: 'x', 2: 'y'}; delete(m, 1.5); m[2]", tString("y"))
 
 	// a key that was never present is not an error
@@ -1722,6 +1722,79 @@ func writeModule(t *testing.T, dir, name string, n int) {
 
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(strconv.Itoa(n)), 0o644); err != nil {
 		t.Fatalf("write module %s/%s: %v", dir, name, err)
+	}
+}
+
+// interp's own tests can't blank-import the native packages (import cycle), so
+// nativeModules starts empty here. This registers one throwaway package so the
+// package/qualified-member help paths have something to document. RegisterModule
+// panics on a duplicate name, so the name must stay unique to this file.
+func init() {
+	RegisterModule(&Module{
+		Name: "helptestpkg",
+		Fns: map[string]*Native{
+			"ping": NewNative("helptestpkg.ping", 0, func(in *Interp, c *Call) Value { return UnitV() }),
+		},
+		Docs: map[string]Doc{
+			"ping": {Returns: "unit", Description: "A test-only function.", Examples: []string{"helptestpkg.ping()"}},
+		},
+	})
+}
+
+func helpOutput(t *testing.T, name string) string {
+	t.Helper()
+
+	var buf bytes.Buffer
+	in := New()
+	in.Out = &buf
+	in.Err = io.Discard
+
+	if err := in.Help(name); err != nil {
+		t.Fatalf("Help(%q) returned error: %v", name, err)
+	}
+	return buf.String()
+}
+
+func TestHelpOverviewNoName(t *testing.T) {
+	out := helpOutput(t, "")
+	// the overview lists the builtin categories and the importable packages.
+	for _, want := range []string{"MCA builtin functions", "Packages", "helptestpkg"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("Help(\"\") output missing %q; got:\n%s", want, out)
+		}
+	}
+}
+
+func TestHelpNameDocumentsBuiltinPackageAndMember(t *testing.T) {
+	cases := []struct {
+		name string
+		want string
+	}{
+		{"sort", "sort(arr: array, cmp: fn)"},         // an always-there builtin
+		{"helptestpkg", "package 'helptestpkg'"},      // a whole package
+		{"helptestpkg.ping", "A test-only function."}, // a qualified member
+	}
+
+	for _, c := range cases {
+		if got := helpOutput(t, c.name); !strings.Contains(got, c.want) {
+			t.Fatalf("Help(%q): output missing %q; got:\n%s", c.name, c.want, got)
+		}
+	}
+}
+
+func TestHelpUnknownNameErrorsWithoutPositionPrefix(t *testing.T) {
+	in := New()
+	in.Out = io.Discard
+	in.Err = io.Discard
+
+	err := in.Help("definitely_not_a_builtin")
+	if err == nil {
+		t.Fatalf("Help(unknown): expected an error, got nil")
+	}
+	// the CLI prints this straight, so it must not carry a "0:0: runtime error:"
+	// source-position prefix -- there is no source to blame.
+	if msg := err.Error(); strings.Contains(msg, "runtime error") || strings.Contains(msg, "0:0") {
+		t.Fatalf("Help(unknown): error should have no position prefix, got %q", msg)
 	}
 }
 

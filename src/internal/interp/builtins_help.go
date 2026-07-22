@@ -1,6 +1,7 @@
 package interp
 
 import (
+	"errors"
 	"sort"
 	"strings"
 
@@ -346,6 +347,34 @@ func dtDoc(name, field, returns string) Doc {
 		Description: field + ", as of (now + offset_hours hours). Pass 0 for the current value.",
 		Examples:    []string{name + "(0)  -- current " + field},
 	}
+}
+
+// Help writes documentation to the interpreter's Out, without running any
+// program -- the programmatic entry point behind help(), exposed so a host
+// (the CLI's --help-packages flag) can render the same reference. An empty
+// name prints the general overview, exactly like help() with no arguments; a
+// non-empty name documents that builtin, package, or qualified member
+// ("sort", "math", "math.sqrt"), exactly like help('name'). A name with no
+// documentation is returned as an error carrying just the explanation, with no
+// position prefix (there is no source location to blame).
+func (in *Interp) Help(name string) (err error) {
+	if name == "" {
+		printHelpOverview(in)
+		return nil
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			if re, ok := r.(*RuntimeError); ok {
+				err = errors.New(re.Message)
+				return
+			}
+			panic(r)
+		}
+	}()
+
+	in.helpForName(name, ast.Pos{})
+	return nil
 }
 
 // builtinHelp documents a builtin named either by the function itself --

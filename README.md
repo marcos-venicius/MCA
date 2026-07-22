@@ -458,4 +458,18 @@ go run ./cmd/mca <file> [argv...]
 ./bin/mca <file> [argv...]
 
     -h                  show this help
+    --help-packages [name]
+                        print library documentation and exit -- the same
+                        reference as the in-language help() builtin, straight
+                        from the command line. With no name it prints the
+                        general overview (every builtin category and the
+                        importable packages); with a name it documents a single
+                        builtin, package, or member.
+```
+
+```bash
+./bin/mca --help-packages              # general overview
+./bin/mca --help-packages math         # a whole package
+./bin/mca --help-packages math.sqrt    # one package function
+./bin/mca --help-packages sort         # an always-there builtin
 ```

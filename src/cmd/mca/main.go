@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"mca/internal/interp"
 	"mca/internal/lexer"
@@ -17,9 +18,26 @@ const version string = "0.1.0-go"
 func usage(w *os.File, programName string) {
 	fmt.Fprintf(w, "USAGE: %s <file> [argv]\n\n", programName)
 	fmt.Fprintf(w, "    -h                  show this help\n")
+	fmt.Fprintf(w, "    --help-packages [name]\n")
+	fmt.Fprintf(w, "                        print library documentation and exit: no name\n")
+	fmt.Fprintf(w, "                        gives the general overview, a name documents one\n")
+	fmt.Fprintf(w, "                        builtin, package, or member (e.g. 'math.sqrt')\n")
 	fmt.Fprintf(w, "\n")
 	fmt.Fprintf(w, "version: %s", version)
 	fmt.Fprintf(w, "\n\n")
+}
+
+// helpPackages renders the standard-library documentation (the same content as
+// the in-language help() builtin) straight to stdout, then reports the exit
+// code. An empty name prints the general overview; a non-empty one documents a
+// single builtin, package, or qualified member.
+func helpPackages(name string) int {
+	in := interp.New()
+	if err := in.Help(name); err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return 1
+	}
+	return 0
 }
 
 func main() {
@@ -33,10 +51,24 @@ func run() int {
 	var inputFileName string
 	var progArgs []string
 
-	for _, arg := range rest {
+	for i := range len(rest) {
+		arg := rest[i]
+
 		if arg == "-h" {
 			usage(os.Stdout, programName)
 			return 0
+		}
+
+		// --help-packages is a terminal action: it documents the standard
+		// library and exits, never running a program. The name it documents may
+		// be attached with '=' (--help-packages=math) or passed as the next
+		// token (--help-packages math); with neither, it prints the overview.
+		if flagVal, isFlag := strings.CutPrefix(arg, "--help-packages"); isFlag && (flagVal == "" || flagVal[0] == '=') {
+			name := strings.TrimPrefix(flagVal, "=")
+			if name == "" && i+1 < len(rest) && !strings.HasPrefix(rest[i+1], "-") {
+				name = rest[i+1]
+			}
+			return helpPackages(name)
 		}
 
 		if inputFileName == "" {
