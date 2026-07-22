@@ -748,6 +748,8 @@ func (p *parser) parseStringLiteral() ast.Expr {
 				out = append(out, '\'')
 			case 'n':
 				out = append(out, '\n')
+			case 'r':
+				out = append(out, '\r')
 			case '\\':
 				out = append(out, '\\')
 			default:

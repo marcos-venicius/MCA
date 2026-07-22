@@ -197,7 +197,7 @@ func (l *Lexer) tokenizeString() {
 
 		if l.chr() == '\\' {
 			switch l.nchr() {
-			case '\\', '\'', 'n':
+			case '\\', '\'', 'n', 'r':
 				l.advance()
 			default:
 				l.errorf("invalid scaping sequence '\\%c'", l.nchr())

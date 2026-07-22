@@ -72,6 +72,18 @@ func TestStringLiteralAndEscapes(t *testing.T) {
 	if toks[0].Value != `a\nb\'c\\d` {
 		t.Fatalf("raw escape value mismatch: got %q", toks[0].Value)
 	}
+
+	// the lexer keeps escapes raw; \r is a valid escape and must not error.
+	toks = eqKinds(t, `'a\rb'`, []TokenKind{String})
+	if toks[0].Value != `a\rb` {
+		t.Fatalf("raw \\r escape value mismatch: got %q", toks[0].Value)
+	}
+
+	// \r sitting next to the other escapes stays raw too.
+	toks = eqKinds(t, `'\r\n'`, []TokenKind{String})
+	if toks[0].Value != `\r\n` {
+		t.Fatalf("raw \\r\\n escape value mismatch: got %q", toks[0].Value)
+	}
 }
 
 func TestInvalidEscapeIsError(t *testing.T) {

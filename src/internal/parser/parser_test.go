@@ -434,6 +434,31 @@ func TestContinueParsesAsBareKeyword(t *testing.T) {
 	}
 }
 
+func TestStringEscapesDecode(t *testing.T) {
+	// the parser is where raw escapes become their real bytes.
+	cases := []struct {
+		src  string
+		want string
+	}{
+		{`'a\rb'`, "a\rb"},
+		{`'\r'`, "\r"},
+		{`'\r\n'`, "\r\n"},
+		{`'line1\r\nline2'`, "line1\r\nline2"},
+		{`'a\nb\'c\\d'`, "a\nb'c\\d"},
+	}
+
+	for _, c := range cases {
+		prog := mustParseOK(t, c.src)
+		lit, ok := prog.Stmts[0].(*ast.StringLit)
+		if !ok {
+			t.Fatalf("parse(%q): expected *ast.StringLit, got %T", c.src, prog.Stmts[0])
+		}
+		if lit.Value != c.want {
+			t.Fatalf("parse(%q): decoded value = %q, want %q", c.src, lit.Value, c.want)
+		}
+	}
+}
+
 func TestBlockAcceptsBareInlineOrBraced(t *testing.T) {
 	prog := mustParseOK(t, "while true break;")
 	w := prog.Stmts[0].(*ast.WhileExpr)
