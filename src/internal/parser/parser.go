@@ -734,9 +734,9 @@ func (p *parser) parseIfExpr() ast.Expr {
 func (p *parser) parseStringLiteral() ast.Expr {
 	tok := p.cur()
 
-	// decode the limited escape set (\\ \' \n); the lexer already rejected
-	// any other escape sequence, so this default branch is unreachable in
-	// practice. TODO: add more escaping sequences
+	// decode the C-style escape set (\\ \' \n \r \t \0 \b \f \v \a); the lexer
+	// already rejected any other escape sequence, so this default branch is
+	// unreachable in practice.
 	var out []byte
 	raw := tok.Value
 
@@ -750,6 +750,18 @@ func (p *parser) parseStringLiteral() ast.Expr {
 				out = append(out, '\n')
 			case 'r':
 				out = append(out, '\r')
+			case 't':
+				out = append(out, '\t')
+			case '0':
+				out = append(out, 0)
+			case 'b':
+				out = append(out, '\b')
+			case 'f':
+				out = append(out, '\f')
+			case 'v':
+				out = append(out, '\v')
+			case 'a':
+				out = append(out, '\a')
 			case '\\':
 				out = append(out, '\\')
 			default:

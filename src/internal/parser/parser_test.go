@@ -445,6 +445,13 @@ func TestStringEscapesDecode(t *testing.T) {
 		{`'\r\n'`, "\r\n"},
 		{`'line1\r\nline2'`, "line1\r\nline2"},
 		{`'a\nb\'c\\d'`, "a\nb'c\\d"},
+		{`'\t'`, "\t"},
+		{`'\0'`, "\x00"},
+		{`'\b'`, "\b"},
+		{`'\f'`, "\f"},
+		{`'\v'`, "\v"},
+		{`'\a'`, "\a"},
+		{`'col1\tcol2'`, "col1\tcol2"},
 	}
 
 	for _, c := range cases {

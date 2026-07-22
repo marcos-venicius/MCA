@@ -84,10 +84,16 @@ func TestStringLiteralAndEscapes(t *testing.T) {
 	if toks[0].Value != `\r\n` {
 		t.Fatalf("raw \\r\\n escape value mismatch: got %q", toks[0].Value)
 	}
+
+	// every C-style escape is accepted by the lexer and kept raw.
+	toks = eqKinds(t, `'\t\0\b\f\v\a'`, []TokenKind{String})
+	if toks[0].Value != `\t\0\b\f\v\a` {
+		t.Fatalf("raw C-style escape value mismatch: got %q", toks[0].Value)
+	}
 }
 
 func TestInvalidEscapeIsError(t *testing.T) {
-	l := New("test.mca", `'a\tb'`)
+	l := New("test.mca", `'a\zb'`)
 	toks := l.Tokenize()
 
 	if toks != nil {
@@ -95,7 +101,7 @@ func TestInvalidEscapeIsError(t *testing.T) {
 	}
 
 	if len(l.Errors) == 0 {
-		t.Fatalf("expected an error for invalid escape \\t")
+		t.Fatalf("expected an error for invalid escape \\z")
 	}
 }
 
