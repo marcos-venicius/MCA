@@ -43,7 +43,7 @@ func builtinArgv(in *Interp, c *Call) Value {
 //
 //   - starts with '.'   -- './lexer.mca', relative to the importing file
 //   - absolute          -- '/opt/mca/lexer.mca'
-//   - ends in '.mca'    -- 'lib/lexer.mca', relative to the working directory
+//   - ends in '.mca'    -- 'lib/lexer.mca', looked up on the search path
 //
 // Anything else ('crypt') is a package name, and is never looked for on disk.
 // A bare name therefore cannot be silently shadowed by a file that happens to
@@ -51,6 +51,30 @@ func builtinArgv(in *Interp, c *Call) Value {
 // existing file import resolves to.
 func isModulePath(s string) bool {
 	return strings.HasPrefix(s, ".") || filepath.IsAbs(s) || strings.HasSuffix(s, ".mca")
+}
+
+// searchPathEnv is the environment variable that holds import()'s search path:
+// a list of directories, in the platform's PATH format (':'-separated on Unix),
+// searched in order for a "complete name" import like 'json.mca'.
+const searchPathEnv = "MCA_SEARCH_PATHS"
+
+// moduleSearchPaths returns the directories listed in MCA_SEARCH_PATHS, in the
+// order they were given, with empty entries dropped. An unset or empty variable
+// yields no paths, in which case a complete-name import falls back to its old
+// working-directory-relative behavior.
+func moduleSearchPaths() []string {
+	raw := os.Getenv(searchPathEnv)
+	if raw == "" {
+		return nil
+	}
+
+	var dirs []string
+	for dir := range strings.SplitSeq(raw, string(os.PathListSeparator)) {
+		if dir != "" {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
 }
 
 // ResolvePath resolves a user-supplied file path the way import() resolves a
@@ -75,6 +99,35 @@ func (c *Call) ResolvePath(path string) string {
 	return combined
 }
 
+// resolveImportPath resolves the argument to import() to a file on disk. It
+// extends ResolvePath with one rule that only import() gets -- deliberately not
+// the shared filesystem helpers, so io.read_entire_file and friends keep
+// resolving paths exactly as before:
+//
+// A "complete name" -- one that reaches here ending in '.mca' but neither
+// '.'-prefixed nor absolute, e.g. 'json.mca' or 'lib/json.mca' -- is looked up
+// against the MCA_SEARCH_PATHS directories, in order, and the first one that
+// holds it wins. If no search path holds it (or none are configured), the name
+// falls back to the ordinary ResolvePath behavior: working-directory-relative,
+// exactly as it resolved before the search path existed.
+//
+// '.'-prefixed and absolute paths never touch the search path; they defer
+// straight to ResolvePath.
+func (c *Call) resolveImportPath(path string) string {
+	if strings.HasPrefix(path, ".") || filepath.IsAbs(path) {
+		return c.ResolvePath(path)
+	}
+
+	for _, dir := range moduleSearchPaths() {
+		candidate := filepath.Join(dir, path)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+	}
+
+	return c.ResolvePath(path)
+}
+
 // builtinImport implements import(), which resolves one of two things.
 //
 // A bare name is a native package (internal/packages/...): import() hands back
@@ -85,9 +138,10 @@ func (c *Call) ResolvePath(path string) string {
 // A path (see isModulePath) is an MCA file, whose value is whatever its last
 // statement evaluated to -- by convention a map of the names it means to
 // export. A `.`-prefixed path resolves relative to the *importing file's own
-// directory* (via c.Site.Filename), not the working directory. Every call
-// re-lexes/re-parses/re-runs the file from scratch in a brand new Interp with
-// no shared environment and no caching.
+// directory* (via c.Site.Filename); an absolute path is used as-is; and a
+// complete name like 'json.mca' is looked up on MCA_SEARCH_PATHS (see
+// resolveImportPath). Every call re-lexes/re-parses/re-runs the file from
+// scratch in a brand new Interp with no shared environment and no caching.
 // TODO: I didn't tested this code cross-platform. I have no idea of how this is gonna behave on Windows for example.
 // TODO: We're not caching the import evaluation. For now, Everytime you import the same module it's gaonna be reevaluated.
 func builtinImport(in *Interp, c *Call) Value {
@@ -105,7 +159,7 @@ func builtinImport(in *Interp, c *Call) Value {
 		return MapV(moduleValue(m))
 	}
 
-	resolved := c.ResolvePath(pathArg)
+	resolved := c.resolveImportPath(pathArg)
 
 	content, err := os.ReadFile(resolved)
 	if err != nil {

@@ -22,7 +22,7 @@ MCA supports dynamic data typing with automatic coercion when performing mathema
 - **Integer**: 64-bit signed integer. Supports the bitwise operators `<<`, `>>`, `&` (and), `|` (or), binary `~` (xor — `^` already means power), and prefix `~` (bitwise not); all of them are int-only, with no float/bool coercion. `>>` is an arithmetic shift (the sign is preserved), and a negative shift count is a runtime error. Precedence follows Lua rather than C: `&` over `~` over `|`, all binding tighter than the comparisons (so `a ~ b == c` is `(a ~ b) == c`) and looser than the shifts, which sit just below `+`/`-`.
 - **Float**: 64-bit floating point number.
 - **Boolean**: `true` or `false`.
-- **String**: Single-quoted character sequences (e.g. `'hello world'`), with a small set of escapes: `\\`, `\'`, `\n`.
+- **String**: Single-quoted character sequences (e.g. `'hello world'`), with a set of C-style escapes: `\\`, `\'`, `\n`, `\r`, `\t`, `\0` (NUL), `\b`, `\f`, `\v`, `\a`. Any other `\x` sequence is a lex error.
 - **Array**: Ordered, mutable, growable list of any values (including other arrays and maps).
 - **Map**: Key-value data structure. Keys are always `int` or `string`; values may be any type, arrays and maps included.
 - **Function**: First-class, closure-capturing, callable values.
@@ -241,6 +241,18 @@ println(utils.is_digit('7'))   # true
 
 A leading `.` resolves relative to the *importing file's* own directory, so modules can `import()` each other regardless of the caller's working directory. See [`examples/module/`](./examples/module/) for a complete multi-file example.
 
+**A bare `.mca` name is searched on a path.** A file import that is neither `.`-relative nor absolute — a "complete name" like `'json.mca'` or `'lib/json.mca'` — is looked up against the directories listed in the `MCA_SEARCH_PATHS` environment variable, in order, and the first directory that holds the file wins. This is how a program pulls in a shared library without hard-coding where it lives:
+
+```bash
+export MCA_SEARCH_PATHS='/usr/local/lib/mca:/home/me/mca-libs'
+```
+
+```r
+json = import('json.mca')   # found in the first search-path dir that has it
+```
+
+If the variable is unset, or none of its directories hold the file, resolution falls back to the old behavior: the name is resolved relative to the current working directory. The search path applies **only** to `import()`, not to filesystem builtins like `io.read_entire_file`.
+
 **A bare name is a package.** Packages are builtins that ship with MCA but are *not* bound to any name until a program asks for them, which keeps the global scope small — a program that doesn't do crypto never sees `crypt`. Nothing is read from disk, and the value you get back is an ordinary map, so it behaves exactly like a file module:
 
 ```r
@@ -256,7 +268,7 @@ The two cases never overlap, so adding a package can't change what an existing f
 | --- | --- |
 | `'./lexer.mca'` | file, relative to the **importing file's** directory |
 | `'/opt/mca/lexer.mca'` | file, absolute path |
-| `'lib/lexer.mca'` | file, relative to the working directory |
+| `'lib/lexer.mca'` | file, searched on `MCA_SEARCH_PATHS`, then the working directory |
 | `'crypt'` | package — never looked for on disk |
 
 Anything that isn't a path (no leading `.`, not absolute, no `.mca` suffix) is a package name, and importing one that doesn't exist is a runtime error. Run `help()` to list the available packages, `help('crypt')` for one package's functions, and `help('crypt.md5')` for a single function. Available packages:

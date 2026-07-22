@@ -5,6 +5,8 @@ import (
 	"io"
 	"math"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -1685,5 +1687,163 @@ func BenchmarkArithLoop(b *testing.B) {
 		if _, err := in.Run(prog.Stmts); err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+// runFile lexes/parses/runs src as though it lived at filename (so import()'s
+// caller-relative resolution has a real directory to work from) and returns the
+// program's value. It fails the test on any lex, parse, or runtime error.
+func runFile(t *testing.T, filename, src string) Value {
+	t.Helper()
+
+	l := lexer.New(filename, src)
+	toks := l.Tokenize()
+	if len(l.Errors) > 0 {
+		t.Fatalf("%q: lex errors: %v", src, l.Errors)
+	}
+
+	prog := parser.Parse(filename, toks)
+	if len(prog.Errors) > 0 {
+		t.Fatalf("%q: parse errors: %v", src, prog.Errors)
+	}
+
+	in := newTestInterp()
+	got, err := in.Run(prog.Stmts)
+	if err != nil {
+		t.Fatalf("%q: unexpected runtime error: %v", src, err)
+	}
+	return got
+}
+
+// writeModule writes a one-file MCA module whose imported value is the integer
+// n, so a test can tell which file an import() resolved to.
+func writeModule(t *testing.T, dir, name string, n int) {
+	t.Helper()
+
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(strconv.Itoa(n)), 0o644); err != nil {
+		t.Fatalf("write module %s/%s: %v", dir, name, err)
+	}
+}
+
+func TestModuleSearchPathsParsing(t *testing.T) {
+	sep := string(os.PathListSeparator)
+
+	t.Setenv("MCA_SEARCH_PATHS", "")
+	if got := moduleSearchPaths(); got != nil {
+		t.Fatalf("empty env: want nil, got %v", got)
+	}
+
+	t.Setenv("MCA_SEARCH_PATHS", "/a")
+	if got := moduleSearchPaths(); len(got) != 1 || got[0] != "/a" {
+		t.Fatalf("single: want [/a], got %v", got)
+	}
+
+	t.Setenv("MCA_SEARCH_PATHS", "/a"+sep+"/b"+sep+"/c")
+	if got := moduleSearchPaths(); len(got) != 3 || got[0] != "/a" || got[1] != "/b" || got[2] != "/c" {
+		t.Fatalf("multi: want [/a /b /c] in order, got %v", got)
+	}
+
+	// empty segments (leading/trailing/double separators) are dropped.
+	t.Setenv("MCA_SEARCH_PATHS", sep+"/a"+sep+sep+"/b"+sep)
+	if got := moduleSearchPaths(); len(got) != 2 || got[0] != "/a" || got[1] != "/b" {
+		t.Fatalf("empty segments: want [/a /b], got %v", got)
+	}
+}
+
+func TestImportCompleteNameResolvesOnSearchPath(t *testing.T) {
+	dir := t.TempDir()
+	writeModule(t, dir, "json.mca", 42)
+	t.Setenv("MCA_SEARCH_PATHS", dir)
+
+	got := runFile(t, filepath.Join(t.TempDir(), "prog.mca"), "import('json.mca')")
+	if intOf(got) != 42 {
+		t.Fatalf("import('json.mca') = %v, want 42", got)
+	}
+}
+
+func TestImportSearchPathHonorsOrder(t *testing.T) {
+	sep := string(os.PathListSeparator)
+	first, second := t.TempDir(), t.TempDir()
+	writeModule(t, first, "lib.mca", 1)
+	writeModule(t, second, "lib.mca", 2)
+
+	// first directory listed wins even though both hold the file.
+	t.Setenv("MCA_SEARCH_PATHS", first+sep+second)
+	if got := runFile(t, "prog.mca", "import('lib.mca')"); intOf(got) != 1 {
+		t.Fatalf("first-wins: import('lib.mca') = %v, want 1", got)
+	}
+
+	// swapping the order swaps the winner.
+	t.Setenv("MCA_SEARCH_PATHS", second+sep+first)
+	if got := runFile(t, "prog.mca", "import('lib.mca')"); intOf(got) != 2 {
+		t.Fatalf("swapped: import('lib.mca') = %v, want 2", got)
+	}
+}
+
+func TestImportSearchPathSkipsDirsWithoutTheFile(t *testing.T) {
+	sep := string(os.PathListSeparator)
+	empty, holding := t.TempDir(), t.TempDir()
+	writeModule(t, holding, "lib.mca", 7)
+
+	// the first directory lacks the file, so resolution keeps scanning.
+	t.Setenv("MCA_SEARCH_PATHS", empty+sep+holding)
+	if got := runFile(t, "prog.mca", "import('lib.mca')"); intOf(got) != 7 {
+		t.Fatalf("skip-empty: import('lib.mca') = %v, want 7", got)
+	}
+}
+
+func TestImportRelativePathIgnoresSearchPath(t *testing.T) {
+	callerDir := t.TempDir()
+	writeModule(t, callerDir, "dep.mca", 10)
+
+	decoy := t.TempDir()
+	writeModule(t, decoy, "dep.mca", 20)
+	t.Setenv("MCA_SEARCH_PATHS", decoy)
+
+	// './dep.mca' resolves next to the importing file, never the search path.
+	got := runFile(t, filepath.Join(callerDir, "main.mca"), "import('./dep.mca')")
+	if intOf(got) != 10 {
+		t.Fatalf("import('./dep.mca') = %v, want 10 (caller-relative, not the decoy)", got)
+	}
+}
+
+func TestImportAbsolutePathIgnoresSearchPath(t *testing.T) {
+	realDir := t.TempDir()
+	writeModule(t, realDir, "dep.mca", 33)
+	abs := filepath.Join(realDir, "dep.mca")
+
+	decoy := t.TempDir()
+	writeModule(t, decoy, "dep.mca", 44)
+	t.Setenv("MCA_SEARCH_PATHS", decoy)
+
+	got := runFile(t, "prog.mca", "import('"+abs+"')")
+	if intOf(got) != 33 {
+		t.Fatalf("absolute import = %v, want 33 (used as-is, not the decoy)", got)
+	}
+}
+
+func TestImportCompleteNameFallsBackToWorkingDir(t *testing.T) {
+	// with the file absent from every search path, a complete name keeps its
+	// old working-directory-relative behavior.
+	work := t.TempDir()
+	writeModule(t, work, "mod.mca", 99)
+	t.Chdir(work)
+	t.Setenv("MCA_SEARCH_PATHS", t.TempDir()) // a path that does not hold mod.mca
+
+	if got := runFile(t, "prog.mca", "import('mod.mca')"); intOf(got) != 99 {
+		t.Fatalf("fallback: import('mod.mca') = %v, want 99", got)
+	}
+}
+
+func TestImportCompleteNameWithoutSearchPathEnv(t *testing.T) {
+	// unset variable: a complete name resolves working-directory-relative,
+	// exactly as it did before the search path existed.
+	work := t.TempDir()
+	writeModule(t, work, "mod.mca", 5)
+	t.Chdir(work)
+	t.Setenv("MCA_SEARCH_PATHS", "")
+
+	if got := runFile(t, "prog.mca", "import('mod.mca')"); intOf(got) != 5 {
+		t.Fatalf("no-env: import('mod.mca') = %v, want 5", got)
 	}
 }
