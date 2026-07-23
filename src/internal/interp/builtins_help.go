@@ -41,8 +41,7 @@ var helpCategories = []struct {
 		"println", "print", "exit", "argc", "argv",
 	}},
 	{"Language", []string{
-		"import", "type", "is_int", "is_float", "is_bool", "is_string",
-		"is_unit", "is_array", "is_map", "is_fn", "len", "help",
+		"import", "type", "is_typeof", "len", "help",
 	}},
 	{"Casting", []string{
 		"as_int", "as_float", "as_bool", "as_string",
@@ -144,20 +143,14 @@ var helpDocs = map[string]Doc{
 			`type(4.4)  ->  'float'`,
 		},
 	},
-	"is_int":    isDoc("int"),
-	"is_float":  isDoc("float"),
-	"is_bool":   isDoc("bool"),
-	"is_string": isDoc("string"),
-	"is_unit":   isDoc("unit"),
-	"is_array":  isDoc("array"),
-	"is_map":    isDoc("map"),
-	"is_fn": {
-		Params:      []Param{p("value", "any")},
+	"is_typeof": {
+		Params:      []Param{p("value", "any"), p("type", "string")},
 		Returns:     "bool",
-		Description: "True if value is a function: a closure created with \\(...) -> ..., a builtin, or a package function -- they are all ordinary values of kind 'fn'.",
+		Description: `True if value's kind is type, which must be one of: "unit", "int", "float", "bool", "string", "array", "map", "fn" -- any other name is a runtime error. 'fn' covers every callable alike: a closure created with \(...) -> ..., a builtin, or a package function.`,
 		Examples: []string{
-			`is_fn(\(x) -> x)  ->  true`,
-			`is_fn(len)  ->  true`,
+			`is_typeof(4, 'int')  ->  true`,
+			`is_typeof(4, 'float')  ->  false`,
+			`is_typeof(len, 'fn')  ->  true`,
 		},
 	},
 	"len": {
@@ -326,16 +319,6 @@ var helpDocs = map[string]Doc{
 		Description: "Current Unix time, in whole milliseconds. Unlike year/month/date/day/hour/minute/second, this takes no offset argument.",
 		Examples:    []string{`millisecond()`},
 	},
-}
-
-// isDoc builds the shared doc shape for the is_<kind> family.
-func isDoc(kind string) Doc {
-	return Doc{
-		Params:      []Param{p("value", "any")},
-		Returns:     "bool",
-		Description: "True if value's kind is " + kind + ".",
-		Examples:    []string{"is_" + kind + "(...)"},
-	}
 }
 
 // dtDoc builds the shared doc shape for the hour-offset datetime builtins

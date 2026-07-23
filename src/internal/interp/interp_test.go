@@ -371,16 +371,19 @@ func TestCallBuiltinFunctions(t *testing.T) {
 	checkArgs(t, "argc()", tInt(1), "fakename.mca")
 	checkArgs(t, "argv(0)", tString("fakename.mca"), "fakename.mca")
 	checkArgs(t, "argv(1)", tString("fakearg"), "fakename.mca", "fakearg")
-	check(t, "is_int(1)", tBool(true))
-	check(t, "is_int(1.3)", tBool(false))
-	check(t, "is_float(1)", tBool(false))
-	check(t, "is_float(1.3)", tBool(true))
-	check(t, "is_string(1)", tBool(false))
-	check(t, "is_string('1.3')", tBool(true))
-	check(t, "is_bool(1)", tBool(false))
-	check(t, "is_bool(false)", tBool(true))
-	check(t, "is_unit(1)", tBool(false))
-	check(t, "is_unit(?)", tBool(true))
+	check(t, "is_typeof(1, 'int')", tBool(true))
+	check(t, "is_typeof(1.3, 'int')", tBool(false))
+	check(t, "is_typeof(1, 'float')", tBool(false))
+	check(t, "is_typeof(1.3, 'float')", tBool(true))
+	check(t, "is_typeof(1, 'string')", tBool(false))
+	check(t, "is_typeof('1.3', 'string')", tBool(true))
+	check(t, "is_typeof(1, 'bool')", tBool(false))
+	check(t, "is_typeof(false, 'bool')", tBool(true))
+	check(t, "is_typeof(1, 'unit')", tBool(false))
+	check(t, "is_typeof(?, 'unit')", tBool(true))
+	check(t, "is_typeof([], 'array')", tBool(true))
+	check(t, "is_typeof({}, 'map')", tBool(true))
+	check(t, "is_typeof([], 'map')", tBool(false))
 	check(t, "'Hello, World'[7]", tString("W"))
 }
 
@@ -635,6 +638,22 @@ func TestTypeCasting(t *testing.T) {
 	check(t, "as_string(0.5)", tString("0.5"))
 }
 
+// is_typeof takes the kind to test for as a string, so a name that isn't one
+// of type()'s eight kinds is a runtime error rather than a silent false.
+func TestIsTypeof(t *testing.T) {
+	check(t, `is_typeof(\(x) -> x, 'fn')`, tBool(true))
+	check(t, "is_typeof(1, type(1))", tBool(true)) // type()'s output round-trips
+	check(t, "is_typeof(1.5, type(1.5))", tBool(true))
+	check(t, "is_typeof([], type([]))", tBool(true))
+
+	expectRuntimeError(t, "is_typeof(1, 'number')") // no such kind
+	expectRuntimeError(t, "is_typeof(1, 'Int')")    // kind names are lowercase
+	expectRuntimeError(t, "is_typeof(1, '')")
+	expectRuntimeError(t, "is_typeof(1, 2)") // the kind must be a string
+	expectRuntimeError(t, "is_typeof(1)")    // both arguments are required
+	expectRuntimeError(t, "is_typeof(1, 'int', 'float')")
+}
+
 // Floats print and stringify as the shortest decimal that round-trips, never
 // in scientific notation -- an exact 1.32 is "1.32", not "1.320000". print,
 // println, and as_string all share this via FormatFloat.
@@ -790,7 +809,7 @@ func TestConstParseErrors(t *testing.T) {
 
 func TestBuiltinsAreFirstClassValues(t *testing.T) {
 	check(t, `type(len)`, tString("fn"))
-	check(t, `is_fn(sort)`, tBool(true))
+	check(t, `is_typeof(sort, 'fn')`, tBool(true))
 
 	// Stored in a variable, then called through it.
 	check(t, `f = len; f('hi')`, tInt(2))
@@ -1312,17 +1331,17 @@ func TestContainsArray(t *testing.T) {
 // map can be pre-shaped with the keys it will hold before it holds them.
 func TestMapShorthandKeysInitializeToUnit(t *testing.T) {
 	check(t, "{a}['a']", tUnit())
-	check(t, "is_unit({a}['a'])", tBool(true))
+	check(t, "is_typeof({a}['a'], 'unit')", tBool(true))
 	check(t, "len({a, b, c})", tInt(3))
 
 	// The key is the identifier's *name*, exactly as in `{'a': ...}` -- it is
 	// not evaluated as a variable, so an `a` in scope is irrelevant.
 	check(t, "a = 'zzz'; keys({a})[0]", tString("a"))
-	check(t, "a = 'zzz'; is_unit({a}['a'])", tBool(true))
+	check(t, "a = 'zzz'; is_typeof({a}['a'], 'unit')", tBool(true))
 
 	// Non-identifier keys take the shorthand too, and keep their own kind.
-	check(t, "is_unit({1, 2}[1])", tBool(true))
-	check(t, "is_unit({'a'}['a'])", tBool(true))
+	check(t, "is_typeof({1, 2}[1], 'unit')", tBool(true))
+	check(t, "is_typeof({'a'}['a'], 'unit')", tBool(true))
 	check(t, "len({a,})", tInt(1)) // trailing comma
 }
 
@@ -1331,7 +1350,7 @@ func TestMapShorthandKeysInitializeToUnit(t *testing.T) {
 // one literal is what catches it -- either branch alone looks fine.
 func TestMapShorthandAndExplicitValuesMix(t *testing.T) {
 	check(t, "{a: 1, b, 'c': 3}['a']", tInt(1))
-	check(t, "is_unit({a: 1, b, 'c': 3}['b'])", tBool(true))
+	check(t, "is_typeof({a: 1, b, 'c': 3}['b'], 'unit')", tBool(true))
 	check(t, "{a: 1, b, 'c': 3}['c']", tInt(3))
 	check(t, "len({a: 1, b, 'c': 3})", tInt(3))
 
@@ -1357,7 +1376,7 @@ func TestMapLiteralDuplicateKeysLastOneWins(t *testing.T) {
 	// The shorthand is an entry like any other, so it both overwrites and is
 	// overwritten -- a trailing `a` resets an earlier `a: 1` back to unit.
 	check(t, "{a, a: 1}['a']", tInt(1))
-	check(t, "is_unit({a: 1, a}['a'])", tBool(true))
+	check(t, "is_typeof({a: 1, a}['a'], 'unit')", tBool(true))
 	check(t, "len({a, a})", tInt(1))
 
 	// Later entries overwrite, but they do not disturb the other keys.

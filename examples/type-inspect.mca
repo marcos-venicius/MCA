@@ -34,7 +34,7 @@ m = {}
 arr = []
 fn = \() ->;
 
-println(m, is_map(m), type(m))
-println(arr, is_array(arr), type(arr))
-println(fn, is_fn(fn), type(fn))
+println(m, is_typeof(m, 'map'), type(m))
+println(arr, is_typeof(arr, 'array'), type(arr))
+println(fn, is_typeof(fn, 'fn'), type(fn))
 # vim: set syntax=r :

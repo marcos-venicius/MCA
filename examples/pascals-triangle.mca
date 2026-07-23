@@ -23,8 +23,8 @@ if argc() != 2  usage(?)
 
 NUM_ROWS = as_int(argv(1))
 
-if (NUM_ROWS <= 0)    usage(string.format('error: invalid triangle height: ', NUM_ROWS))
-if !is_int(NUM_ROWS)  usage(string.format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
+if (NUM_ROWS <= 0)              usage(string.format('error: invalid triangle height: ', NUM_ROWS))
+if !is_typeof(NUM_ROWS, 'int')  usage(string.format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2

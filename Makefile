@@ -1,5 +1,9 @@
 ./bin/mca:
-	cd src && go build -o ../bin/mca cmd/mca/main.go 
+	cd src && go build -o ../bin/mca cmd/mca/main.go
+
+deploy:
+	cd src && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o ../bin/mca cmd/mca/main.go
+
 
 exec_examples:
 	out=$$(./bin/mca ./examples/io.mca 20 20); echo "$$out" | grep -v "FILE(.*)"; echo $$out | grep -Po "(?<=FILE\().*(?=\))" | xargs rm
@@ -32,4 +36,4 @@ exec_examples:
 clean:
 	rm ./bin/mca
 
-.PHONY: ./bin/mca exec_examples
+.PHONY: deploy clean ./bin/mca exec_examples

@@ -6,11 +6,31 @@ import (
 	"mca/internal/ast"
 )
 
-func isTypeBuiltin(kind Kind) BuiltinFn {
-	return func(in *Interp, c *Call) Value {
-		v := c.Args[0]
-		return BoolV(v.Kind() == kind)
+func isTypeOfBuiltin(in *Interp, c *Call) Value {
+	typ := stringOf(expectKindAt(c.At(1), c.Args[1], KString))
+
+	switch typ {
+	case "unit":
+		return BoolV(c.Args[0].Kind() == KUnit)
+	case "int":
+		return BoolV(c.Args[0].Kind() == KInt)
+	case "float":
+		return BoolV(c.Args[0].Kind() == KFloat)
+	case "bool":
+		return BoolV(c.Args[0].Kind() == KBool)
+	case "string":
+		return BoolV(c.Args[0].Kind() == KString)
+	case "array":
+		return BoolV(c.Args[0].Kind() == KArray)
+	case "map":
+		return BoolV(c.Args[0].Kind() == KMap)
+	case "fn":
+		return BoolV(c.Args[0].Kind() == KFn)
 	}
+
+	throw(c.At(1), "value type '%s' does not exist", typ)
+
+	return BoolV(false)
 }
 
 func builtinType(in *Interp, c *Call) Value {

@@ -310,8 +310,8 @@ if argc() != 2  usage(?)
 
 NUM_ROWS = as_int(argv(1))
 
-if (NUM_ROWS <= 0)    usage(string.format('error: invalid triangle height: ', NUM_ROWS))
-if !is_int(NUM_ROWS)  usage(string.format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
+if (NUM_ROWS <= 0)              usage(string.format('error: invalid triangle height: ', NUM_ROWS))
+if !is_typeof(NUM_ROWS, 'int')  usage(string.format('error: invalid triangle height: ', NUM_ROWS, '. it should be an integer value.'))
 
 n = NUM_ROWS - 1
 k = if (n % 2 == 0) n / 2 else (n - 1) / 2
@@ -357,7 +357,7 @@ More examples, each focused on a specific feature, live in [`examples/`](./examp
 - [`user-defined-functions.mca`](./examples/user-defined-functions.mca) — closures over global/lexical scope, passing functions as arguments
 - [`module/`](./examples/module/) — a multi-file program using `import()`
 - [`crypt.mca`](./examples/crypt.mca) — importing a package, and `help()` on it
-- [`type-casting.mca`](./examples/type-casting.mca), [`type-inspect.mca`](./examples/type-inspect.mca) — `as_*`/`is_*`/`type()`
+- [`type-casting.mca`](./examples/type-casting.mca), [`type-inspect.mca`](./examples/type-inspect.mca) — `as_*`/`is_typeof()`/`type()`
 
 ## 3. Standard Library
 
@@ -367,7 +367,7 @@ The standard library is split in two. **Builtins** are always bound, no import n
 
 ### Type Checking, Casting, and Introspection
 - **`type(x)`**: returns the type name as a string — one of `'unit'`, `'int'`, `'float'`, `'bool'`, `'string'`, `'array'`, `'map'`, `'fn'`.
-- **`is_int(x)`**, **`is_float(x)`**, **`is_bool(x)`**, **`is_string(x)`**, **`is_array(x)`**, **`is_map(x)`**, **`is_fn(x)`**, **`is_unit(x)`**
+- **`is_typeof(x, type)`**: `true` if `x`'s type name is `type` — `is_typeof(4, 'int')`. `type` must be one of the eight names above; anything else is a runtime error, so a typo can't quietly answer `false`.
 - **`as_int(x)`**, **`as_float(x)`**, **`as_string(x)`** — cast between int/float/bool/string; accept numeric-looking strings and raise a runtime error on invalid input.
 - **`as_bool(x)`** — follows the [truthiness](#truthiness) rules above (so `as_bool('')` is `false`, `as_bool('x')` is `true` — it's not a `'true'`/`'false'` string parse).
 

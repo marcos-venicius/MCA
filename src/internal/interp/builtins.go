@@ -48,14 +48,7 @@ func init() {
 		"as_float":  native("as_float", 1, builtinAsFloat),
 		"as_bool":   native("as_bool", 1, builtinAsBool),
 		"as_string": native("as_string", 1, builtinAsString),
-		"is_int":    native("is_int", 1, isTypeBuiltin(KInt)),
-		"is_float":  native("is_float", 1, isTypeBuiltin(KFloat)),
-		"is_bool":   native("is_bool", 1, isTypeBuiltin(KBool)),
-		"is_string": native("is_string", 1, isTypeBuiltin(KString)),
-		"is_unit":   native("is_unit", 1, isTypeBuiltin(KUnit)),
-		"is_array":  native("is_array", 1, isTypeBuiltin(KArray)),
-		"is_map":    native("is_map", 1, isTypeBuiltin(KMap)),
-		"is_fn":     native("is_fn", 1, isTypeBuiltin(KFn)),
+		"is_typeof": native("is_typeof", 2, isTypeOfBuiltin),
 		"len":       native("len", 1, builtinLen),
 
 		// Maps (text manipulation lives in the 'string' package)
